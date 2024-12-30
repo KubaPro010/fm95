@@ -37,23 +37,34 @@ void float_array_to_s16le(const float *input, int16_t *output, size_t num_sample
 }
 
 #define M_2PI (3.14159265358979323846 * 2.0)
+#define M_PI_2 (3.14159265358979323846 / 2.0)
 
-// Track phase continuously to maintain frequency accuracy
 typedef struct {
     float phase;
     float phase_increment;
+    float quadrature_phase;
 } Oscillator;
 
 void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
     osc->phase = 0.0f;
+    osc->quadrature_phase = M_PI_2;  // 90 degrees phase shift
     osc->phase_increment = (M_2PI * frequency) / sample_rate;
 }
 
-float get_next_sample(Oscillator *osc) {
-    float sample = sinf(osc->phase);
-    osc->phase += osc->phase_increment;
-    if (osc->phase >= M_2PI) {
-        osc->phase -= M_2PI;
+float get_next_sample(Oscillator *osc, int quadrature) {
+    float sample;
+    if (quadrature) {
+        sample = sinf(osc->quadrature_phase);
+        osc->quadrature_phase += osc->phase_increment;
+        if (osc->quadrature_phase >= M_2PI) {
+            osc->quadrature_phase -= M_2PI;
+        }
+    } else {
+        sample = sinf(osc->phase);
+        osc->phase += osc->phase_increment;
+        if (osc->phase >= M_2PI) {
+            osc->phase -= M_2PI;
+        }
     }
     return sample;
 }
@@ -174,9 +185,9 @@ int main() {
         mono_s16le_to_float(input_rds, rds_data, BUFFER_SIZE);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            float pilot = get_next_sample(&pilot_osc);
-            float stereo_carrier = get_next_sample(&stereo_osc);
-            float rds_carrier = get_next_sample(&rds_osc);
+            float pilot = get_next_sample(&pilot_osc, 0);
+            float stereo_carrier = get_next_sample(&stereo_osc, 0);
+            float rds_carrier = get_next_sample(&rds_osc, 1);
 
             float mono = (left[i] + right[i]) / 2.0f;
             float stereo = (left[i] - right[i]) / 2.0f;
