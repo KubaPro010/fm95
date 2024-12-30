@@ -26,7 +26,7 @@ void stereo_s16le_to_float(const int16_t *input, float *left, float *right, size
 }
 void mono_s16le_to_float(const int16_t *input, float *output, size_t num_samples) {
     for (size_t i = 0; i < num_samples; i++) {
-        output[i] = input[i * 2] * format_scale;
+        output[i] = input[i] * format_scale;
     }
 }
 
@@ -195,6 +195,7 @@ int main() {
     }
     printf("Cleaning up...\n");
     pa_simple_free(input_device);
+    pa_simple_free(input_device_rds);
     pa_simple_free(output_device);
     return 0;
 }
