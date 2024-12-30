@@ -8,7 +8,7 @@
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
-#define CLIPPER_THRESHOLD 0.7
+#define CLIPPER_THRESHOLD 0.5 // Adjust this as needed
 
 #define MONO_VOLUME 0.5f // L+R Signal
 #define PILOT_VOLUME 0.025f // 19 KHz Pilot
