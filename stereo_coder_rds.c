@@ -39,9 +39,6 @@ void float_array_to_s16le(const float *input, int16_t *output, size_t num_sample
 #ifndef M_2PI
 #define M_2PI (3.14159265358979323846 * 2.0)
 #endif
-#ifndef M_PI_2
-#define M_PI_2 (3.14159265358979323846 / 2.0)
-#endif
 
 typedef struct {
     float phase;
@@ -51,20 +48,19 @@ typedef struct {
 
 void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
     osc->phase = 0.0f;
-    osc->quadrature_phase = M_PI_2;  // 90 degrees phase shift
     osc->phase_increment = (M_2PI * frequency) / sample_rate;
 }
 
 float get_next_sample(Oscillator *osc, int quadrature) {
     float sample;
     if (quadrature) {
-        sample = sinf(osc->quadrature_phase);
-        osc->quadrature_phase += osc->phase_increment;
-        if (osc->quadrature_phase >= M_2PI) {
-            osc->quadrature_phase -= M_2PI;
+        sample = sinf(osc->phase);
+        osc->phase += osc->phase_increment;
+        if (osc->phase >= M_2PI) {
+            osc->phase -= M_2PI;
         }
     } else {
-        sample = sinf(osc->phase);
+        sample = cosf(osc->phase);
         osc->phase += osc->phase_increment;
         if (osc->phase >= M_2PI) {
             osc->phase -= M_2PI;
