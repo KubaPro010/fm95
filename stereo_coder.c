@@ -70,14 +70,16 @@ float get_next_sample(Oscillator *osc) {
 #ifdef PREEMPHASIS
 typedef struct {
     float prev_sample;
+    float alpha;
 } PreEmphasis;
 
 void init_pre_emphasis(PreEmphasis *pe) {
     pe->prev_sample = 0.0f;
+    pe->alpha = exp(-1 / (PREEMPHASIS_TAU*SAMPLE_RATE));
 }
 float apply_pre_emphasis(PreEmphasis *pe, float sample) {
-    float output = sample - pe->prev_sample * (1.0f - (1 - exp(-1.0 / (SAMPLE_RATE * PREEMPHASIS_TAU))));
-    pe->prev_sample = sample;
+    float output = sample - pe->alpha * pe->prev_sample;
+    pe->prev_sample = output;
     return output;
 }
 #endif
