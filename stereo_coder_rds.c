@@ -155,8 +155,9 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    int16_t input[BUFFER_SIZE*2], input_rds[BUFFER_SIZE];
-    float rds[BUFFER_SIZE];
+    int16_t input[BUFFER_SIZE*2];
+    int16_t input_rds[BUFFER_SIZE];
+    float rds_data[BUFFER_SIZE];
     float left[BUFFER_SIZE], right[BUFFER_SIZE];
     float mpx[BUFFER_SIZE];
     int16_t output[BUFFER_SIZE];
@@ -170,7 +171,7 @@ int main() {
             break;
         }
         stereo_s16le_to_float(input, left, right, sizeof(input));
-        mono_s16le_to_float(input_rds, rds, sizeof(input_rds));
+        mono_s16le_to_float(input_rds, rds_data, sizeof(input_rds));
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float pilot = get_next_sample(&pilot_osc);
@@ -179,12 +180,12 @@ int main() {
 
             float mono = (left[i] + right[i]) / 2.0f;
             float stereo = (left[i] - right[i]) / 2.0f;
-            float rds_sample = rds[i];
+            float rds_sample = rds_data[i];
 
             mpx[i] = mono*MONO_VOLUME +
                      (stereo * stereo_carrier)*STEREO_VOLUME +
                      (pilot * PILOT_VOLUME) +
-                     (1.0f * rds_carrier)*RDS_VOLUME;
+                     (rds_sample * rds_carrier)*RDS_VOLUME;
         }
 
         float_array_to_s16le(mpx, output, BUFFER_SIZE);
