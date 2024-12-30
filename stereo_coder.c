@@ -89,7 +89,7 @@ void init_pre_emphasis(PreEmphasis *pe) {
 float apply_pre_emphasis(PreEmphasis *pe, float sample) {
     float audio = sample-pe->alpha*pe->prev_sample;
     pe->prev_sample = audio;
-    return audio;
+    return audio*2;
 }
 #endif
 
