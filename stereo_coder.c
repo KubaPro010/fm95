@@ -28,11 +28,13 @@ float clip(float sample) {
 }
 
 void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
+    // For stereo, usually it is like this: LEFT RIGHT LEFT RIGHT LEFT RIGHT so this is used to get LEFT LEFT LEFT and RIGHT RIGHT RIGHT
     for (size_t i = 0; i < num_samples/2; i++) {
         left[i] = input[i * 2];
         right[i] = input[i * 2 + 1];
     }
 }
+
 
 #define M_2PI (3.14159265358979323846 * 2.0)
 
@@ -65,14 +67,14 @@ static void stop(int signum) {
 int main() {
     printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
     const float SAMPLE_RATE = 192000.0f; // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
-    const float PILOT_FREQ = 19000.0f;
-    const float STEREO_FREQ = 38000.0f;
+    const float PILOT_FREQ = 19000.0f; // Don't touch this
+    const float STEREO_FREQ = 38000.0f; // This too
 
     // Define formats and buffer atributes
     pa_sample_spec stereo_format = {
-        .format = PA_SAMPLE_FLOAT32NE,
+        .format = PA_SAMPLE_FLOAT32NE, //Float32 NE, or Float32 Native Endian, the float in c uses the endianess of your pc, or native endian, and float is float32, and double is float64
         .channels = 2,
-        .rate = SAMPLE_RATE
+        .rate = SAMPLE_RATE // Same sample rate makes it easy, leave the resampling to pipewire, it should know better
     };
     pa_sample_spec mono_format = {
         .format = PA_SAMPLE_FLOAT32NE,
@@ -81,7 +83,7 @@ int main() {
     };
 
     pa_buffer_attr input_buffer_atr = {
-        .maxlength = 4096,
+        .maxlength = 4096, // You can lower this to 512, but this is fine, it's sub-second delay, you're probably not gonna notice unless you're looking for it
 	    .fragsize = 2048
     };
     pa_buffer_attr output_buffer_atr = {
@@ -134,9 +136,9 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    float input[BUFFER_SIZE*2]; // Input from device
-    float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio
-    float mpx[BUFFER_SIZE]; // MPX
+    float input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
+    float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio, same thing as in input but ininterleaved
+    float mpx[BUFFER_SIZE]; // MPX, this goes to the output
     while (to_run) {
         if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
             fprintf(stderr, "Error reading from input device.\n");
