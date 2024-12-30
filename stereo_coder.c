@@ -8,12 +8,23 @@
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
+#define CLIPPER_THRESHOLD 0.7
 
 #define MONO_VOLUME 0.5f // L+R Signal
 #define PILOT_VOLUME 0.025f // 19 KHz Pilot
 #define STEREO_VOLUME 0.275f // L-R signal
 
 volatile sig_atomic_t to_run = 1;
+
+float clip(float sample) {
+    if (sample > CLIPPER_THRESHOLD) {
+        return CLIPPER_THRESHOLD;  // Clip to the upper threshold
+    } else if (sample < -CLIPPER_THRESHOLD) {
+        return -CLIPPER_THRESHOLD;  // Clip to the lower threshold
+    } else {
+        return sample;  // No clipping
+    }
+}
 
 const float format_scale = 1.0f / 32768.0f;
 void stereo_s16le_to_float(const int16_t *input, float *left, float *right, size_t num_samples) {
@@ -144,8 +155,11 @@ int main() {
             float pilot = get_next_sample(&pilot_osc);
             float stereo_carrier = get_next_sample(&stereo_osc);
 
-            float mono = (left[i] + right[i]) / 2.0f;
-            float stereo = (left[i] - right[i]) / 2.0f;
+            float current_left = clip(left[i]);
+            float current_right = clip(right[i]);
+
+            float mono = (current_left + current_right) / 2.0f;
+            float stereo = (current_left - current_right) / 2.0f;
 
             mpx[i] = mono*MONO_VOLUME +
                      (stereo * stereo_carrier)*STEREO_VOLUME +

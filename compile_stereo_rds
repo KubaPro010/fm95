@@ -1,1 +1,0 @@
-gcc stereo_coder_rds.c -lpulse -lpulse-simple -lm -o stereo_coder
