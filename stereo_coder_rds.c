@@ -7,13 +7,14 @@
 
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
+#define RDS_INPUT "RDS.monitor"
 #define BUFFER_SIZE 512
 
 #define MONO_VOLUME 0.5f // L+R Signal
 #define PILOT_VOLUME 0.025f // 19 KHz Pilot
 #define STEREO_VOLUME 0.275f // L-R signal
+#define RDS_VOLUME 0.04f // RDS Signal
 
-#define TWO_BUFFER_SIZE (BUFFER_SIZE*2) // Don't touch this
 volatile sig_atomic_t to_run = 1;
 
 const float format_scale = 1.0f / 32768.0f;
@@ -21,6 +22,11 @@ void stereo_s16le_to_float(const int16_t *input, float *left, float *right, size
     for (size_t i = 0; i < num_samples/2; i++) {
         left[i] = input[i * 2] * format_scale;
         right[i] = input[i * 2 + 1] * format_scale;
+    }
+}
+void mono_s16le_to_float(const int16_t *input, float *output, size_t num_samples) {
+    for (size_t i = 0; i < num_samples; i++) {
+        output[i] = input[i * 2] * format_scale;
     }
 }
 
@@ -60,9 +66,10 @@ static void stop(int signum) {
 
 int main() {
     printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
-    const float SAMPLE_RATE = 192000.0f; // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
+    const float SAMPLE_RATE = 192000.0f; // Don't go lower than 176 KHz
     const float PILOT_FREQ = 19000.0f;
     const float STEREO_FREQ = 38000.0f;
+    const float RDS_FREQ = 57000.0f;
 
     // Define formats and buffer atributes
     pa_sample_spec stereo_format = {
@@ -86,7 +93,7 @@ int main() {
 	    .prebuf = 0
     };
 
-    printf("Connecting to input device... (%s)\n", INPUT_DEVICE);
+    printf("Connecting to input devices... (%s, %s)\n", INPUT_DEVICE, RDS_INPUT);
 
     pa_simple *input_device = pa_simple_new(
         NULL,
@@ -101,6 +108,22 @@ int main() {
     );
     if (!input_device) {
         fprintf(stderr, "Error: cannot open input device.\n");
+        return 1;
+    }
+    pa_simple *input_device_rds = pa_simple_new(
+        NULL,
+        "StereoEncoder",
+        PA_STREAM_RECORD,
+        RDS_INPUT,
+        "Audio Input",
+        &mono_format,
+        NULL,
+        &input_buffer_atr,
+        NULL
+    );
+    if (!input_device_rds) {
+        fprintf(stderr, "Error: cannot open input device.\n");
+        pa_simple_free(input_device);
         return 1;
     }
 
@@ -120,17 +143,20 @@ int main() {
     if (!output_device) {
         fprintf(stderr, "Error: cannot open output device.\n");
         pa_simple_free(input_device);
+        pa_simple_free(input_device_rds);
         return 1;
     }
 
-    Oscillator pilot_osc, stereo_osc;
+    Oscillator pilot_osc, stereo_osc, rds_osc;
     init_oscillator(&pilot_osc, PILOT_FREQ, SAMPLE_RATE);
     init_oscillator(&stereo_osc, STEREO_FREQ, SAMPLE_RATE);
+    init_oscillator(&rds_osc, RDS_FREQ, SAMPLE_RATE);
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    int16_t input[TWO_BUFFER_SIZE];
+    int16_t input[BUFFER_SIZE*2], input_rds[BUFFER_SIZE];
+    float rds[BUFFER_SIZE];
     float left[BUFFER_SIZE], right[BUFFER_SIZE];
     float mpx[BUFFER_SIZE];
     int16_t output[BUFFER_SIZE];
@@ -139,18 +165,26 @@ int main() {
             fprintf(stderr, "Error reading from input device.\n");
             break;
         }
-        stereo_s16le_to_float(input, left, right, TWO_BUFFER_SIZE);
+        if (pa_simple_read(input_device_rds, input_rds, sizeof(input_rds), NULL) < 0) {
+            fprintf(stderr, "Error reading from input device.\n");
+            break;
+        }
+        stereo_s16le_to_float(input, left, right, sizeof(input));
+        mono_s16le_to_float(input_rds, rds, sizeof(input_rds));
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float pilot = get_next_sample(&pilot_osc);
             float stereo_carrier = get_next_sample(&stereo_osc);
+            float rds_carrier = get_next_sample(&rds_osc);
 
             float mono = (left[i] + right[i]) / 2.0f;
             float stereo = (left[i] - right[i]) / 2.0f;
+            float rds_sample = rds[i];
 
             mpx[i] = mono*MONO_VOLUME +
                      (stereo * stereo_carrier)*STEREO_VOLUME +
-                     (pilot * PILOT_VOLUME);
+                     (pilot * PILOT_VOLUME) +
+                     (rds_sample * rds_carrier)*RDS_VOLUME;
         }
 
         float_array_to_s16le(mpx, output, BUFFER_SIZE);
