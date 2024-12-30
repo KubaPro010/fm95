@@ -8,11 +8,11 @@
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
-#define CLIPPER_THRESHOLD 0.5 // Adjust this as needed
+#define CLIPPER_THRESHOLD 0.45 // Adjust this as needed
 
 #define MONO_VOLUME 0.5f // L+R Signal
-#define PILOT_VOLUME 0.025f // 19 KHz Pilot
-#define STEREO_VOLUME 0.275f // L-R signal
+#define PILOT_VOLUME 0.02f // 19 KHz Pilot
+#define STEREO_VOLUME 0.4f // L-R signal
 
 volatile sig_atomic_t to_run = 1;
 
@@ -140,10 +140,10 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    int16_t input[BUFFER_SIZE*2];
-    float left[BUFFER_SIZE], right[BUFFER_SIZE];
-    float mpx[BUFFER_SIZE];
-    int16_t output[BUFFER_SIZE];
+    int16_t input[BUFFER_SIZE*2]; // Input from device
+    float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio
+    float mpx[BUFFER_SIZE]; // MPX
+    int16_t output[BUFFER_SIZE]; // Output to device
     while (to_run) {
         if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
             fprintf(stderr, "Error reading from input device.\n");
@@ -161,9 +161,9 @@ int main() {
             float mono = (current_left + current_right) / 2.0f;
             float stereo = (current_left - current_right) / 2.0f;
 
-            mpx[i] = mono*MONO_VOLUME +
-                     (stereo * stereo_carrier)*STEREO_VOLUME +
-                     (pilot * PILOT_VOLUME);
+            mpx[i] = mono * MONO_VOLUME +
+                pilot * PILOT_VOLUME +
+                (stereo * stereo_carrier) * STEREO_VOLUME;
         }
 
         float_array_to_s16le(mpx, output, BUFFER_SIZE);
