@@ -18,8 +18,8 @@
 #define CLIPPER_THRESHOLD 0.425 // Adjust this as needed
 
 #define MONO_VOLUME 0.45f // L+R Signal
-#define PILOT_VOLUME 0.025f // 19 KHz Pilot
-#define STEREO_VOLUME 0.45f // L-R signal
+#define PILOT_VOLUME 0.0225f // 19 KHz Pilot
+#define STEREO_VOLUME 0.35f // L-R signal
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
