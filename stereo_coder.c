@@ -78,7 +78,7 @@ float get_next_sample(Oscillator *osc) {
 #ifdef PREEMPHASIS
 typedef struct {
     float alpha;
-    float prev_sample
+    float prev_sample;
 } PreEmphasis;
 
 void init_pre_emphasis(PreEmphasis *pe) {
@@ -88,7 +88,7 @@ void init_pre_emphasis(PreEmphasis *pe) {
 
 float apply_pre_emphasis(PreEmphasis *pe, float sample) {
     float audio = sample-pe->alpha*pe->prev_sample;
-    pe->prevsample = audio;
+    pe->prev_sample = audio;
     return audio;
 }
 #endif
