@@ -6,6 +6,11 @@
 #include <signal.h>
 #include <string.h>
 
+// Features
+// #define PREEMPHASIS
+
+#define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
+
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
@@ -14,6 +19,10 @@
 #define MONO_VOLUME 0.5f // L+R Signal
 #define PILOT_VOLUME 0.02f // 19 KHz Pilot
 #define STEREO_VOLUME 0.4f // L-R signal
+
+#ifdef PREEMPHASIS
+#define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
+#endif
 
 volatile sig_atomic_t to_run = 1;
 
@@ -58,6 +67,21 @@ float get_next_sample(Oscillator *osc) {
     return sample;
 }
 
+#ifdef PREEMPHASIS
+typedef struct {
+    float prev_sample;
+} PreEmphasis;
+
+void init_pre_emphasis(PreEmphasis *pe) {
+    pe->prev_sample = 0.0f;
+}
+float apply_pre_emphasis(PreEmphasis *pe, float sample) {
+    float output = sample - pe->prev_sample * (1.0f - (1 - exp(-1.0 / (SAMPLE_RATE * PREEMPHASIS_TAU))));
+    pe->prev_sample = sample;
+    return output;
+}
+#endif
+
 static void stop(int signum) {
     (void)signum;
     printf("\nReceived stop signal. Cleaning up...\n");
@@ -66,7 +90,6 @@ static void stop(int signum) {
 
 int main() {
     printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
-    const float SAMPLE_RATE = 192000.0f; // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
     const float PILOT_FREQ = 19000.0f; // Don't touch this
     const float STEREO_FREQ = 38000.0f; // This too
 
@@ -132,6 +155,11 @@ int main() {
     Oscillator pilot_osc, stereo_osc;
     init_oscillator(&pilot_osc, PILOT_FREQ, SAMPLE_RATE);
     init_oscillator(&stereo_osc, STEREO_FREQ, SAMPLE_RATE);
+#ifdef PREEMPHASIS
+    PreEmphasis preemp_l, preemp_r;
+    init_pre_emphasis(&preemp_l);
+    init_pre_emphasis(&preemp_r);
+#endif
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
@@ -149,12 +177,21 @@ int main() {
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float pilot = get_next_sample(&pilot_osc);
             float stereo_carrier = get_next_sample(&stereo_osc);
+            float l_in = left[i];
+            float r_in = right[i];
 
-            float current_left = clip(left[i]);
-            float current_right = clip(right[i]);
+#ifdef PREEMPHASIS
+            float preemphasized_left = apply_pre_emphasis(&preemp_l, l_in);
+            float preemphasized_right = apply_pre_emphasis(&preemp_r, r_in);
+            float current_left_input = clip(preemphasized_left);
+            float current_right_input = clip(preemphasized_right);
+#else
+            float current_left_input = clip(r_in);
+            float current_right_input = clip(r_in);
+#endif
 
-            float mono = (current_left + current_right) / 2.0f;
-            float stereo = (current_left - current_right) / 2.0f;
+            float mono = (current_left_input + current_right_input) / 2.0f;
+            float stereo = (current_left_input - current_right_input) / 2.0f;
 
             mpx[i] = mono * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
