@@ -8,6 +8,7 @@
 
 // Features
 // #define PREEMPHASIS
+#define LPF
 
 #define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
 
@@ -22,6 +23,10 @@
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
+#endif
+
+#ifdef LPF
+#define LPF_CUTOFF 15000
 #endif
 
 volatile sig_atomic_t to_run = 1;
@@ -44,7 +49,10 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
     }
 }
 
+#define FIR_PHASES 32
+#define FIR_TAPS 32
 
+#define PI 3.14159265358979323846
 #define M_2PI (3.14159265358979323846 * 2.0)
 
 // Track phase continuously to maintain frequency accuracy
@@ -68,18 +76,14 @@ float get_next_sample(Oscillator *osc) {
 }
 
 #ifdef PREEMPHASIS
-
 typedef struct {
-    float prev_sample;
     float alpha;
     float a0, a1, b0;
     float x1, y1;
 } PreEmphasis;
 
-#define FIR_PHASES 32
 // IIR pre-emphasis from pifmrds
 void init_pre_emphasis(PreEmphasis *pe) {
-    pe->prev_sample = 0.0f;
     pe->x1 = 0.0f;
     pe->y1 = 0.0f;
     
@@ -94,24 +98,55 @@ void init_pre_emphasis(PreEmphasis *pe) {
     pe->a0 = (2.0f*ap+1.0/(SAMPLE_RATE*FIR_PHASES))/(2.0*bp+1.0/(SAMPLE_RATE*FIR_PHASES));
     pe->a1 = (-2.0f*ap+1.0/(SAMPLE_RATE*FIR_PHASES))/(2.0*bp+1.0/(SAMPLE_RATE*FIR_PHASES));
     pe->b0 = (2.0f*ap-1.0/(SAMPLE_RATE*FIR_PHASES))/(2.0*bp+1.0/(SAMPLE_RATE*FIR_PHASES));
-    
-    // Calculate simple preemphasis coefficient
-    pe->alpha = exp(-1 / (PREEMPHASIS_TAU*SAMPLE_RATE));
 }
 
 float apply_pre_emphasis(PreEmphasis *pe, float sample) {
-    // Simple preemphasis
-    float output = sample - pe->alpha * pe->prev_sample;
-    pe->prev_sample = output;
-    
     // IIR filtering
     float y = pe->a0 * sample + pe->a1 * pe->x1 - pe->b0 * pe->y1;
     pe->x1 = sample;
     pe->y1 = y;
     
-    return y;
+    return y/4; //its so loud
 }
 #endif
+
+#ifdef LPF
+typedef struct {
+    float low_pass_fir[FIR_PHASES][FIR_TAPS];
+    float sample_buffer[FIR_TAPS];
+    int buffer_index;
+} LowPassFilter;
+
+void init_low_pass_filter(LowPassFilter *lp) {
+    for (int i = 0; i < FIR_TAPS; i++) {
+        for (int j = 0; j < FIR_PHASES; j++) {
+            int mi = i * FIR_PHASES + j + 1;
+            float sincpos = mi - (((FIR_TAPS * FIR_PHASES) + 1.0f) / 2.0f);
+            float firlowpass = (sincpos == 0.0f) ? 1.0f : sinf(M_2PI * LPF_CUTOFF * sincpos / SAMPLE_RATE) / (PI * sincpos);
+            float window = 0.54f - 0.46f * cosf(M_2PI * mi / (FIR_TAPS * FIR_PHASES)); // Hamming window
+            lp->low_pass_fir[j][i] = firlowpass * window;
+        }
+    }
+    memset(lp->sample_buffer, 0, sizeof(lp->sample_buffer));
+    lp->buffer_index = 0;
+}
+
+float apply_low_pass_filter(LowPassFilter *lp, float sample) {
+    // Update the sample buffer
+    lp->sample_buffer[lp->buffer_index] = sample;
+    lp->buffer_index = (lp->buffer_index + 1) % FIR_TAPS;
+
+    // Apply the filter
+    float result = 0.0f;
+    int index = lp->buffer_index;
+    for (int i = 0; i < FIR_TAPS; i++) {
+        result += lp->low_pass_fir[0][i] * lp->sample_buffer[index];
+        index = (index + 1) % FIR_TAPS;
+    }
+    return result;
+}
+#endif
+
 static void stop(int signum) {
     (void)signum;
     printf("\nReceived stop signal. Cleaning up...\n");
@@ -190,6 +225,11 @@ int main() {
     init_pre_emphasis(&preemp_l);
     init_pre_emphasis(&preemp_r);
 #endif
+#ifdef LPF
+    LowPassFilter lpf_l, lpf_r;
+    init_low_pass_filter(lpf_l);
+    init_low_pass_filter(lpf_r);
+#endif
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
@@ -211,13 +251,29 @@ int main() {
             float r_in = right[i];
 
 #ifdef PREEMPHASIS
+#ifdef LPF
+            float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
+            float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
+            float preemphasized_left = apply_pre_emphasis(&preemp_l, lowpassed_left);
+            float preemphasized_right = apply_pre_emphasis(&preemp_r, lowpassed_right);
+            float current_left_input = clip(preemphasized_left);
+            float current_right_input = clip(preemphasized_right);
+#else
             float preemphasized_left = apply_pre_emphasis(&preemp_l, l_in);
             float preemphasized_right = apply_pre_emphasis(&preemp_r, r_in);
             float current_left_input = clip(preemphasized_left);
             float current_right_input = clip(preemphasized_right);
+#endif
+#else
+#ifdef LPF
+            float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
+            float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
+            float current_left_input = clip(lowpassed_left);
+            float current_right_input = clip(lowpassed_right);
 #else
             float current_left_input = clip(l_in);
             float current_right_input = clip(r_in);
+#endif
 #endif
 
             float mono = (current_left_input + current_right_input) / 2.0f;
