@@ -13,7 +13,6 @@
 #define PILOT_VOLUME 0.025f // 19 KHz Pilot
 #define STEREO_VOLUME 0.275f // L-R signal
 
-#define TWO_BUFFER_SIZE (BUFFER_SIZE*2) // Don't touch this
 volatile sig_atomic_t to_run = 1;
 
 const float format_scale = 1.0f / 32768.0f;
@@ -130,7 +129,7 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    int16_t input[TWO_BUFFER_SIZE];
+    int16_t input[BUFFER_SIZE*2];
     float left[BUFFER_SIZE], right[BUFFER_SIZE];
     float mpx[BUFFER_SIZE];
     int16_t output[BUFFER_SIZE];
@@ -139,7 +138,7 @@ int main() {
             fprintf(stderr, "Error reading from input device.\n");
             break;
         }
-        stereo_s16le_to_float(input, left, right, TWO_BUFFER_SIZE);
+        stereo_s16le_to_float(input, left, right, BUFFER_SIZE*2);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float pilot = get_next_sample(&pilot_osc);

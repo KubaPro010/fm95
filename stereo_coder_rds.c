@@ -115,7 +115,7 @@ int main() {
         "StereoEncoder",
         PA_STREAM_RECORD,
         RDS_INPUT,
-        "Audio Input",
+        "RDS Input",
         &mono_format,
         NULL,
         &input_buffer_atr,
@@ -170,8 +170,8 @@ int main() {
             fprintf(stderr, "Error reading from input device.\n");
             break;
         }
-        stereo_s16le_to_float(input, left, right, sizeof(input));
-        mono_s16le_to_float(input_rds, rds_data, sizeof(input_rds));
+        stereo_s16le_to_float(input, left, right, BUFFER_SIZE*2);
+        mono_s16le_to_float(input_rds, rds_data, BUFFER_SIZE);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float pilot = get_next_sample(&pilot_osc);
