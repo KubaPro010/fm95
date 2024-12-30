@@ -13,7 +13,7 @@
 #define MONO_VOLUME 0.5f // L+R Signal
 #define PILOT_VOLUME 0.025f // 19 KHz Pilot
 #define STEREO_VOLUME 0.275f // L-R signal
-#define RDS_VOLUME 0.001f // RDS Signal
+#define RDS_VOLUME 0.035f // RDS Signal
 
 volatile sig_atomic_t to_run = 1;
 
