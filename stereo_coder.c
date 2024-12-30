@@ -187,7 +187,7 @@ int main() {
             float current_right_input = clip(preemphasized_right);
 #else
             float current_left_input = clip(r_in);
-            float current_right_input = clip(r_in);
+            float current_right_input = clip(l_in);
 #endif
 
             float mono = (current_left_input + current_right_input) / 2.0f;
