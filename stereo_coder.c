@@ -18,7 +18,7 @@
 volatile int to_run = 1;
 
 const float format_scale = 1.0f / 32768.0f;
-void s16le_to_mono_float(const int16_t *input, float *left, float *right, size_t num_samples) {
+void stereo_s16le_to_float(const int16_t *input, float *left, float *right, size_t num_samples) {
     for (size_t i = 0; i < num_samples/2; i++) {
         left[i] = input[i * 2] * format_scale;
         right[i] = input[i * 2 + 1] * format_scale;
@@ -65,18 +65,30 @@ int main() {
     const float PILOT_FREQ = 19000.0f;
     const float STEREO_FREQ = 38000.0f;
 
-    printf("Connecting to input device... (%s)\n", INPUT_DEVICE);
-
-    // Set up input device
+    // Define formats and buffer atributes
     pa_sample_spec input_format = {
         .format = PA_SAMPLE_S16LE,
         .channels = 2,
         .rate = SAMPLE_RATE
     };
+    pa_sample_spec output_format = {
+        .format = PA_SAMPLE_S16LE,
+        .channels = 1,
+        .rate = SAMPLE_RATE
+    };
+
     pa_buffer_attr input_buffer_atr = {
         .maxlength = 4096,
-	.fragsize = 2048
+	    .fragsize = 2048
     };
+    pa_buffer_attr output_buffer_atr = {
+        .maxlength = 4096,
+        .tlength = 2048,
+	    .prebuf = 0
+    };
+
+    printf("Connecting to input device... (%s)\n", INPUT_DEVICE);
+
     pa_simple *input_device = pa_simple_new(
         NULL,
         "StereoEncoder",
@@ -95,17 +107,6 @@ int main() {
 
     printf("Connecting to output device... (%s)\n", OUTPUT_DEVICE);
 
-    // Set up output device
-    pa_sample_spec output_format = {
-        .format = PA_SAMPLE_S16LE,
-        .channels = 1,
-        .rate = SAMPLE_RATE
-    };
-    pa_buffer_attr output_buffer_atr = {
-        .maxlength = 4096,
-        .tlength = 2048,
-	.prebuf = 0
-    };
     pa_simple *output_device = pa_simple_new(
         NULL,
         "StereoEncoder",
@@ -122,14 +123,14 @@ int main() {
         pa_simple_free(input_device);
         return 1;
     }
-    // Initialize oscillators
+
     Oscillator pilot_osc, stereo_osc;
     init_oscillator(&pilot_osc, PILOT_FREQ, SAMPLE_RATE);
     init_oscillator(&stereo_osc, STEREO_FREQ, SAMPLE_RATE);
-    // Set up signal handlers
+
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
-    // Processing buffers
+    
     int16_t input[TWO_BUFFER_SIZE];
     float left[BUFFER_SIZE], right[BUFFER_SIZE];
     float mpx[BUFFER_SIZE];
@@ -139,22 +140,21 @@ int main() {
             fprintf(stderr, "Error reading from input device.\n");
             break;
         }
-        // Convert input to float and separate channels
-        s16le_to_mono_float(input, left, right, TWO_BUFFER_SIZE);
-        // Process audio
+        stereo_s16le_to_float(input, left, right, TWO_BUFFER_SIZE);
+
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float pilot = get_next_sample(&pilot_osc);
             float stereo_carrier = get_next_sample(&stereo_osc);
-            // Create MPX signal
+
             float mono = (left[i] + right[i]) / 2.0f;
             float stereo = (left[i] - right[i]) / 2.0f;
+            
             mpx[i] = mono*MONO_VOLUME +
                      (stereo * stereo_carrier)*STEREO_VOLUME +
                      (pilot * PILOT_VOLUME);
         }
-        // Convert to output format
+
         float_array_to_s16le(mpx, output, BUFFER_SIZE);
-        // Write to output
         if (pa_simple_write(output_device, output, sizeof(output), NULL) < 0) {
             fprintf(stderr, "Error writing to output device.\n");
             break;
