@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <signal.h>
+#include <string.h>
 
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
@@ -26,17 +27,10 @@ float clip(float sample) {
     }
 }
 
-const float format_scale = 1.0f / 32768.0f;
-void stereo_s16le_to_float(const int16_t *input, float *left, float *right, size_t num_samples) {
+void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
     for (size_t i = 0; i < num_samples/2; i++) {
-        left[i] = input[i * 2] * format_scale;
-        right[i] = input[i * 2 + 1] * format_scale;
-    }
-}
-
-void float_array_to_s16le(const float *input, int16_t *output, size_t num_samples) {
-    for (size_t i = 0; i < num_samples; i++) {
-        output[i] = (int16_t)((fminf(fmaxf(input[i], -1.0f), 1.0f)) * 32767.0f);
+        left[i] = input[i * 2];
+        right[i] = input[i * 2 + 1];
     }
 }
 
@@ -76,12 +70,12 @@ int main() {
 
     // Define formats and buffer atributes
     pa_sample_spec stereo_format = {
-        .format = PA_SAMPLE_S16LE,
+        .format = PA_SAMPLE_FLOAT32NE,
         .channels = 2,
         .rate = SAMPLE_RATE
     };
     pa_sample_spec mono_format = {
-        .format = PA_SAMPLE_S16LE,
+        .format = PA_SAMPLE_FLOAT32NE,
         .channels = 1,
         .rate = SAMPLE_RATE
     };
@@ -140,16 +134,15 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    int16_t input[BUFFER_SIZE*2]; // Input from device
+    float input[BUFFER_SIZE*2]; // Input from device
     float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio
     float mpx[BUFFER_SIZE]; // MPX
-    int16_t output[BUFFER_SIZE]; // Output to device
     while (to_run) {
         if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
             fprintf(stderr, "Error reading from input device.\n");
             break;
         }
-        stereo_s16le_to_float(input, left, right, BUFFER_SIZE*2);
+        uninterleave(input, left, right, BUFFER_SIZE*2);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float pilot = get_next_sample(&pilot_osc);
@@ -166,8 +159,7 @@ int main() {
                 (stereo * stereo_carrier) * STEREO_VOLUME;
         }
 
-        float_array_to_s16le(mpx, output, BUFFER_SIZE);
-        if (pa_simple_write(output_device, output, sizeof(output), NULL) < 0) {
+        if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
             fprintf(stderr, "Error writing to output device.\n");
             break;
         }
