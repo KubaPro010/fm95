@@ -106,7 +106,7 @@ float apply_pre_emphasis(PreEmphasis *pe, float sample) {
     pe->x1 = sample;
     pe->y1 = y;
     
-    return y/4; //its so loud
+    return y/6; //its so loud
 }
 #endif
 
