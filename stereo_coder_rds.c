@@ -36,8 +36,12 @@ void float_array_to_s16le(const float *input, int16_t *output, size_t num_sample
     }
 }
 
+#ifndef M_2PI
 #define M_2PI (3.14159265358979323846 * 2.0)
+#endif
+#ifndef M_PI_2
 #define M_PI_2 (3.14159265358979323846 / 2.0)
+#endif
 
 typedef struct {
     float phase;
