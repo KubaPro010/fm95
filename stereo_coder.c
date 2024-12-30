@@ -227,8 +227,8 @@ int main() {
 #endif
 #ifdef LPF
     LowPassFilter lpf_l, lpf_r;
-    init_low_pass_filter(lpf_l);
-    init_low_pass_filter(lpf_r);
+    init_low_pass_filter(&lpf_l);
+    init_low_pass_filter(&lpf_r);
 #endif
 
     signal(SIGINT, stop);
