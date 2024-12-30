@@ -18,7 +18,7 @@
 
 #define MONO_VOLUME 0.5f // L+R Signal
 #define PILOT_VOLUME 0.02f // 19 KHz Pilot
-#define STEREO_VOLUME 0.4f // L-R signal
+#define STEREO_VOLUME 0.425f // L-R signal
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
@@ -167,7 +167,7 @@ int main() {
     signal(SIGTERM, stop);
     
     float input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
-    float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio, same thing as in input but ininterleaved
+    float left[BUFFER_SIZE+64], right[BUFFER_SIZE+64]; // Audio, same thing as in input but ininterleaved, ai told be there could be a buffer overflow here
     float mpx[BUFFER_SIZE]; // MPX, this goes to the output
     while (to_run) {
         if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
@@ -188,8 +188,8 @@ int main() {
             float current_left_input = clip(preemphasized_left);
             float current_right_input = clip(preemphasized_right);
 #else
-            float current_left_input = clip(r_in);
-            float current_right_input = clip(l_in);
+            float current_left_input = clip(l_in);
+            float current_right_input = clip(r_in);
 #endif
 
             float mono = (current_left_input + current_right_input) / 2.0f;
