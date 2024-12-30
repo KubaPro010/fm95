@@ -17,11 +17,11 @@
 #define TWO_BUFFER_SIZE (BUFFER_SIZE*2) // Don't touch this
 volatile int to_run = 1;
 
+const float format_scale = 1.0f / 32768.0f;
 void s16le_to_mono_float(const int16_t *input, float *left, float *right, size_t num_samples) {
-    const float scale = 1.0f / 32768.0f;
     for (size_t i = 0; i < num_samples/2; i++) {
-        left[i] = input[i * 2] * scale;
-        right[i] = input[i * 2 + 1] * scale;
+        left[i] = input[i * 2] * format_scale;
+        right[i] = input[i * 2 + 1] * format_scale;
     }
 }
 
@@ -61,7 +61,7 @@ static void stop(int signum) {
 
 int main() {
     printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
-    const float SAMPLE_RATE = 192000.0f;
+    const float SAMPLE_RATE = 192000.0f; // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
     const float PILOT_FREQ = 19000.0f;
     const float STEREO_FREQ = 38000.0f;
 
