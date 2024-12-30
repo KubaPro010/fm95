@@ -184,7 +184,7 @@ int main() {
             mpx[i] = mono*MONO_VOLUME +
                      (stereo * stereo_carrier)*STEREO_VOLUME +
                      (pilot * PILOT_VOLUME) +
-                     (rds_sample * rds_carrier)*RDS_VOLUME;
+                     (1.0f * rds_carrier)*RDS_VOLUME;
         }
 
         float_array_to_s16le(mpx, output, BUFFER_SIZE);
