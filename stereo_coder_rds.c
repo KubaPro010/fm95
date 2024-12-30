@@ -43,7 +43,6 @@ void float_array_to_s16le(const float *input, int16_t *output, size_t num_sample
 typedef struct {
     float phase;
     float phase_increment;
-    float quadrature_phase;
 } Oscillator;
 
 void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
@@ -51,9 +50,9 @@ void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
     osc->phase_increment = (M_2PI * frequency) / sample_rate;
 }
 
-float get_next_sample(Oscillator *osc, int quadrature) {
+float get_next_sample(Oscillator *osc, int cos) {
     float sample;
-    if (quadrature) {
+    if (cos) {
         sample = sinf(osc->phase);
         osc->phase += osc->phase_increment;
         if (osc->phase >= M_2PI) {
@@ -76,7 +75,7 @@ static void stop(int signum) {
 }
 
 int main() {
-    printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
+    printf("STCode : Stereo encoder (*RDS) made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
     const float SAMPLE_RATE = 192000.0f; // Don't go lower than 176 KHz
     const float PILOT_FREQ = 19000.0f;
     const float STEREO_FREQ = 38000.0f;
