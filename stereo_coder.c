@@ -68,22 +68,50 @@ float get_next_sample(Oscillator *osc) {
 }
 
 #ifdef PREEMPHASIS
+
 typedef struct {
     float prev_sample;
     float alpha;
+    float a0, a1, b0;
+    float x1, y1;
 } PreEmphasis;
 
+#define FIR_PHASES 32
+// IIR pre-emphasis from pifmrds
 void init_pre_emphasis(PreEmphasis *pe) {
     pe->prev_sample = 0.0f;
+    pe->x1 = 0.0f;
+    pe->y1 = 0.0f;
+    
+    // Calculate IIR filter coefficients
+    float tau = PREEMPHASIS_TAU;
+    float delta = 1/(M_2PI*20000);
+    float taup = 1.0f/(2.0f*(SAMPLE_RATE*FIR_PHASES)/tan(1.0f/(2*tau*(SAMPLE_RATE*FIR_PHASES))));
+    float deltap = 1.0f/(2.0f*(SAMPLE_RATE*FIR_PHASES)/tan(1.0f/(2*delta*(SAMPLE_RATE*FIR_PHASES))));
+    float bp = sqrt(-taup*taup+sqrt(taup*taup*taup*taup + 0.8*taup*taup*deltap*deltap))/2.0f;
+    float ap = sqrt(2*bp*bp+taup*taup);
+    
+    pe->a0 = (2.0f*ap+1.0/(SAMPLE_RATE*FIR_PHASES))/(2.0*bp+1.0/(SAMPLE_RATE*FIR_PHASES));
+    pe->a1 = (-2.0f*ap+1.0/(SAMPLE_RATE*FIR_PHASES))/(2.0*bp+1.0/(SAMPLE_RATE*FIR_PHASES));
+    pe->b0 = (2.0f*ap-1.0/(SAMPLE_RATE*FIR_PHASES))/(2.0*bp+1.0/(SAMPLE_RATE*FIR_PHASES));
+    
+    // Calculate simple preemphasis coefficient
     pe->alpha = exp(-1 / (PREEMPHASIS_TAU*SAMPLE_RATE));
 }
+
 float apply_pre_emphasis(PreEmphasis *pe, float sample) {
+    // Simple preemphasis
     float output = sample - pe->alpha * pe->prev_sample;
     pe->prev_sample = output;
-    return output;
+    
+    // IIR filtering
+    float y = pe->a0 * sample + pe->a1 * pe->x1 - pe->b0 * pe->y1;
+    pe->x1 = sample;
+    pe->y1 = y;
+    
+    return y;
 }
 #endif
-
 static void stop(int signum) {
     (void)signum;
     printf("\nReceived stop signal. Cleaning up...\n");
