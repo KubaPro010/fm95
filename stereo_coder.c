@@ -143,7 +143,7 @@ float apply_low_pass_filter(LowPassFilter *lp, float sample) {
         result += lp->low_pass_fir[0][i] * lp->sample_buffer[index];
         index = (index + 1) % FIR_TAPS;
     }
-    return result*2;
+    return result*4;
 }
 #endif
 
