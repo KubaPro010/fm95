@@ -10,23 +10,23 @@
 // #define PREEMPHASIS
 #define LPF
 
-#define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
+#define SAMPLE_RATE 192000
 
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
-#define CLIPPER_THRESHOLD 0.425 // Adjust this as needed
+#define CLIPPER_THRESHOLD 0.425 // Adjust this as needed, this also limits deviation, so if you set this to 0.5 then the deviation will be limited to half
 
-#define MONO_VOLUME 0.45f // L+R Signal
-#define PILOT_VOLUME 0.0225f // 19 KHz Pilot
-#define STEREO_VOLUME 0.35f // L-R signal
+#define VOLUME 0.03f // SCA Volume
+#define FREQUENCY 67000 // SCA Frequency
+#define DEVIATION 6000 // SCA Deviation
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
 #endif
 
 #ifdef LPF
-#define LPF_CUTOFF 15000
+#define LPF_CUTOFF 8000
 #endif
 
 volatile sig_atomic_t to_run = 1;
@@ -41,14 +41,6 @@ float clip(float sample) {
     }
 }
 
-void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
-    // For stereo, usually it is like this: LEFT RIGHT LEFT RIGHT LEFT RIGHT so this is used to get LEFT LEFT LEFT and RIGHT RIGHT RIGHT
-    for (size_t i = 0; i < num_samples/2; i++) {
-        left[i] = input[i * 2];
-        right[i] = input[i * 2 + 1];
-    }
-}
-
 #define FIR_PHASES 32
 #define FIR_TAPS 32
 
@@ -58,17 +50,20 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
 // Track phase continuously to maintain frequency accuracy
 typedef struct {
     float phase;
-    float phase_increment;
+    float frequency;
+    float sample_rate;
 } Oscillator;
 
 void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
     osc->phase = 0.0f;
-    osc->phase_increment = (M_2PI * frequency) / sample_rate;
+    osc->frequency = frequency;
+    osc->sample_rate = sample_rate;
 }
 
 float get_next_sample(Oscillator *osc) {
+    float phase_increment = (M_2PI * osc->frequency) / osc->sample_rate; // If you want to have dynamic frequency changing you have to compute this every sample
     float sample = sinf(osc->phase);
-    osc->phase += osc->phase_increment;
+    osc->phase += phase_increment;
     if (osc->phase >= M_2PI) {
         osc->phase -= M_2PI;
     }
@@ -137,20 +132,13 @@ static void stop(int signum) {
 }
 
 int main() {
-    printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
-    const float PILOT_FREQ = 19000.0f; // Don't touch this
-    const float STEREO_FREQ = 38000.0f; // This too
+    printf("SCAMod : SCA Modulator (based on the Stereo encoder STCode) made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
 
     // Define formats and buffer atributes
-    pa_sample_spec stereo_format = {
+    pa_sample_spec audio_format = {
         .format = PA_SAMPLE_FLOAT32NE, //Float32 NE, or Float32 Native Endian, the float in c uses the endianess of your pc, or native endian, and float is float32, and double is float64
-        .channels = 2,
-        .rate = SAMPLE_RATE // Same sample rate makes it easy, leave the resampling to pipewire, it should know better
-    };
-    pa_sample_spec mono_format = {
-        .format = PA_SAMPLE_FLOAT32NE,
         .channels = 1,
-        .rate = SAMPLE_RATE
+        .rate = SAMPLE_RATE // Same sample rate makes it easy, leave the resampling to pipewire, it should know better
     };
 
     pa_buffer_attr input_buffer_atr = {
@@ -167,11 +155,11 @@ int main() {
 
     pa_simple *input_device = pa_simple_new(
         NULL,
-        "StereoEncoder",
+        "SCAMod",
         PA_STREAM_RECORD,
         INPUT_DEVICE,
         "Audio Input",
-        &stereo_format,
+        &audio_format,
         NULL,
         &input_buffer_atr,
         NULL
@@ -185,11 +173,11 @@ int main() {
 
     pa_simple *output_device = pa_simple_new(
         NULL,
-        "StereoEncoder",
+        "SCAMod",
         PA_STREAM_PLAYBACK,
         OUTPUT_DEVICE,
-        "MPX",
-        &mono_format,
+        "Signal",
+        &audio_format,
         NULL,
         &output_buffer_atr,
         NULL
@@ -200,74 +188,54 @@ int main() {
         return 1;
     }
 
-    Oscillator pilot_osc, stereo_osc;
-    init_oscillator(&pilot_osc, PILOT_FREQ, SAMPLE_RATE);
-    init_oscillator(&stereo_osc, STEREO_FREQ, SAMPLE_RATE);
+    Oscillator osc;
+    init_oscillator(&osc, FREQUENCY, SAMPLE_RATE);
 #ifdef PREEMPHASIS
-    PreEmphasis preemp_l, preemp_r;
-    init_pre_emphasis(&preemp_l, SAMPLE_RATE);
-    init_pre_emphasis(&preemp_r, SAMPLE_RATE);
+    PreEmphasis preemp;
+    init_pre_emphasis(&preemp, SAMPLE_RATE);
 #endif
 #ifdef LPF
-    LowPassFilter lpf_l, lpf_r;
-    init_low_pass_filter(&lpf_l, SAMPLE_RATE);
-    init_low_pass_filter(&lpf_r, SAMPLE_RATE);
+    LowPassFilter lpf;
+    init_low_pass_filter(&lpf, SAMPLE_RATE);
 #endif
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    float input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
-    float left[BUFFER_SIZE+64], right[BUFFER_SIZE+64]; // Audio, same thing as in input but ininterleaved, ai told be there could be a buffer overflow here
-    float mpx[BUFFER_SIZE]; // MPX, this goes to the output
+    float input[BUFFER_SIZE]; // Input from device
+    float signal[BUFFER_SIZE]; // this goes to the output
     while (to_run) {
         if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
             fprintf(stderr, "Error reading from input device.\n");
             break;
         }
-        uninterleave(input, left, right, BUFFER_SIZE*2);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            float pilot = get_next_sample(&pilot_osc);
-            float stereo_carrier = get_next_sample(&stereo_osc);
-            float l_in = left[i];
-            float r_in = right[i];
+            float in = input[i];
 
 #ifdef PREEMPHASIS
 #ifdef LPF
-            float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
-            float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
-            float preemphasized_left = apply_pre_emphasis(&preemp_l, lowpassed_left);
-            float preemphasized_right = apply_pre_emphasis(&preemp_r, lowpassed_right);
-            float current_left_input = clip(preemphasized_left);
-            float current_right_input = clip(preemphasized_right);
+            float lowpassed = apply_low_pass_filter(&lpf, in);
+            float preemphasized = apply_pre_emphasis(&preemp, lowpassed);
+            float current_input = clip(preemphasized);
 #else
-            float preemphasized_left = apply_pre_emphasis(&preemp_l, l_in);
-            float preemphasized_right = apply_pre_emphasis(&preemp_r, r_in);
-            float current_left_input = clip(preemphasized_left);
-            float current_right_input = clip(preemphasized_right);
+            float preemphasized = apply_pre_emphasis(&preemp, in);
+            float current_input = clip(preemphasized);
 #endif
 #else
 #ifdef LPF
-            float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
-            float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
-            float current_left_input = clip(lowpassed_left);
-            float current_right_input = clip(lowpassed_right);
+            float lowpassed = apply_low_pass_filter(&lpf, in);
+            float current_input = clip(lowpassed);
 #else
-            float current_left_input = clip(l_in);
-            float current_right_input = clip(r_in);
+            float current_input = clip(in);
 #endif
 #endif
 
-            float mono = (current_left_input + current_right_input) / 2.0f;
-            float stereo = (current_left_input - current_right_input) / 2.0f;
-
-            mpx[i] = mono * MONO_VOLUME +
-                pilot * PILOT_VOLUME +
-                (stereo * stereo_carrier) * STEREO_VOLUME;
+            osc.frequency = (FREQUENCY+(current_input*DEVIATION));
+            signal[i] = get_next_sample(&osc);
         }
 
-        if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
+        if (pa_simple_write(output_device, signal, sizeof(signal), NULL) < 0) {
             fprintf(stderr, "Error writing to output device.\n");
             break;
         }

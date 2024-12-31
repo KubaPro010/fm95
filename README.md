@@ -7,3 +7,6 @@ STCode is a simple stereo encoder for FM, it uses pasimple and math to:
 All that in about 3.5% cpu usage on a RPI-5 (lpf makes it 10, but stereo tool has 3 threads which do 100% cpu usage anyway, one 200)!
 
 Also nearly no latency, not like Stereo Tool (or mpxgen which doesn't even work)
+
+# SCAMod
+SCAMod is a simple FM modulator which can be used to modulate a secondary audio stream, has similiar cpu usage and latency as STCode

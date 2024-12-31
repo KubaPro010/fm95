@@ -1,0 +1,1 @@
+gcc sca_mod.c -lpulse -lpulse-simple -lm -o sca_mod
