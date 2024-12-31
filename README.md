@@ -22,3 +22,15 @@ Has a fine quality, but as it goes for 12 khz fm signals
 QD code is a FM quadrophonic encoder, following the Dorren standard
 
 I haven't tested this, but i'm scared, i don't have a decoder anyway
+
+# CSTCode
+This is a stereo encoder, but using the crosby system, as we all know, stereo is made of these things:
+0-15: mono
+19 khz: pilot
+38 khz: stereo
+but the crosby system is:
+0-15: mono (seems normal, right?)
+50 khz: fm modulated l-r
+
+
+yeah (https://en.wikipedia.org/wiki/Crosby_system)
