@@ -1,5 +1,6 @@
-#include "math.h"
+#include <math.h>
 #include <string.h>
+#include <stdlib.h>
 #include "constants.h"
 
 #define FIR_PHASES 32
