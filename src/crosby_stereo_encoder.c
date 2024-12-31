@@ -23,7 +23,7 @@
 #define CLIPPER_THRESHOLD 0.425 // Adjust this as needed
 
 #define MONO_VOLUME 0.5f // L+R Signal
-#define STEREO_VOLUME_AUDIO 0.5f // L-R signal (once demodulated)
+#define STEREO_VOLUME_AUDIO 1.0f // L-R signal (once demodulated)
 #define STEREO_VOLUME_MODULATION 0.4f // L-R signal (on MPX)
 
 #ifdef PREEMPHASIS

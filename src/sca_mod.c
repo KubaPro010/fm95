@@ -21,6 +21,7 @@
 #define CLIPPER_THRESHOLD 0.425 // Adjust this as needed, this also limits deviation, so if you set this to 0.5 then the deviation will be limited to half
 
 #define VOLUME 0.03f // SCA Volume
+#define VOLUME_AUDIO 1.0f // SCA Audio volume
 #define FREQUENCY 67000 // SCA Frequency
 #define DEVIATION 6000 // SCA Deviation
 
@@ -150,7 +151,7 @@ int main() {
 #endif
 #endif
 
-            change_oscillator_frequency(&osc, (FREQUENCY+(current_input*DEVIATION)));
+            change_oscillator_frequency(&osc, (FREQUENCY+((current_input*VOLUME_AUDIO)*DEVIATION)));
             signal[i] = get_oscillator_sin_sample(&osc)*VOLUME;
         }
 
