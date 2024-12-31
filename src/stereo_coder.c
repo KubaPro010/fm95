@@ -178,11 +178,11 @@ int main() {
 #endif
 
             float mono = (current_left_input + current_right_input) / 2.0f; // Stereo to Mono
-            float stereo = (current_left_input - current_right_input) / 2.0f; // Also Sterreo to Mono but a bit diffrent
+            float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
 
             mpx[i] = mono * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                (stereo * stereo_carrier) * STEREO_VOLUME; // DSB-SC modulate
+                (stereo * stereo_carrier) * STEREO_VOLUME; // DSB-SC modulation
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {

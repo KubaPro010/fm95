@@ -11,8 +11,14 @@ All that in about 3.5% cpu usage on a RPI-5 (lpf makes it 10, but stereo tool ha
 
 Also nearly no latency, not like Stereo Tool (or mpxgen which doesn't even work)
 
+As far as i've tested it (29-31 december) it's been fine but after a fix it was great, so i'd redecommend you
+
 # SCAMod
 SCAMod is a simple FM modulator which can be used to modulate a secondary audio stream, has similiar cpu usage and latency as STCode
 
+Has a fine quality, but as it goes for 12 khz fm signals
+
 # QDCode
 QD code is a FM quadrophonic encoder, following the Dorren standard
+
+I haven't tested this, but i'm scared, i don't have a decoder anyway
