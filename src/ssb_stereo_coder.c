@@ -186,10 +186,12 @@ int main() {
             float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
             float stereo_i, stereo_q;
             apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q);
+            float lsb = (stereo_i*cos38-stereo_q*sin38);
+            float usb = (stereo_i*cos38+stereo_q*sin38);
 
             mpx[i] = mono * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                (stereo_i*cos38-stereo_q*sin38)*STEREO_VOLUME;
+                (usb-lsb)*STEREO_VOLUME;
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
