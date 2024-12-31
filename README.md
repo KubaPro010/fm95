@@ -13,6 +13,9 @@ Also nearly no latency, not like Stereo Tool (or mpxgen which doesn't even work)
 
 As far as i've tested it (29-31 december) it's been fine but after a fix it was great, so i'd redecommend you
 
+# SSB-STCode
+This is a version of the stereo code but instead of DSB-SC it transmits some kind of VSG (mostly USB with a bit of LSB)
+
 # SCAMod
 SCAMod is a simple FM modulator which can be used to modulate a secondary audio stream, has similiar cpu usage and latency as STCode
 

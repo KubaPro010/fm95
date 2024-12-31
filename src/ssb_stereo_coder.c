@@ -60,7 +60,7 @@ static void stop(int signum) {
 }
 
 int main() {
-    printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
+    printf("SSB-STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
     // Define formats and buffer atributes
     pa_sample_spec stereo_format = {
         .format = PA_SAMPLE_FLOAT32NE, //Float32 NE, or Float32 Native Endian, the float in c uses the endianess of your pc, or native endian, and float is float32, and double is float64
@@ -124,6 +124,8 @@ int main() {
     init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
     HilbertTransformer hilbert;
     init_hilbert(&hilbert);
+    DelayLine monoDelay;
+    init_delay_line(&monoDelay, 99);
 #ifdef PREEMPHASIS
     Emphasis preemp_l, preemp_r;
     init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
@@ -149,7 +151,7 @@ int main() {
         uninterleave(input, left, right, BUFFER_SIZE*2);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            float sin38 = sinf(pilot_osc.phase*2); // Stereo carrier should be a harmonic of the pilot which is in phase, best way to generate the harmonic is to multiply the pilot's phase by two, so it is mathematically impossible for them to not be in phase
+            float sin38 = sinf(pilot_osc.phase*2);
             float cos38 = cosf(pilot_osc.phase*2); // Stereo carrier should be a harmonic of the pilot which is in phase, best way to generate the harmonic is to multiply the pilot's phase by two, so it is mathematically impossible for them to not be in phase
             float pilot = get_oscillator_sin_sample(&pilot_osc); // This is after because if it was before then the stereo would be out of phase by one increment, so [GET STEREO] ([GET PILOT] [INCREMENT PHASE])
             float l_in = left[i];
@@ -186,9 +188,9 @@ int main() {
             float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
             float stereo_i, stereo_q;
             apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q);
-            float lsb = (stereo_i*cos38-stereo_q*(sin38*0.75f));
+            float lsb = (stereo_i*cos38-stereo_q*(sin38*0.7f));
 
-            mpx[i] = mono * MONO_VOLUME +
+            mpx[i] = delay_line(&monoDelay, mono) * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
                 lsb*STEREO_VOLUME;
         }
