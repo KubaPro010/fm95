@@ -138,9 +138,6 @@ static void stop(int signum) {
 
 int main() {
     printf("STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
-    const float PILOT_FREQ = 19000.0f; // Don't touch this
-    const float STEREO_FREQ = 38000.0f; // This too
-
     // Define formats and buffer atributes
     pa_sample_spec stereo_format = {
         .format = PA_SAMPLE_FLOAT32NE, //Float32 NE, or Float32 Native Endian, the float in c uses the endianess of your pc, or native endian, and float is float32, and double is float64
@@ -200,9 +197,8 @@ int main() {
         return 1;
     }
 
-    Oscillator pilot_osc, stereo_osc;
-    init_oscillator(&pilot_osc, PILOT_FREQ, SAMPLE_RATE);
-    init_oscillator(&stereo_osc, STEREO_FREQ, SAMPLE_RATE);
+    Oscillator pilot_osc;
+    init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
 #ifdef PREEMPHASIS
     PreEmphasis preemp_l, preemp_r;
     init_pre_emphasis(&preemp_l, SAMPLE_RATE);
@@ -228,8 +224,8 @@ int main() {
         uninterleave(input, left, right, BUFFER_SIZE*2);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            float pilot = get_next_sample(&pilot_osc);
-            float stereo_carrier = get_next_sample(&stereo_osc);
+            float stereo_carrier = sinf(pilot_osc.phase*2); // Stereo carrier should be a harmonic of the pilot which is in phase, best way to generate the harmonic is to multiply the pilot's phase by two
+            float pilot = get_next_sample(&pilot_osc); // This is after because if it was before then the stereo would be out of phase by one increment, so [GET STEREO] ([GET PILOT] [INCREMENT PHASE])
             float l_in = left[i];
             float r_in = right[i];
 
@@ -259,12 +255,12 @@ int main() {
 #endif
 #endif
 
-            float mono = (current_left_input + current_right_input) / 2.0f;
-            float stereo = (current_left_input - current_right_input) / 2.0f;
+            float mono = (current_left_input + current_right_input) / 2.0f; // Stereo to Mono
+            float stereo = (current_left_input - current_right_input) / 2.0f; // Also Sterreo to Mono but a bit diffrent
 
             mpx[i] = mono * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                (stereo * stereo_carrier) * STEREO_VOLUME;
+                (stereo * stereo_carrier) * STEREO_VOLUME; // DSB-SC modulate
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
