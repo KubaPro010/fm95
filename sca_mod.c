@@ -232,7 +232,7 @@ int main() {
 #endif
 
             osc.frequency = (FREQUENCY+(current_input*DEVIATION));
-            signal[i] = get_next_sample(&osc);
+            signal[i] = get_next_sample(&osc)*VOLUME;
         }
 
         if (pa_simple_write(output_device, signal, sizeof(signal), NULL) < 0) {
