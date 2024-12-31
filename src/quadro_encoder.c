@@ -25,8 +25,8 @@
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.0175f // 19 KHz Pilot
 #define SIN38_VOLUME 0.35f
-#define COS38_VOLUME 0.35f
-#define SIN76_VOLUME 0.35f
+#define COS38_VOLUME 0.05f
+#define SIN76_VOLUME 0.05f
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america

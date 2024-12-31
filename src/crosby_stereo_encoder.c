@@ -22,8 +22,9 @@
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.425 // Adjust this as needed
 
-#define MONO_VOLUME 0.45f // L+R Signal
-#define STEREO_VOLUME 0.35f // L-R signal
+#define MONO_VOLUME 0.5f // L+R Signal
+#define STEREO_VOLUME_AUDIO 0.5f // L-R signal (once demodulated)
+#define STEREO_VOLUME_MODULATION 0.5f // L-R signal (on MPX)
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
@@ -179,10 +180,10 @@ int main() {
             float mono = (current_left_input + current_right_input) / 2.0f; // Stereo to Mono
             float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
 
-            change_oscillator_frequency(&osc, (50000+(stereo*15000)));
+            change_oscillator_frequency(&osc, (50000+((stereo*STEREO_VOLUME_AUDIO)*15000)));
 
             mpx[i] = mono * MONO_VOLUME +
-                get_oscillator_sin_sample(&osc)*STEREO_VOLUME;
+                get_oscillator_sin_sample(&osc)*STEREO_VOLUME_MODULATION;
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
