@@ -1,2 +1,2 @@
 // #define PREEMPHASIS
-#define LPF
+// #define LPF
