@@ -18,7 +18,7 @@ Also i'd recommend to use the SSB version because it's more spectrum effiecent
 # SSB-STCode
 This is a version of the stereo code but instead of DSB-SC it transmits some kind of VSG (mostly USB with a bit of LSB), about 100-200 hz of usb is left, just as god intended (Hilbert isn't perfect so i got some usb but managed to turn it into more into LSB)
 
-This also has a cpu usage of 20%
+This also has a cpu usage of 20% with lpf, but goes to 13-15% without the lpf
 
 # SCAMod
 SCAMod is a simple FM modulator which can be used to modulate a secondary audio stream, has similiar cpu usage and latency as STCode
