@@ -191,7 +191,7 @@ int main() {
 
             mpx[i] = mono * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                (usb-lsb)*STEREO_VOLUME;
+                (lsb-usb)*STEREO_VOLUME;
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
