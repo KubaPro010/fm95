@@ -18,7 +18,7 @@
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
-#define CLIPPER_THRESHOLD 0.425 // Adjust this as needed, this also limits deviation, so if you set this to 0.5 then the deviation will be limited to half
+#define CLIPPER_THRESHOLD 0.75 // Adjust this as needed, this also limits deviation, so if you set this to 0.5 then the deviation will be limited to half
 
 #define VOLUME 0.03f // SCA Volume
 #define VOLUME_AUDIO 1.0f // SCA Audio volume

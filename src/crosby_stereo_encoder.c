@@ -20,11 +20,11 @@
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
-#define CLIPPER_THRESHOLD 0.425 // Adjust this as needed
+#define CLIPPER_THRESHOLD 1.0 // Adjust this as needed
 
 #define MONO_VOLUME 0.5f // L+R Signal
 #define STEREO_VOLUME_AUDIO 1.0f // L-R signal (once demodulated)
-#define STEREO_VOLUME_MODULATION 0.4f // L-R signal (on MPX)
+#define STEREO_VOLUME_MODULATION 0.5f // L-R signal (on MPX)
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
