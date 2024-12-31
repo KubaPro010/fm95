@@ -188,7 +188,7 @@ int main() {
             float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
             float stereo_i, stereo_q;
             apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // I/Q, the Quadrature data is 90 degrees apart from the In-phase data
-            float lsb = (stereo_i*cos38-stereo_q*(sin38*0.725f)); // Compute LSB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
+            float lsb = (stereo_i*cos38-stereo_q*(sin38*0.75f)); // Compute LSB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
 
             mpx[i] = delay_line(&monoDelay, mono) * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
