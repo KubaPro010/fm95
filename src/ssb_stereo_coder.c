@@ -189,7 +189,7 @@ int main() {
 
             mpx[i] = mono * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                (stereo_i*cos38+stereo_q*sin38)*STEREO_VOLUME;
+                (stereo_i*cos38-stereo_q*sin38)*STEREO_VOLUME;
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
