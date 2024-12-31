@@ -74,14 +74,14 @@ float get_next_sample(Oscillator *osc) {
 typedef struct {
     float alpha;
     float prev_sample;
-} PreEmphasis;
+} Emphasis;
 
-void init_pre_emphasis(PreEmphasis *pe, float sample_rate) {
+void init_emphasis(Emphasis *pe, float sample_rate) {
     pe->prev_sample = 0.0f;
     pe->alpha = exp(-1 / (PREEMPHASIS_TAU * sample_rate));
 }
 
-float apply_pre_emphasis(PreEmphasis *pe, float sample) {
+float apply_pre_emphasis(Emphasis *pe, float sample) {
     float audio = sample-pe->alpha*pe->prev_sample;
     pe->prev_sample = audio;
     return audio*2;
@@ -191,8 +191,8 @@ int main() {
     Oscillator osc;
     init_oscillator(&osc, FREQUENCY, SAMPLE_RATE);
 #ifdef PREEMPHASIS
-    PreEmphasis preemp;
-    init_pre_emphasis(&preemp, SAMPLE_RATE);
+    Emphasis preemp;
+    init_emphasis(&preemp, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf;
