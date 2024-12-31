@@ -8,9 +8,12 @@
 #include <signal.h>
 #include <string.h>
 
+#include "../lib/constants.h"
+#include "../lib/oscillator.h"
+#include "../lib/filters.h"
+
 // Features
-#define PREEMPHASIS
-#define LPF
+#include "features.h"
 
 #define SAMPLE_RATE 192000 // Don't go lower than 182 KHz (91*2)
 
@@ -20,7 +23,7 @@
 #define CLIPPER_THRESHOLD 0.425 // Adjust this as needed
 
 #define MONO_VOLUME 0.45f // L+R Signal
-#define PILOT_VOLUME 0.0225f // 19 KHz Pilot
+#define PILOT_VOLUME 0.0175f // 19 KHz Pilot
 #define SIN38_VOLUME 0.35f
 #define COS38_VOLUME 0.35f
 #define SIN76_VOLUME 0.35f
@@ -53,88 +56,6 @@ void uninterleave(const float *input, float *front_left, float *front_right, flo
         rear_right[i] = input[i * 4 + 3];
     }
 }
-
-
-#define FIR_PHASES 32
-#define FIR_TAPS 32
-
-#define PI 3.14159265358979323846
-#define M_2PI (3.14159265358979323846 * 2.0)
-
-// Track phase continuously to maintain frequency accuracy
-typedef struct {
-    float phase;
-    float phase_increment;
-} Oscillator;
-
-void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
-    osc->phase = 0.0f;
-    osc->phase_increment = (M_2PI * frequency) / sample_rate;
-}
-
-float get_next_sample(Oscillator *osc) {
-    float sample = sinf(osc->phase);
-    osc->phase += osc->phase_increment;
-    if (osc->phase >= M_2PI) {
-        osc->phase -= M_2PI;
-    }
-    return sample;
-}
-
-#ifdef PREEMPHASIS
-typedef struct {
-    float alpha;
-    float prev_sample;
-} Emphasis;
-
-void init_emphasis(Emphasis *pe, float sample_rate) {
-    pe->prev_sample = 0.0f;
-    pe->alpha = exp(-1 / (PREEMPHASIS_TAU * sample_rate));
-}
-
-float apply_pre_emphasis(Emphasis *pe, float sample) {
-    float audio = sample-pe->alpha*pe->prev_sample;
-    pe->prev_sample = audio;
-    return audio*2;
-}
-#endif
-
-#ifdef LPF
-typedef struct {
-    float low_pass_fir[FIR_PHASES][FIR_TAPS];
-    float sample_buffer[FIR_TAPS];
-    int buffer_index;
-} LowPassFilter;
-
-void init_low_pass_filter(LowPassFilter *lp, float sample_rate) {
-    for (int i = 0; i < FIR_TAPS; i++) {
-        for (int j = 0; j < FIR_PHASES; j++) {
-            int mi = i * FIR_PHASES + j + 1;
-            float sincpos = mi - (((FIR_TAPS * FIR_PHASES) + 1.0f) / 2.0f);
-            float firlowpass = (sincpos == 0.0f) ? 1.0f : sinf(M_2PI * LPF_CUTOFF * sincpos / sample_rate) / (PI * sincpos);
-            float window = 0.54f - 0.46f * cosf(M_2PI * mi / (FIR_TAPS * FIR_PHASES)); // Hamming window
-            lp->low_pass_fir[j][i] = firlowpass * window;
-        }
-    }
-    memset(lp->sample_buffer, 0, sizeof(lp->sample_buffer));
-    lp->buffer_index = 0;
-}
-
-float apply_low_pass_filter(LowPassFilter *lp, float sample) {
-    // Update the sample buffer
-    lp->sample_buffer[lp->buffer_index] = sample;
-    lp->buffer_index = (lp->buffer_index + 1) % FIR_TAPS;
-
-    // Apply the filter
-    float result = 0.0f;
-    int index = lp->buffer_index;
-    for (int i = 0; i < FIR_TAPS; i++) {
-        result += lp->low_pass_fir[0][i] * lp->sample_buffer[index];
-        index = (index + 1) % FIR_TAPS;
-    }
-    return result*6;
-}
-#endif
 
 static void stop(int signum) {
     (void)signum;
@@ -207,17 +128,17 @@ int main() {
     init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
 #ifdef PREEMPHASIS
     Emphasis preemp_lf, preemp_lr, preemp_rf, preemp_rr;
-    init_emphasis(&preemp_lf, SAMPLE_RATE);
-    init_emphasis(&preemp_lr, SAMPLE_RATE);
-    init_emphasis(&preemp_rf, SAMPLE_RATE);
-    init_emphasis(&preemp_rr, SAMPLE_RATE);
+    init_emphasis(&preemp_lf, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_emphasis(&preemp_lr, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_emphasis(&preemp_rf, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_emphasis(&preemp_rr, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf_lf, lpf_lr, lpf_rf, lpf_rr;
-    init_low_pass_filter(&lpf_lf, SAMPLE_RATE);
-    init_low_pass_filter(&lpf_lr, SAMPLE_RATE);
-    init_low_pass_filter(&lpf_rf, SAMPLE_RATE);
-    init_low_pass_filter(&lpf_rr, SAMPLE_RATE);
+    init_low_pass_filter(&lpf_lf, LPF_CUTOFF, SAMPLE_RATE);
+    init_low_pass_filter(&lpf_lr, LPF_CUTOFF, SAMPLE_RATE);
+    init_low_pass_filter(&lpf_rf, LPF_CUTOFF, SAMPLE_RATE);
+    init_low_pass_filter(&lpf_rr, LPF_CUTOFF, SAMPLE_RATE);
 #endif
 
     signal(SIGINT, stop);
@@ -238,7 +159,7 @@ int main() {
             float sin38 = sinf((pilot_osc.phase+(0.5*PI))*2);
             float cos38 = cosf((pilot_osc.phase+(0.5*PI))*2);
             float sin76 = sinf((pilot_osc.phase+(0.5*PI))*4);
-            float pilot = get_next_sample(&pilot_osc);
+            float pilot = get_oscillator_sin_sample(&pilot_osc);
             float lf_in = left_front[i];
             float lr_in = left_rear[i];
             float rf_in = right_front[i];

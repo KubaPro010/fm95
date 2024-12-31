@@ -6,9 +6,12 @@
 #include <signal.h>
 #include <string.h>
 
+#include "../lib/constants.h"
+#include "../lib/oscillator.h"
+#include "../lib/filters.h"
+
 // Features
-// #define PREEMPHASIS
-#define LPF
+#include "features.h"
 
 #define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
 
@@ -18,7 +21,7 @@
 #define CLIPPER_THRESHOLD 0.425 // Adjust this as needed
 
 #define MONO_VOLUME 0.45f // L+R Signal
-#define PILOT_VOLUME 0.0225f // 19 KHz Pilot
+#define PILOT_VOLUME 0.0175f // 19 KHz Pilot
 #define STEREO_VOLUME 0.35f // L-R signal
 
 #ifdef PREEMPHASIS
@@ -48,87 +51,6 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
         right[i] = input[i * 2 + 1];
     }
 }
-
-#define FIR_PHASES 32
-#define FIR_TAPS 32
-
-#define PI 3.14159265358979323846
-#define M_2PI (3.14159265358979323846 * 2.0)
-
-// Track phase continuously to maintain frequency accuracy
-typedef struct {
-    float phase;
-    float phase_increment;
-} Oscillator;
-
-void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
-    osc->phase = 0.0f;
-    osc->phase_increment = (M_2PI * frequency) / sample_rate;
-}
-
-float get_next_sample(Oscillator *osc) {
-    float sample = sinf(osc->phase);
-    osc->phase += osc->phase_increment;
-    if (osc->phase >= M_2PI) {
-        osc->phase -= M_2PI;
-    }
-    return sample;
-}
-
-#ifdef PREEMPHASIS
-typedef struct {
-    float alpha;
-    float prev_sample;
-} Emphasis;
-
-void init_emphasis(Emphasis *pe, float sample_rate) {
-    pe->prev_sample = 0.0f;
-    pe->alpha = exp(-1 / (PREEMPHASIS_TAU * sample_rate));
-}
-
-float apply_pre_emphasis(Emphasis *pe, float sample) {
-    float audio = sample-pe->alpha*pe->prev_sample;
-    pe->prev_sample = audio;
-    return audio*2;
-}
-#endif
-
-#ifdef LPF
-typedef struct {
-    float low_pass_fir[FIR_PHASES][FIR_TAPS];
-    float sample_buffer[FIR_TAPS];
-    int buffer_index;
-} LowPassFilter;
-
-void init_low_pass_filter(LowPassFilter *lp, float sample_rate) {
-    for (int i = 0; i < FIR_TAPS; i++) {
-        for (int j = 0; j < FIR_PHASES; j++) {
-            int mi = i * FIR_PHASES + j + 1;
-            float sincpos = mi - (((FIR_TAPS * FIR_PHASES) + 1.0f) / 2.0f);
-            float firlowpass = (sincpos == 0.0f) ? 1.0f : sinf(M_2PI * LPF_CUTOFF * sincpos / sample_rate) / (PI * sincpos);
-            float window = 0.54f - 0.46f * cosf(M_2PI * mi / (FIR_TAPS * FIR_PHASES)); // Hamming window
-            lp->low_pass_fir[j][i] = firlowpass * window;
-        }
-    }
-    memset(lp->sample_buffer, 0, sizeof(lp->sample_buffer));
-    lp->buffer_index = 0;
-}
-
-float apply_low_pass_filter(LowPassFilter *lp, float sample) {
-    // Update the sample buffer
-    lp->sample_buffer[lp->buffer_index] = sample;
-    lp->buffer_index = (lp->buffer_index + 1) % FIR_TAPS;
-
-    // Apply the filter
-    float result = 0.0f;
-    int index = lp->buffer_index;
-    for (int i = 0; i < FIR_TAPS; i++) {
-        result += lp->low_pass_fir[0][i] * lp->sample_buffer[index];
-        index = (index + 1) % FIR_TAPS;
-    }
-    return result*6;
-}
-#endif
 
 static void stop(int signum) {
     (void)signum;
@@ -201,13 +123,13 @@ int main() {
     init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
 #ifdef PREEMPHASIS
     Emphasis preemp_l, preemp_r;
-    init_emphasis(&preemp_l, SAMPLE_RATE);
-    init_emphasis(&preemp_r, SAMPLE_RATE);
+    init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_emphasis(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf_l, lpf_r;
-    init_low_pass_filter(&lpf_l, SAMPLE_RATE);
-    init_low_pass_filter(&lpf_r, SAMPLE_RATE);
+    init_low_pass_filter(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
+    init_low_pass_filter(&lpf_r, LPF_CUTOFF, SAMPLE_RATE);
 #endif
 
     signal(SIGINT, stop);
@@ -225,7 +147,7 @@ int main() {
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
             float stereo_carrier = sinf(pilot_osc.phase*2); // Stereo carrier should be a harmonic of the pilot which is in phase, best way to generate the harmonic is to multiply the pilot's phase by two, so it is mathematically impossible for them to not be in phase
-            float pilot = get_next_sample(&pilot_osc); // This is after because if it was before then the stereo would be out of phase by one increment, so [GET STEREO] ([GET PILOT] [INCREMENT PHASE])
+            float pilot = get_oscillator_sin_sample(&pilot_osc); // This is after because if it was before then the stereo would be out of phase by one increment, so [GET STEREO] ([GET PILOT] [INCREMENT PHASE])
             float l_in = left[i];
             float r_in = right[i];
 

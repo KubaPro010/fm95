@@ -6,9 +6,12 @@
 #include <signal.h>
 #include <string.h>
 
+#include "../lib/constants.h"
+#include "../lib/oscillator.h"
+#include "../lib/filters.h"
+
 // Features
-// #define PREEMPHASIS
-#define LPF
+#include "features.h"
 
 #define SAMPLE_RATE 192000
 
@@ -40,90 +43,6 @@ float clip(float sample) {
         return sample;  // No clipping
     }
 }
-
-#define FIR_PHASES 32
-#define FIR_TAPS 32
-
-#define PI 3.14159265358979323846
-#define M_2PI (3.14159265358979323846 * 2.0)
-
-// Track phase continuously to maintain frequency accuracy
-typedef struct {
-    float phase;
-    float frequency;
-    float sample_rate;
-} Oscillator;
-
-void init_oscillator(Oscillator *osc, float frequency, float sample_rate) {
-    osc->phase = 0.0f;
-    osc->frequency = frequency;
-    osc->sample_rate = sample_rate;
-}
-
-float get_next_sample(Oscillator *osc) {
-    float phase_increment = (M_2PI * osc->frequency) / osc->sample_rate; // If you want to have dynamic frequency changing you have to compute this every sample
-    float sample = sinf(osc->phase);
-    osc->phase += phase_increment;
-    if (osc->phase >= M_2PI) {
-        osc->phase -= M_2PI;
-    }
-    return sample;
-}
-
-#ifdef PREEMPHASIS
-typedef struct {
-    float alpha;
-    float prev_sample;
-} Emphasis;
-
-void init_emphasis(Emphasis *pe, float sample_rate) {
-    pe->prev_sample = 0.0f;
-    pe->alpha = exp(-1 / (PREEMPHASIS_TAU * sample_rate));
-}
-
-float apply_pre_emphasis(Emphasis *pe, float sample) {
-    float audio = sample-pe->alpha*pe->prev_sample;
-    pe->prev_sample = audio;
-    return audio*2;
-}
-#endif
-
-#ifdef LPF
-typedef struct {
-    float low_pass_fir[FIR_PHASES][FIR_TAPS];
-    float sample_buffer[FIR_TAPS];
-    int buffer_index;
-} LowPassFilter;
-
-void init_low_pass_filter(LowPassFilter *lp, float sample_rate) {
-    for (int i = 0; i < FIR_TAPS; i++) {
-        for (int j = 0; j < FIR_PHASES; j++) {
-            int mi = i * FIR_PHASES + j + 1;
-            float sincpos = mi - (((FIR_TAPS * FIR_PHASES) + 1.0f) / 2.0f);
-            float firlowpass = (sincpos == 0.0f) ? 1.0f : sinf(M_2PI * LPF_CUTOFF * sincpos / sample_rate) / (PI * sincpos);
-            float window = 0.54f - 0.46f * cosf(M_2PI * mi / (FIR_TAPS * FIR_PHASES)); // Hamming window
-            lp->low_pass_fir[j][i] = firlowpass * window;
-        }
-    }
-    memset(lp->sample_buffer, 0, sizeof(lp->sample_buffer));
-    lp->buffer_index = 0;
-}
-
-float apply_low_pass_filter(LowPassFilter *lp, float sample) {
-    // Update the sample buffer
-    lp->sample_buffer[lp->buffer_index] = sample;
-    lp->buffer_index = (lp->buffer_index + 1) % FIR_TAPS;
-
-    // Apply the filter
-    float result = 0.0f;
-    int index = lp->buffer_index;
-    for (int i = 0; i < FIR_TAPS; i++) {
-        result += lp->low_pass_fir[0][i] * lp->sample_buffer[index];
-        index = (index + 1) % FIR_TAPS;
-    }
-    return result*6;
-}
-#endif
 
 static void stop(int signum) {
     (void)signum;
@@ -192,11 +111,11 @@ int main() {
     init_oscillator(&osc, FREQUENCY, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     Emphasis preemp;
-    init_emphasis(&preemp, SAMPLE_RATE);
+    init_emphasis(&preemp, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf;
-    init_low_pass_filter(&lpf, SAMPLE_RATE);
+    init_low_pass_filter(&lpf, LPF_CUTOFF, SAMPLE_RATE);
 #endif
 
     signal(SIGINT, stop);
@@ -231,8 +150,8 @@ int main() {
 #endif
 #endif
 
-            osc.frequency = (FREQUENCY+(current_input*DEVIATION));
-            signal[i] = get_next_sample(&osc)*VOLUME;
+            change_oscillator_frequency(&osc, (FREQUENCY+(current_input*DEVIATION)));
+            signal[i] = get_oscillator_sin_sample(&osc)*VOLUME;
         }
 
         if (pa_simple_write(output_device, signal, sizeof(signal), NULL) < 0) {

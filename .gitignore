@@ -1,5 +1,4 @@
-stereo_coder
-sca_mod
+build/
 # Prerequisites
 *.d
 

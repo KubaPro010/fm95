@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "filters.h": "c",
+        "features.h": "c",
+        "constants.h": "c",
+        "oscillator.h": "c"
+    }
+}
