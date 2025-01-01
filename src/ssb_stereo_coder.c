@@ -126,8 +126,6 @@ int main() {
     init_hilbert(&hilbert);
     DelayLine monoDelay;
     init_delay_line(&monoDelay, 99);
-    LowPassFilter ssb_lpf;
-    init_low_pass_filter(&ssb_lpf, 38150, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     Emphasis preemp_l, preemp_r;
     init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
@@ -190,11 +188,11 @@ int main() {
             float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
             float stereo_i, stereo_q;
             apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // I/Q, the Quadrature data is 90 degrees apart from the In-phase data
-            float lsb = (stereo_i*cos38-stereo_q*(sin38*0.75f)); // Compute LSB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
+            float lsb = (stereo_i*cos38-stereo_q*(sin38*0.73f)); // Compute LSB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
 
             mpx[i] = delay_line(&monoDelay, mono) * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                apply_low_pass_filter(&ssb_lpf, lsb)/6 *STEREO_VOLUME;
+                lsb *STEREO_VOLUME;
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
