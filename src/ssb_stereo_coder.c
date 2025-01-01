@@ -193,9 +193,9 @@ int main() {
             float stereo_i, stereo_q;
             apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // I/Q, the Quadrature data is 90 degrees apart from the In-phase data
 #ifdef USB
-            float signal = (stereo_i*cos38+stereo_q*(sin38*0.73f)); // Compute LSB/USB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
+            float signal = (stereo_i*cos38+stereo_q*(sin38*0.775f)); // Compute LSB/USB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
 #else
-            float signal = (stereo_i*cos38-stereo_q*(sin38*0.73f)); // Compute LSB/USB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
+            float signal = (stereo_i*cos38-stereo_q*(sin38*0.775f)); // Compute LSB/USB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
 #endif
 
             mpx[i] = delay_line(&monoDelay, mono) * MONO_VOLUME +
