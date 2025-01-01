@@ -194,7 +194,7 @@ int main() {
 
             mpx[i] = delay_line(&monoDelay, mono) * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                apply_low_pass_filter(&ssb_lpf, lsb)*STEREO_VOLUME;
+                apply_low_pass_filter(&ssb_lpf, lsb)/6 *STEREO_VOLUME;
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
