@@ -20,6 +20,11 @@ This is a version of the stereo code but instead of DSB-SC it transmits some kin
 
 This also has a cpu usage of 20% with lpf, but goes to 13-15% without the lpf
 
+# PSTCode
+This is a yet another version of a Stereo encoder, however for the OIRT band which is in use in Russia, Belarus and other countries
+
+Haven't tested it nor plan to
+
 # CrosbySTCode
 This is a stereo coder however with a diffrent system, let me yap some: 
 In the 1950-1960s the FCC had to decide between two stereo coding systems, we had the Zenith/GE system and the Crosby system, what was the diffrence?
