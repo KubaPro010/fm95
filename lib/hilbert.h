@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <math.h>
 #include "constants.h"
 
 #define D_SIZE 256
