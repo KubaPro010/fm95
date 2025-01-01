@@ -20,6 +20,14 @@ This is a version of the stereo code but instead of DSB-SC it transmits some kin
 
 This also has a cpu usage of 20% with lpf, but goes to 13-15% without the lpf
 
+# CrosbySTCode
+This is a stereo coder however with a diffrent system, let me yap some: 
+In the 1950-1960s the FCC had to decide between two stereo coding systems, we had the Zenith/GE system and the Crosby system, what was the diffrence?
+The Zenith system had a 19 khz pilot and a 38 khz dsb-sc modulated stereo l-r signal, sounds familliar? yeah that's why you haven't heard of the crosby system
+The crosby system on the other hand had a (better) decision of modulation the l-4 signal into 50 khz with FM, why was it rejected? becuase of SCA, 67 and 41 khz were used up by stereo, 41 khz was also used up on the Zenith system but who cares
+
+Also it doesnsn't sound bad, how may ask where did i find a decoder for it? Made it myself in GNU radio, it's even easier, if they chose 35 khz instead of 50, then we'd be using this, also i like this one because it has FM, not AM so if some idiot has a transmitter with hardware pre-emphasis then the stereo won't be affected by it
+
 # SCAMod
 SCAMod is a simple FM modulator which can be used to modulate a secondary audio stream, has similiar cpu usage and latency as STCode
 
