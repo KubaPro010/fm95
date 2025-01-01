@@ -3,6 +3,11 @@
         "filters.h": "c",
         "features.h": "c",
         "constants.h": "c",
-        "oscillator.h": "c"
+        "oscillator.h": "c",
+        "simple.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "error.h": "c",
+        "math.h": "c"
     }
 }

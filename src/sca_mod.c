@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <pulse/simple.h>
+#include <pulse/error.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
