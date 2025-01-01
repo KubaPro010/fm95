@@ -126,6 +126,8 @@ int main() {
     init_hilbert(&hilbert);
     DelayLine monoDelay;
     init_delay_line(&monoDelay, 99);
+    LowPassFilter ssb_lpf;
+    init_low_pass_filter(&ssb_lpf, 38150, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     Emphasis preemp_l, preemp_r;
     init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
@@ -192,7 +194,7 @@ int main() {
 
             mpx[i] = delay_line(&monoDelay, mono) * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                lsb*STEREO_VOLUME;
+                apply_low_pass_filter(&ssb_lpf, lsb)*STEREO_VOLUME;
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
