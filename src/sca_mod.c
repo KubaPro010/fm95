@@ -24,14 +24,14 @@
 #define VOLUME 0.03f // SCA Volume
 #define VOLUME_AUDIO 1.0f // SCA Audio volume
 #define FREQUENCY 67000 // SCA Frequency
-#define DEVIATION 6000 // SCA Deviation
+#define DEVIATION 7000 // SCA Deviation
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
 #endif
 
 #ifdef LPF
-#define LPF_CUTOFF 8000
+#define LPF_CUTOFF 7500
 #endif
 
 volatile sig_atomic_t to_run = 1;
