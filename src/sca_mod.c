@@ -122,11 +122,13 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
+    int pulse_error;
     float input[BUFFER_SIZE]; // Input from device
     float signal[BUFFER_SIZE]; // this goes to the output
     while (to_run) {
-        if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
-            fprintf(stderr, "Error reading from input device.\n");
+        if (pa_simple_read(input_device, input, sizeof(input), &pulse_error) < 0) {
+            fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
+            to_run = 0;
             break;
         }
 
@@ -155,8 +157,9 @@ int main() {
             signal[i] = get_oscillator_sin_sample(&osc)*VOLUME;
         }
 
-        if (pa_simple_write(output_device, signal, sizeof(signal), NULL) < 0) {
-            fprintf(stderr, "Error writing to output device.\n");
+        if (pa_simple_write(output_device, signal, sizeof(signal), &pulse_error) < 0) {
+            fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+            to_run = 0;
             break;
         }
     }

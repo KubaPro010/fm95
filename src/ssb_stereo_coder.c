@@ -13,6 +13,7 @@
 
 // Features
 #include "features.h"
+#define USB
 
 #define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
 
@@ -140,12 +141,14 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
+    int pulse_error;
     float input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
     float left[BUFFER_SIZE+64], right[BUFFER_SIZE+64]; // Audio, same thing as in input but ininterleaved, ai told be there could be a buffer overflow here
     float mpx[BUFFER_SIZE]; // MPX, this goes to the output
     while (to_run) {
-        if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
-            fprintf(stderr, "Error reading from input device.\n");
+        if (pa_simple_read(input_device, input, sizeof(input), &pulse_error) < 0) {
+            fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
+            to_run = 0;
             break;
         }
         uninterleave(input, left, right, BUFFER_SIZE*2);
@@ -188,15 +191,20 @@ int main() {
             float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
             float stereo_i, stereo_q;
             apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // I/Q, the Quadrature data is 90 degrees apart from the In-phase data
-            float lsb = (stereo_i*cos38-stereo_q*(sin38*0.73f)); // Compute LSB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
+#ifdef USB
+            float signal = (stereo_i*cos38+stereo_q*(sin38*0.73f)); // Compute LSB/USB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
+#else
+            float signal = (stereo_i*cos38-stereo_q*(sin38*0.73f)); // Compute LSB/USB, as the Hilbert isn't perfect, i'll have to a bit silence down the Q carrier in order to make it better, also, it is just perfect as FM Stereo LSB shouldn't be fully LSB
+#endif
 
             mpx[i] = delay_line(&monoDelay, mono) * MONO_VOLUME +
                 pilot * PILOT_VOLUME +
-                lsb *STEREO_VOLUME;
+                signal*STEREO_VOLUME;
         }
 
-        if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
-            fprintf(stderr, "Error writing to output device.\n");
+        if (pa_simple_write(output_device, mpx, sizeof(mpx), &pulse_error) < 0) {
+            fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+            to_run = 0;
             break;
         }
     }

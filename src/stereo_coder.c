@@ -135,12 +135,14 @@ int main() {
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
+    int pulse_error;
     float input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
     float left[BUFFER_SIZE+64], right[BUFFER_SIZE+64]; // Audio, same thing as in input but ininterleaved, ai told be there could be a buffer overflow here
     float mpx[BUFFER_SIZE]; // MPX, this goes to the output
     while (to_run) {
-        if (pa_simple_read(input_device, input, sizeof(input), NULL) < 0) {
-            fprintf(stderr, "Error reading from input device.\n");
+        if (pa_simple_read(input_device, input, sizeof(input), &pulse_error) < 0) {
+            fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
+            to_run = 0;
             break;
         }
         uninterleave(input, left, right, BUFFER_SIZE*2);
@@ -185,8 +187,9 @@ int main() {
                 (stereo * stereo_carrier) * STEREO_VOLUME; // DSB-SC modulation
         }
 
-        if (pa_simple_write(output_device, mpx, sizeof(mpx), NULL) < 0) {
-            fprintf(stderr, "Error writing to output device.\n");
+        if (pa_simple_write(output_device, mpx, sizeof(mpx), &pulse_error) < 0) {
+            fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+            to_run = 0;
             break;
         }
     }
