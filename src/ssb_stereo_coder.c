@@ -14,7 +14,7 @@
 
 // Features
 #include "features.h"
-#define USB
+//#define USB
 
 #define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
 
@@ -23,9 +23,9 @@
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.45 // Adjust this as needed
 
-#define MONO_VOLUME 0.45f // L+R Signal
-#define PILOT_VOLUME 0.0175f // 19 KHz Pilot
-#define STEREO_VOLUME 0.2f // L-R signal
+#define MONO_VOLUME 0.6f // L+R Signal
+#define PILOT_VOLUME 0.035f // 19 KHz Pilot
+#define STEREO_VOLUME 0.4f // L-R signal
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
