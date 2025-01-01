@@ -8,7 +8,7 @@
 typedef struct {
     float* delay;
     int dptr;
-    float coeffs[NZEROS]
+    float coeffs[NZEROS];
 } HilbertTransformer;
 
 void init_hilbert(HilbertTransformer *hilbert);
