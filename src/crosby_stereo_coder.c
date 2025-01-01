@@ -23,7 +23,7 @@
 
 #define MONO_VOLUME 0.6f // L+R Signal
 #define STEREO_VOLUME_AUDIO 1.0f // L-R signal
-#define STEREO_VOLUME_MODULATION 0.3f // L-R signal
+#define STEREO_VOLUME_MODULATION 0.1f // L-R signal
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
