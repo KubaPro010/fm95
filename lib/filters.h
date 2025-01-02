@@ -15,9 +15,8 @@ void init_emphasis(Emphasis *pe, float tau, float sample_rate);
 float apply_pre_emphasis(Emphasis *pe, float sample);
 
 typedef struct {
-    float low_pass_fir[FIR_PHASES][FIR_TAPS];
-    float sample_buffer[FIR_TAPS];
-    int buffer_index;
+    float alpha;
+    float prev_sample;
 } LowPassFilter;
 
 void init_low_pass_filter(LowPassFilter *lp, float cutoff_frequency, float sample_rate);

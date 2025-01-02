@@ -12,32 +12,15 @@ float apply_pre_emphasis(Emphasis *pe, float sample) {
 }
 
 void init_low_pass_filter(LowPassFilter *lp, float cutoff_frequency, float sample_rate) {
-    for (int i = 0; i < FIR_TAPS; i++) {
-        for (int j = 0; j < FIR_PHASES; j++) {
-            int mi = i * FIR_PHASES + j + 1;
-            float sincpos = mi - (((FIR_TAPS * FIR_PHASES) + 1.0f) / 2.0f);
-            float firlowpass = (sincpos == 0.0f) ? 1.0f : sinf(M_2PI * cutoff_frequency * sincpos / sample_rate) / (PI * sincpos);
-            float window = 0.54f - 0.46f * cosf(M_2PI * mi / (FIR_TAPS * FIR_PHASES)); // Hamming window
-            lp->low_pass_fir[j][i] = firlowpass * window;
-        }
-    }
-    memset(lp->sample_buffer, 0, sizeof(lp->sample_buffer));
-    lp->buffer_index = 0;
+    float rc = 1/(M_2PI*cutoff_frequency);
+    lp->alpha = sample_rate/(sample_rate+rc);
+    lp->prev_sample = 0.0f;
 }
 
 float apply_low_pass_filter(LowPassFilter *lp, float sample) {
-    // Update the sample buffer
-    lp->sample_buffer[lp->buffer_index] = sample;
-    lp->buffer_index = (lp->buffer_index + 1) % FIR_TAPS;
-
-    // Apply the filter
-    float result = 0.0f;
-    int index = lp->buffer_index;
-    for (int i = 0; i < FIR_TAPS; i++) {
-        result += lp->low_pass_fir[0][i] * lp->sample_buffer[index];
-        index = (index + 1) % FIR_TAPS;
-    }
-    return result*6;
+    float output = lp->alpha*sample+(1-lp->alpha)*lp->prev_sample;
+    lp->prev_sample = output;
+    return output;
 }
 
 void init_delay_line(DelayLine *delay_line, int max_delay) {

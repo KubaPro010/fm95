@@ -65,12 +65,12 @@ int main() {
     printf("SSB-STCode : Stereo encoder made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
     // Define formats and buffer atributes
     pa_sample_spec stereo_format = {
-        .format = PA_SAMPLE_FLOAT32LE,
+        .format = PA_SAMPLE_FLOAT32NE, //Float32 NE, or Float32 Native Endian, the float in c uses the endianess of your pc, or native endian, and float is float32, and double is float64
         .channels = 2,
         .rate = SAMPLE_RATE // Same sample rate makes it easy, leave the resampling to pipewire, it should know better
     };
     pa_sample_spec mono_format = {
-        .format = PA_SAMPLE_FLOAT32LE,
+        .format = PA_SAMPLE_FLOAT32NE,
         .channels = 1,
         .rate = SAMPLE_RATE
     };
