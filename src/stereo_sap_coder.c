@@ -122,7 +122,7 @@ int main() {
 
     Oscillator osc_mono, osc_stereo;
     init_oscillator(&osc_mono, 68000, SAMPLE_RATE);
-    init_oscillator(&osc_mono, 77000, SAMPLE_RATE);
+    init_oscillator(&osc_stereo, 77000, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     Emphasis preemp_l, premp_r;
     init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
