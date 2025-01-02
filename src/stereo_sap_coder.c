@@ -126,7 +126,7 @@ int main() {
 #ifdef PREEMPHASIS
     Emphasis preemp_l, preemp_r;
     init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
-    init_emphasis(&premp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_emphasis(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf_l, lpf_r;
