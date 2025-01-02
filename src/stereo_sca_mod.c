@@ -21,8 +21,8 @@
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.75 // Adjust this as needed, this also limits deviation, so if you set this to 0.5 then the deviation will be limited to half
 
-#define MONO_VOLUME 0.03f // Mono Volume
-#define STEREO_VOLUME 0.01f // Stereo Volume
+#define MONO_VOLUME 0.02f // Mono Volume
+#define STEREO_VOLUME 0.02f // Stereo Volume
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america

@@ -39,4 +39,4 @@ SCAMod is a simple FM modulator which can be used to modulate a secondary audio 
 Has a fine quality, but as it goes for 12 khz fm signals
 
 # StereoSCAMod
-Stereo SCA, like normal SCA but encodes L-R onto 80 khz
+Stereo SCA, like normal SCA but encodes L-R onto 80 khz, only demodulator of this right now is gnu radio
