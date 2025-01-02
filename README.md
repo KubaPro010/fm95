@@ -38,5 +38,5 @@ SCAMod is a simple FM modulator which can be used to modulate a secondary audio 
 
 Has a fine quality, but as it goes for 12 khz fm signals
 
-# SSAPCoder
-This "standard" was made by me, it encoder stereo am-quality audio into the FM carrier
+# StereoSCAMod
+Stereo SCA, like normal SCA but encodes L-R onto 80 khz

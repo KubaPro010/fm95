@@ -59,7 +59,7 @@ static void stop(int signum) {
 }
 
 int main() {
-    printf("SSCAPMod : Stereo SAP Modulator (based on the SCA encoder SCAMod) made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
+    printf("StereoSCAMod : Stereo SCA Modulator (based on the SCA encoder SCAMod) made by radio95 (with help of ChatGPT and Claude, thanks!)\n");
 
     // Define formats and buffer atributes
     pa_sample_spec mono_audio_format = {
@@ -87,7 +87,7 @@ int main() {
 
     pa_simple *input_device = pa_simple_new(
         NULL,
-        "SSAPMod",
+        "StereoSCAMod",
         PA_STREAM_RECORD,
         INPUT_DEVICE,
         "Audio Input",
@@ -105,7 +105,7 @@ int main() {
 
     pa_simple *output_device = pa_simple_new(
         NULL,
-        "SSAPMod",
+        "StereoSCAMod",
         PA_STREAM_PLAYBACK,
         OUTPUT_DEVICE,
         "Signal",
@@ -121,8 +121,8 @@ int main() {
     }
 
     Oscillator osc_mono, osc_stereo;
-    init_oscillator(&osc_mono, 68000, SAMPLE_RATE);
-    init_oscillator(&osc_stereo, 77000, SAMPLE_RATE);
+    init_oscillator(&osc_mono, 67000, SAMPLE_RATE);
+    init_oscillator(&osc_stereo, 80000, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     Emphasis preemp_l, preemp_r;
     init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
@@ -181,8 +181,8 @@ int main() {
             float mono = (current_left_input+current_right_input)/2.0f;
             float stereo = (current_left_input-current_right_input)/2.0f;
 
-            change_oscillator_frequency(&osc_mono, (68000+(mono*8000)));
-            change_oscillator_frequency(&osc_stereo, (77000+(stereo*8000)));
+            change_oscillator_frequency(&osc_mono, (67000+(mono*6000)));
+            change_oscillator_frequency(&osc_stereo, (80000+(stereo*6000)));
             signal[i] = get_oscillator_sin_sample(&osc_mono)*MONO_VOLUME+
                 get_oscillator_sin_sample(&osc_stereo)*STEREO_VOLUME;
         }
