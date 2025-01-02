@@ -37,3 +37,6 @@ Also it doesnsn't sound bad, how may ask where did i find a decoder for it? Made
 SCAMod is a simple FM modulator which can be used to modulate a secondary audio stream, has similiar cpu usage and latency as STCode
 
 Has a fine quality, but as it goes for 12 khz fm signals
+
+# SSAPCoder
+This "standard" was made by me, it encoder stereo am-quality audio into the FM carrier
