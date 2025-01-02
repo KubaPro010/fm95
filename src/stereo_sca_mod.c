@@ -16,7 +16,7 @@
 
 #define SAMPLE_RATE 192000
 
-#define INPUT_DEVICE "real_real_tx_audio_input.monitor"
+#define INPUT_DEVICE "SCA.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.75 // Adjust this as needed, this also limits deviation, so if you set this to 0.5 then the deviation will be limited to half

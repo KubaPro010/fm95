@@ -16,7 +16,7 @@
 
 #define SAMPLE_RATE 192000
 
-#define INPUT_DEVICE "real_real_tx_audio_input.monitor"
+#define INPUT_DEVICE "SCA.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.75 // Adjust this as needed, this also limits deviation, so if you set this to 0.5 then the deviation will be limited to half
@@ -24,7 +24,7 @@
 #define VOLUME 0.03f // SCA Volume
 #define VOLUME_AUDIO 1.0f // SCA Audio volume
 #define FREQUENCY 67000 // SCA Frequency
-#define DEVIATION 7000 // SCA Deviation
+#define DEVIATION 6000 // SCA Deviation
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
