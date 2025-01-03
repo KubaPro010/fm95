@@ -149,7 +149,7 @@ int main() {
         uninterleave(input, left, right, BUFFER_SIZE*2);
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            float stereo_carrier = sinf(pilot_osc.phase*2); // Stereo carrier should be a harmonic of the pilot which is in phase, best way to generate the harmonic is to multiply the pilot's phase by two, so it is mathematically impossible for them to not be in phase
+            float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc, 2); // Stereo carrier should be a harmonic of the pilot which is in phase, best way to generate the harmonic is to multiply the pilot's phase by two, so it is mathematically impossible for them to not be in phase
             float pilot = get_oscillator_sin_sample(&pilot_osc); // This is after because if it was before then the stereo would be out of phase by one increment, so [GET STEREO] ([GET PILOT] [INCREMENT PHASE])
             float l_in = left[i];
             float r_in = right[i];
