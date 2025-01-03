@@ -10,6 +10,7 @@
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
 #include "../lib/filters.h"
+#include "../lib/fm_modulator.h"
 
 // Features
 #include "features.h"
@@ -63,12 +64,12 @@ int main() {
     };
 
     pa_buffer_attr input_buffer_atr = {
-        .maxlength = 4096, // You can lower this to 512, but this is fine, it's sub-second delay, you're probably not gonna notice unless you're looking for it
-	    .fragsize = 2048
+        .maxlength = 8192,
+	    .fragsize = 4096
     };
     pa_buffer_attr output_buffer_atr = {
-        .maxlength = 4096,
-        .tlength = 2048,
+        .maxlength = 8192,
+        .tlength = 4096,
 	    .prebuf = 0
     };
 
@@ -109,8 +110,8 @@ int main() {
         return 1;
     }
 
-    Oscillator osc;
-    init_oscillator(&osc, FREQUENCY, SAMPLE_RATE);
+    FMModulator mod;
+    init_fm_modulator(&mod, FREQUENCY, DEVIATION, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     Emphasis preemp;
     init_emphasis(&preemp, PREEMPHASIS_TAU, SAMPLE_RATE);
@@ -154,8 +155,7 @@ int main() {
 #endif
 #endif
 
-            change_oscillator_frequency(&osc, (FREQUENCY+((current_input*VOLUME_AUDIO)*DEVIATION)));
-            signal[i] = get_oscillator_sin_sample(&osc)*VOLUME;
+            signal[i] = modulate_fm(&mod, current_input)*VOLUME;
         }
 
         if (pa_simple_write(output_device, signal, sizeof(signal), &pulse_error) < 0) {

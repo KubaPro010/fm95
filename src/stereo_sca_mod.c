@@ -10,6 +10,7 @@
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
 #include "../lib/filters.h"
+#include "../lib/fm_modulator.h"
 
 // Features
 #include "features.h"
@@ -74,12 +75,12 @@ int main() {
     };
 
     pa_buffer_attr input_buffer_atr = {
-        .maxlength = 4096, // You can lower this to 512, but this is fine, it's sub-second delay, you're probably not gonna notice unless you're looking for it
-	    .fragsize = 2048
+        .maxlength = 8192,
+	    .fragsize = 4096
     };
     pa_buffer_attr output_buffer_atr = {
-        .maxlength = 4096,
-        .tlength = 2048,
+        .maxlength = 8192,
+        .tlength = 4096,
 	    .prebuf = 0
     };
 
@@ -120,9 +121,9 @@ int main() {
         return 1;
     }
 
-    Oscillator osc_mono, osc_stereo;
-    init_oscillator(&osc_mono, 67000, SAMPLE_RATE);
-    init_oscillator(&osc_stereo, 80000, SAMPLE_RATE);
+    FMModulator mod_mono, mod_stereo;
+    init_fm_modulator(&mod_mono, 67000, 6000, SAMPLE_RATE);
+    init_fm_modulator(&mod_stereo, 80000, 6000, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     Emphasis preemp_l, preemp_r;
     init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
@@ -181,10 +182,8 @@ int main() {
             float mono = (current_left_input+current_right_input)/2.0f;
             float stereo = (current_left_input-current_right_input)/2.0f;
 
-            change_oscillator_frequency(&osc_mono, (67000+(mono*6000)));
-            change_oscillator_frequency(&osc_stereo, (80000+(stereo*6000)));
-            signal[i] = get_oscillator_sin_sample(&osc_mono)*MONO_VOLUME+
-                get_oscillator_sin_sample(&osc_stereo)*STEREO_VOLUME;
+            signal[i] = modulate_fm(&mod_mono, mono)*MONO_VOLUME+
+                modulate_fm(&mod_stereo, stereo)*STEREO_VOLUME;
         }
 
         if (pa_simple_write(output_device, signal, sizeof(signal), &pulse_error) < 0) {

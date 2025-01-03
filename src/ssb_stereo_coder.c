@@ -76,12 +76,12 @@ int main() {
     };
 
     pa_buffer_attr input_buffer_atr = {
-        .maxlength = 4096, // You can lower this to 512, but this is fine, it's sub-second delay, you're probably not gonna notice unless you're looking for it
-	    .fragsize = 2048
+        .maxlength = 8192,
+	    .fragsize = 4096
     };
     pa_buffer_attr output_buffer_atr = {
-        .maxlength = 4096,
-        .tlength = 2048,
+        .maxlength = 8192,
+        .tlength = 4096,
 	    .prebuf = 0
     };
 
