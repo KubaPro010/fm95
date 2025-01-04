@@ -41,6 +41,9 @@ Has a fine quality, but as it goes for 12 khz fm signals
 # StereoSCAMod
 Stereo SCA, like normal SCA but encodes L-R onto 80 khz, only demodulator of this right now is gnu radio
 
+# MonoPass
+want to keep mono for a reason but have the lpf and preemphasis, do so
+
 # How to compile?
 To compile you need `cmake` and `libpulse-dev`, if you have those then do these commands:
 ```
