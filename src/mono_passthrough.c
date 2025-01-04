@@ -12,7 +12,7 @@
 
 #include "options.h"
 
-#define SAMPLE_RATE 16000
+#define SAMPLE_RATE 32000
 
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
