@@ -74,11 +74,11 @@ int main() {
 
     pa_buffer_attr input_buffer_atr = {
         .maxlength = 8192,
-	    .fragsize = 4096
+	    .fragsize = 8192
     };
     pa_buffer_attr output_buffer_atr = {
         .maxlength = 8192,
-        .tlength = 4096,
+        .tlength = 8192,
 	    .prebuf = 0
     };
 
