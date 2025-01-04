@@ -11,8 +11,7 @@
 #include "../lib/oscillator.h"
 #include "../lib/filters.h"
 
-// Features
-#include "features.h"
+#include "options.h"
 
 #define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
 
@@ -74,13 +73,13 @@ int main() {
     };
 
     pa_buffer_attr input_buffer_atr = {
-        .maxlength = 8192,
-	    .fragsize = 8192
+        .maxlength = buffer_maxlength,
+	    .fragsize = buffer_tlength_fragsize
     };
     pa_buffer_attr output_buffer_atr = {
-        .maxlength = 8192,
-        .tlength = 8192,
-	    .prebuf = 0
+        .maxlength = buffer_maxlength,
+        .tlength = buffer_tlength_fragsize,
+	    .prebuf = buffer_prebuf
     };
 
     printf("Connecting to input device... (%s)\n", INPUT_DEVICE);

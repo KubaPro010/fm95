@@ -8,6 +8,7 @@
         "stdio.h": "c",
         "stdlib.h": "c",
         "error.h": "c",
-        "math.h": "c"
+        "math.h": "c",
+        "options.h": "c"
     }
 }
