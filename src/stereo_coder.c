@@ -122,9 +122,9 @@ int main() {
     Oscillator pilot_osc;
     init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
 #ifdef PREEMPHASIS
-    Emphasis preemp_l, preemp_r;
-    init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
-    init_emphasis(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
+    ResistorCapacitor preemp_l, preemp_r;
+    init_rc(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_rc(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf_l, lpf_r;

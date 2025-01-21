@@ -9,6 +9,8 @@
         "stdlib.h": "c",
         "error.h": "c",
         "math.h": "c",
-        "options.h": "c"
+        "options.h": "c",
+        "random": "c",
+        "__locale": "c"
     }
 }

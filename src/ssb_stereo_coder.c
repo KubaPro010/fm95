@@ -128,9 +128,9 @@ int main() {
     DelayLine monoDelay;
     init_delay_line(&monoDelay, 99);
 #ifdef PREEMPHASIS
-    Emphasis preemp_l, preemp_r;
-    init_emphasis(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
-    init_emphasis(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
+    ResistorCapacitor preemp_l, preemp_r;
+    init_rc(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_rc(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf_l, lpf_r;

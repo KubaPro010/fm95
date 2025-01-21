@@ -11,18 +11,13 @@
 typedef struct {
     float alpha;
     float prev_sample;
-} Emphasis;
+} ResistorCapacitor; 
 
-void init_emphasis(Emphasis *pe, float tau, float sample_rate);
-float apply_pre_emphasis(Emphasis *pe, float sample);
+void init_rc(ResistorCapacitor *pe, float tau, float sample_rate);
+float apply_pre_emphasis(ResistorCapacitor *pe, float sample);
 
-typedef struct {
-    float alpha;
-    float prev_sample;
-} LowPassFilter;
-
-void init_low_pass_filter(LowPassFilter *lp, float cutoff_frequency, float sample_rate);
-float apply_low_pass_filter(LowPassFilter *lp, float sample);
+void init_low_pass_filter(ResistorCapacitor *lp, float cutoff_frequency, float sample_rate);
+float apply_low_pass_filter(ResistorCapacitor *lp, float sample);
 
 
 typedef struct {

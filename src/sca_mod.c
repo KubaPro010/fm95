@@ -112,8 +112,8 @@ int main() {
     FMModulator mod;
     init_fm_modulator(&mod, FREQUENCY, DEVIATION, SAMPLE_RATE);
 #ifdef PREEMPHASIS
-    Emphasis preemp;
-    init_emphasis(&preemp, PREEMPHASIS_TAU, SAMPLE_RATE);
+    ResistorCapacitor preemp;
+    init_rc(&preemp, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
     LowPassFilter lpf;

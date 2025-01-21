@@ -1,4 +1,4 @@
-// #define PREEMPHASIS
+#define PREEMPHASIS
 // #define LPF
 
 #define buffer_maxlength 12288
