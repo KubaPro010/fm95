@@ -22,9 +22,9 @@
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.525 // Adjust this as needed
 
-#define MONO_VOLUME 0.6f // L+R Signal
-#define PILOT_VOLUME 0.035f // 19 KHz Pilot
-#define STEREO_VOLUME 0.4f // L-R signal
+#define MONO_VOLUME 0.45f // L+R Signal
+#define PILOT_VOLUME 0.09f // 19 KHz Pilot
+#define STEREO_VOLUME 0.45f // L-R signal possibly can be set to .9 because im not sure if usb will be 2 times stronger than dsb-sc
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america

@@ -19,7 +19,7 @@
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.525 // Adjust this as needed
 
-#define MONO_VOLUME 0.6f // L+R Signal
+#define MONO_VOLUME 0.45f // L+R Signal
 
 #ifdef PREEMPHASIS
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
