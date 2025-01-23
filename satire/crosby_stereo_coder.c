@@ -123,11 +123,11 @@ int main() {
     init_oscillator(&osc, 50000.0, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     ResistorCapacitor preemp_l, preemp_r;
-    init_rc(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
-    init_rc(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_rc_tau(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_rc_tau(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
-    LowPassFilter lpf_l, lpf_r;
+    ResistorCapacitor lpf_l, lpf_r;
     init_low_pass_filter(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
     init_low_pass_filter(&lpf_r, LPF_CUTOFF, SAMPLE_RATE);
 #endif

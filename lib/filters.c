@@ -1,6 +1,11 @@
 #include "filters.h"
 
-void init_rc(ResistorCapacitor *rc, float tau, float sample_rate) {
+void init_rc(ResistorCapacitor *rc, float alpha) {
+    rc->prev_sample = 0.0f;
+    rc->alpha = alpha;
+}
+
+void init_rc_tau(ResistorCapacitor *rc, float tau, float sample_rate) {
     rc->prev_sample = 0.0f;
     rc->alpha = exp(-1 / (tau * sample_rate));
 }
@@ -8,15 +13,16 @@ void init_rc(ResistorCapacitor *rc, float tau, float sample_rate) {
 float apply_pre_emphasis(ResistorCapacitor *rc, float sample) {
     float audio = sample-rc->alpha*rc->prev_sample;
     rc->prev_sample = audio;
-    return audio*2;
+    return audio;
 }
 
 void init_low_pass_filter(ResistorCapacitor *rc, float cutoff_frequency, float sample_rate) {
-    init_rc(&rc, (-1 / (sample_rate * log(sample_rate/(sample_rate+(1/(M_2PI*cutoff_frequency)))))), sample_rate);
+    float RC = 1.0f / (M_2PI * cutoff_frequency);
+    init_rc(&rc, 1.0f / (1.0f + sample_rate * RC));
 }
 
 float apply_low_pass_filter(ResistorCapacitor *rc, float sample) {
-    float output = rc->alpha*sample+(1-rc->alpha)*rc->prev_sample;
+    float output = rc->alpha*sample+(1.0f-rc->alpha)*rc->prev_sample;
     rc->prev_sample = output;
     return output;
 }

@@ -33,7 +33,7 @@
 
 volatile sig_atomic_t to_run = 1;
 
-float clip(float sample) {
+float hard_clip(float sample) {
     if (sample > CLIPPER_THRESHOLD) {
         return CLIPPER_THRESHOLD;  // Clip to the upper threshold
     } else if (sample < -CLIPPER_THRESHOLD) {
@@ -122,11 +122,11 @@ int main() {
     init_oscillator(&stereo_osc, 31250.0, SAMPLE_RATE);
 #ifdef PREEMPHASIS
     ResistorCapacitor preemp_l, preemp_r;
-    init_rc(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
-    init_rc(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_rc_tau(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_rc_tau(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
-    LowPassFilter lpf_l, lpf_r;
+    ResistorCapacitor lpf_l, lpf_r;
     init_low_pass_filter(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
     init_low_pass_filter(&lpf_r, LPF_CUTOFF, SAMPLE_RATE);
 #endif
@@ -156,23 +156,23 @@ int main() {
             float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
             float preemphasized_left = apply_pre_emphasis(&preemp_l, lowpassed_left);
             float preemphasized_right = apply_pre_emphasis(&preemp_r, lowpassed_right);
-            float current_left_input = clip(preemphasized_left);
-            float current_right_input = clip(preemphasized_right);
+            float current_left_input = hard_clip(preemphasized_left);
+            float current_right_input = hard_clip(preemphasized_right);
 #else
             float preemphasized_left = apply_pre_emphasis(&preemp_l, l_in);
             float preemphasized_right = apply_pre_emphasis(&preemp_r, r_in);
-            float current_left_input = clip(preemphasized_left);
-            float current_right_input = clip(preemphasized_right);
+            float current_left_input = hard_clip(preemphasized_left);
+            float current_right_input = hard_clip(preemphasized_right);
 #endif
 #else
 #ifdef LPF
             float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
             float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
-            float current_left_input = clip(lowpassed_left);
-            float current_right_input = clip(lowpassed_right);
+            float current_left_input = hard_clip(lowpassed_left);
+            float current_right_input = hard_clip(lowpassed_right);
 #else
-            float current_left_input = clip(l_in);
-            float current_right_input = clip(r_in);
+            float current_left_input = hard_clip(l_in);
+            float current_right_input = hard_clip(r_in);
 #endif
 #endif
 
@@ -180,10 +180,10 @@ int main() {
             float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
 
             float stereo_carrier = get_oscillator_sin_sample(&stereo_osc);
-            // 14 db is somewhere around 20% of a 1 volt signal
+            // -14 db is somewhere around 20% of a 1 volt signal
 
             mpx[i] = mono * MONO_VOLUME +
-                ((stereo+0.2) * stereo_carrier)*STEREO_VOLUME;
+                ((stereo+0.2) * stereo_carrier)*STEREO_VOLUME; // the 0.2 add DC, you know what happens then? Carrier wave
         }
 
         if (pa_simple_write(output_device, mpx, sizeof(mpx), &pulse_error) < 0) {

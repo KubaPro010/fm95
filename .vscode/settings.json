@@ -11,6 +11,7 @@
         "math.h": "c",
         "options.h": "c",
         "random": "c",
-        "__locale": "c"
+        "__locale": "c",
+        "complex": "c"
     }
 }

@@ -31,7 +31,7 @@
 
 volatile sig_atomic_t to_run = 1;
 
-float clip(float sample) {
+float hard_clip(float sample) {
     if (sample > CLIPPER_THRESHOLD) {
         return CLIPPER_THRESHOLD;  // Clip to the upper threshold
     } else if (sample < -CLIPPER_THRESHOLD) {
@@ -105,10 +105,10 @@ int main() {
 
 #ifdef PREEMPHASIS
     ResistorCapacitor preemp;
-    init_rc(&preemp, PREEMPHASIS_TAU, SAMPLE_RATE);
+    init_rc_tau(&preemp, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
 #ifdef LPF
-    LowPassFilter lpf;
+    ResistorCapacitor lpf;
     init_low_pass_filter(&lpf, LPF_CUTOFF, SAMPLE_RATE);
 #endif
 
@@ -132,17 +132,17 @@ int main() {
 #ifdef LPF
             float lowpassed = apply_low_pass_filter(&lpf, in);
             float preemphasized = apply_pre_emphasis(&preemp, lowpassed);
-            float current_input = clip(preemphasized);
+            float current_input = hard_clip(preemphasized);
 #else
             float preemphasized = apply_pre_emphasis(&preemp, in);
-            float current_input = clip(preemphasized);
+            float current_input = hard_clip(preemphasized);
 #endif
 #else
 #ifdef LPF
             float lowpassed = apply_low_pass_filter(&lpf, in);
-            float current_input = clip(lowpassed);
+            float current_input = hard_clip(lowpassed);
 #else
-            float current_input = clip(in);
+            float current_input = hard_clip(in);
 #endif
 #endif
 

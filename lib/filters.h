@@ -5,20 +5,17 @@
 #include <stdlib.h>
 #include "constants.h"
 
-#define FIR_PHASES 32
-#define FIR_TAPS 32
-
 typedef struct {
     float alpha;
     float prev_sample;
 } ResistorCapacitor; 
 
-void init_rc(ResistorCapacitor *pe, float tau, float sample_rate);
+void init_rc(ResistorCapacitor *pe, float alpha);
+void init_rc_tau(ResistorCapacitor *pe, float tau, float sample_rate);
 float apply_pre_emphasis(ResistorCapacitor *pe, float sample);
 
 void init_low_pass_filter(ResistorCapacitor *lp, float cutoff_frequency, float sample_rate);
 float apply_low_pass_filter(ResistorCapacitor *lp, float sample);
-
 
 typedef struct {
     float *buffer;
