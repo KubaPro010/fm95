@@ -154,13 +154,13 @@ int main() {
 #ifdef LPF
             float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
             float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
-            float preemphasized_left = apply_pre_emphasis(&preemp_l, lowpassed_left);
-            float preemphasized_right = apply_pre_emphasis(&preemp_r, lowpassed_right);
+            float preemphasized_left = apply_pre_emphasis(&preemp_l, lowpassed_left)*2;
+            float preemphasized_right = apply_pre_emphasis(&preemp_r, lowpassed_right)*2;
             float current_left_input = hard_clip(preemphasized_left);
             float current_right_input = hard_clip(preemphasized_right);
 #else
-            float preemphasized_left = apply_pre_emphasis(&preemp_l, l_in);
-            float preemphasized_right = apply_pre_emphasis(&preemp_r, r_in);
+            float preemphasized_left = apply_pre_emphasis(&preemp_l, l_in)*2;
+            float preemphasized_right = apply_pre_emphasis(&preemp_r, r_in)*2;
             float current_left_input = hard_clip(preemphasized_left);
             float current_right_input = hard_clip(preemphasized_right);
 #endif

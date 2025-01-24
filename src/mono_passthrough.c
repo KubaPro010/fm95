@@ -131,10 +131,10 @@ int main() {
 #ifdef PREEMPHASIS
 #ifdef LPF
             float lowpassed = apply_low_pass_filter(&lpf, in);
-            float preemphasized = apply_pre_emphasis(&preemp, lowpassed);
+            float preemphasized = apply_pre_emphasis(&preemp, lowpassed)*2;
             float current_input = hard_clip(preemphasized);
 #else
-            float preemphasized = apply_pre_emphasis(&preemp, in);
+            float preemphasized = apply_pre_emphasis(&preemp, in)*2;
             float current_input = hard_clip(preemphasized);
 #endif
 #else
