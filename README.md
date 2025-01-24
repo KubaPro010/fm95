@@ -16,6 +16,8 @@ As far as i've tested it (29-31 december) it's been fine but after a fix it was 
 Also i'd recommend to use the SSB version because it's more spectrum effiecent
 but SSB has slightly more cpu usage
 
+This supports alsa output
+
 # PSTCode
 This is a yet another version of a Stereo encoder, however for the OIRT band which is in use in Russia, Belarus and other countries
 

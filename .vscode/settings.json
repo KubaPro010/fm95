@@ -12,6 +12,10 @@
         "options.h": "c",
         "random": "c",
         "__locale": "c",
-        "complex": "c"
+        "complex": "c",
+        "stdbool.h": "c",
+        "format": "c",
+        "ios": "c",
+        "stdint.h": "c"
     }
 }
