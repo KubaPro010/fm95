@@ -10,20 +10,16 @@
 
 #define DEFAULT_STEREO 1
 #define DEFAULT_STEREO_POLAR 0
+#define DEFAULT_STEREO_SSB 0
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_ALSA_OUTPUT 0
 
-//#define SSB
-#ifdef SSB
 //#define USB
-#endif
 
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
 #include "../lib/filters.h"
-#ifdef SSB
 #include "../lib/hilbert.h"
-#endif
 
 #define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
 
@@ -90,6 +86,10 @@ void show_help(char *name) {
         "   -o,--output     Override output device\n"
         "   -M,--mpx        Override MPX input device\n"
         "   -c,--clipper    Override the clipper threshold\n"
+        "   -P,--polar      Force Polar Stereo (does not take effect with -m)\n"
+        "   -g,--ge         Force Zenith/GE stereo (does not take effect with -m, default)\n"
+        "   -S,--ssb        Force SSB\n"
+        "   -D,--dsb        Force DSB\n"
         ,name
     );
 }
@@ -97,6 +97,8 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
     show_version();
     int stereo = DEFAULT_STEREO;
+    int polar_stereo = DEFAULT_STEREO_POLAR;
+    int ssb = DEFAULT_STEREO_SSB;
     float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
     #ifndef MPX_DEVICE
     char audio_mpx_device[64] = "\0";
@@ -112,17 +114,21 @@ int main(int argc, char **argv) {
     int alsa_output = DEFAULT_ALSA_OUTPUT;
 
     int opt;
-    const char	*short_opt = "msi:o:apM:c:hv";
+    const char	*short_opt = "msi:o:apM:c:PgSDhv";
     struct option	long_opt[] =
 	{
 		{"mono",		no_argument, NULL, 'm'},
 		{"stereo",		no_argument, NULL, 's'},
 		{"input",		optional_argument, NULL, 'i'},
 		{"output",		optional_argument, NULL, 'o'},
-		{"alsa_out",	optional_argument, NULL, 'a'},
-		{"pulse_put",	optional_argument, NULL, 'p'},
+		{"alsa_out",	no_argument, NULL, 'a'},
+		{"pulse_put",	no_argument, NULL, 'p'},
 		{"mpx",	     	optional_argument, NULL, 'M'},
 		{"clipper",		optional_argument, NULL, 'c'},
+		{"polar",	no_argument, NULL, 'P'},
+		{"ge",	no_argument, NULL, 'g'},
+		{"ssb",	no_argument, NULL, 'S'},
+		{"dsb",	no_argument, NULL, 'D'},
 
 		{"help",	no_argument, NULL, 'h'},
 		{"version",	no_argument, NULL, 'v'},
@@ -159,6 +165,22 @@ int main(int argc, char **argv) {
             case 'c': //Clipper
                 clipper_threshold = strtof(optarg, NULL);
                 printf("Running with a clipper threshold of %f\n", clipper_threshold);
+                break;
+            case 'P': //Polar
+                polar_stereo = 1;
+                printf("Using polar stereo\n");
+                break;
+            case 'g': //GE
+                polar_stereo = 0;
+                printf("Using Zenith/GE stereo\n");
+                break;
+            case 'S': //SSB
+                ssb = 1;
+                printf("Using SSB\n");
+                break;
+            case 'D': //DSB
+                ssb = 0;
+                printf("Using DSB\n");
                 break;
             case 'v': // Version
                 show_version();
@@ -278,14 +300,15 @@ int main(int argc, char **argv) {
     }
 
     Oscillator pilot_osc;
-    init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
-
-#ifdef SSB
+    if(polar_stereo == 1) {
+        init_oscillator(&pilot_osc, 31250.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
+    } else {
+        init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
+    }
     HilbertTransformer hilbert; // An Hilbert shifts a signal in quadrature, generating the I/Q data
     init_hilbert(&hilbert);
     DelayLine monoDelay; // Hilbert introduces a delay of 99 samples, this should be here to sync the mono with stereo to a sample
     init_delay_line(&monoDelay, 99);
-#endif
 #ifdef PREEMPHASIS
     ResistorCapacitor preemp_l, preemp_r;
     init_rc_tau(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
@@ -354,29 +377,54 @@ int main(int argc, char **argv) {
             float mono = (current_left_input + current_right_input) / 2.0f; // Stereo to Mono
             if(stereo == 1) {
                 float stereo = (current_left_input - current_right_input) / 2.0f; // Also Stereo to Mono but a bit diffrent
-                float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc, 2); // Get stereo carrier via multiplication
-#ifdef SSB
-                float stereo_carrier_cos = get_oscillator_cos_multiplier_ni(&pilot_osc, 2) // Get Carrier Q of I/Q
-                float pilot = get_oscillator_sin_sample(&pilot_osc);
+                if(polar_stereo == 1) {
+                    if(ssb) {
+                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc, 1); // Get stereo carrier via multiplication
+                        float stereo_carrier_cos = get_oscillator_cos_sample(&pilot_osc); // Get Carrier Q of I/Q
 
-                float stereo_i, stereo_q;
-                apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
-                #ifdef USB
-                float signal = (stereo_i*cos38+stereo_q*(sin38*0.775f));
-                #else
-                float signal = (stereo_i*cos38-stereo_q*(sin38*0.775f));
-                #endif
-                output[i] = mono*MONO_VOLUME +
-                    pilot*PILOT_VOLUME +
-                    signal*STEREO_VOLUME
-                    ;
-#else
-                float pilot = get_oscillator_sin_sample(&pilot_osc);
-                output[i] = mono*MONO_VOLUME +
-                    pilot*PILOT_VOLUME +
-                    (stereo*stereo_carrier)*STEREO_VOLUME;
-                if(strlen(audio_mpx_device) != 0) output[i] += multiplex_in*MPX_VOLUME;
-#endif
+                        float stereo_i, stereo_q;
+                        stereo += 0.2;
+                        apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
+                        #ifdef USB
+                        float signal = (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier*0.775f));
+                        #else
+                        float signal = (stereo_i*stereo_carrier_cos-stereo_q*(stereo_carrier*0.775f));
+                        #endif
+                        output[i] = delay_line(&monoDelay, mono)*MONO_VOLUME +
+                            signal*STEREO_VOLUME;
+                        if(strlen(audio_mpx_device) != 0) output[i] += multiplex_in*MPX_VOLUME;
+                    } else {
+                        float stereo_carrier = get_oscillator_sin_sample(&pilot_osc);
+                        output[i] = mono*MONO_VOLUME +
+                            ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
+                        if(strlen(audio_mpx_device) != 0) output[i] += multiplex_in*MPX_VOLUME;
+                    }
+                } else {
+                    if(ssb) {
+                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc, 2); // Get stereo carrier via multiplication
+                        float stereo_carrier_cos = get_oscillator_cos_multiplier_ni(&pilot_osc, 2); // Get Carrier Q of I/Q
+                        float pilot = get_oscillator_sin_sample(&pilot_osc);
+
+                        float stereo_i, stereo_q;
+                        apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
+                        #ifdef USB
+                        float signal = (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier*0.775f));
+                        #else
+                        float signal = (stereo_i*stereo_carrier_cos-stereo_q*(stereo_carrier*0.775f));
+                        #endif
+                        output[i] = delay_line(&monoDelay, mono)*MONO_VOLUME +
+                            pilot*PILOT_VOLUME +
+                            signal*STEREO_VOLUME;
+                        if(strlen(audio_mpx_device) != 0) output[i] += multiplex_in*MPX_VOLUME;
+                    } else {
+                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc,2);
+                        float pilot = get_oscillator_sin_sample(&pilot_osc);
+                        output[i] = mono*MONO_VOLUME +
+                            pilot*PILOT_VOLUME +
+                            (stereo*stereo_carrier)*STEREO_VOLUME;
+                        if(strlen(audio_mpx_device) != 0) output[i] += multiplex_in*MPX_VOLUME;
+                    }
+                }
             } else {
                 output[i] = mono*MONO_VOLUME; // Only Mono
             }
@@ -402,9 +450,7 @@ int main(int argc, char **argv) {
         snd_pcm_close(output_handle);
         snd_pcm_hw_params_free(output_params);
     }
-#ifdef SSB
     exit_hilbert(&hilbert);
     exit_delay_line(&monoDelay);
-#endif
     return 0;
 }
