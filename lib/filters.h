@@ -14,9 +14,6 @@ void init_rc(ResistorCapacitor *pe, float alpha);
 void init_rc_tau(ResistorCapacitor *pe, float tau, float sample_rate);
 float apply_pre_emphasis(ResistorCapacitor *pe, float sample);
 
-void init_low_pass_filter(ResistorCapacitor *lp, float cutoff_frequency, float sample_rate);
-float apply_low_pass_filter(ResistorCapacitor *lp, float sample);
-
 typedef struct {
     float *buffer;
     int write_idx;  // Write position

@@ -42,10 +42,6 @@
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
 #endif
 
-#ifdef LPF
-#define LPF_CUTOFF 15000
-#endif
-
 volatile sig_atomic_t to_run = 1;
 
 float hard_clip(float sample, float threshold) {
@@ -78,7 +74,7 @@ void show_version() {
 
 void show_help(char *name) {
     printf(
-        "FM95 (an FM Processor by radio95)\n"
+        "fm95 (an FM Processor by radio95)\n"
         "Usage: %s\n\n"
         "   -m,--mono       Force Mono\n"
         "   -s,--stereo     Force Stereo\n"
@@ -97,10 +93,7 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
     show_version();
     int stereo = DEFAULT_STEREO;
-    int polar_stereo = DEFAULT_STEREO_POLAR;
-    int ssb = DEFAULT_STEREO_SSB;
-    float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
-    #ifndef MPX_DEVICE
+        #ifndef MPX_DEVICE
     char audio_mpx_device[64] = "\0";
     #else
     char audio_mpx_device[64] = MPX_DEVICE;
@@ -109,6 +102,9 @@ int main(int argc, char **argv) {
     pa_simple *output_device;
     snd_pcm_hw_params_t *output_params;
     snd_pcm_t *output_handle;
+    float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
+    int polar_stereo = DEFAULT_STEREO_POLAR;
+    int ssb = DEFAULT_STEREO_SSB;
     char audio_input_device[64] = INPUT_DEVICE;
     char audio_output_device[64] = OUTPUT_DEVICE;
     int alsa_output = DEFAULT_ALSA_OUTPUT;
@@ -314,11 +310,6 @@ int main(int argc, char **argv) {
     init_rc_tau(&preemp_l, PREEMPHASIS_TAU, SAMPLE_RATE);
     init_rc_tau(&preemp_r, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
-#ifdef LPF
-    ResistorCapacitor lpf_l, lpf_r;
-    init_low_pass_filter(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
-    init_low_pass_filter(&lpf_r, LPF_CUTOFF, SAMPLE_RATE);
-#endif
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
@@ -349,29 +340,13 @@ int main(int argc, char **argv) {
             float multiplex_in = mpx_in[i];
 
 #ifdef PREEMPHASIS
-#ifdef LPF
-            float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
-            float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
-            float preemphasized_left = apply_pre_emphasis(&preemp_l, lowpassed_left)*2;
-            float preemphasized_right = apply_pre_emphasis(&preemp_r, lowpassed_right)*2;
-            float current_left_input = hard_clip(preemphasized_left, clipper_threshold);
-            float current_right_input = hard_clip(preemphasized_right, clipper_threshold);
-#else
             float preemphasized_left = apply_pre_emphasis(&preemp_l, l_in)*2;
             float preemphasized_right = apply_pre_emphasis(&preemp_r, r_in)*2;
             float current_left_input = hard_clip(preemphasized_left, clipper_threshold);
             float current_right_input = hard_clip(preemphasized_right, clipper_threshold);
-#endif
-#else
-#ifdef LPF
-            float lowpassed_left = apply_low_pass_filter(&lpf_l, l_in);
-            float lowpassed_right = apply_low_pass_filter(&lpf_r, r_in);
-            float current_left_input = hard_clip(lowpassed_left, clipper_threshold);
-            float current_right_input = hard_clip(lowpassed_right, clipper_threshold);
 #else
             float current_left_input = hard_clip(l_in, clipper_threshold);
             float current_right_input = hard_clip(r_in, clipper_threshold);
-#endif
 #endif
 
             float mono = (current_left_input + current_right_input) / 2.0f; // Stereo to Mono

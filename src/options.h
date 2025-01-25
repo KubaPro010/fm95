@@ -1,5 +1,4 @@
 #define PREEMPHASIS
-#define LPF
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 8192

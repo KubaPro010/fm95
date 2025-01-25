@@ -35,10 +35,6 @@
 #define PREEMPHASIS_TAU 0.00005  // 50 microseconds, use 0.000075 if in america
 #endif
 
-#ifdef LPF
-#define LPF_CUTOFF 7500
-#endif
-
 volatile sig_atomic_t to_run = 1;
 
 float hard_clip(float sample) {
@@ -149,10 +145,6 @@ int main() {
     ResistorCapacitor preemp;
     init_rc_tau(&preemp, PREEMPHASIS_TAU, SAMPLE_RATE);
 #endif
-#ifdef LPF
-    ResistorCapacitor lpf;
-    init_low_pass_filter(&lpf, LPF_CUTOFF, SAMPLE_RATE);
-#endif
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
@@ -171,21 +163,10 @@ int main() {
             float in = input[i];
 
 #ifdef PREEMPHASIS
-#ifdef LPF
-            float lowpassed = apply_low_pass_filter(&lpf, in);
-            float preemphasized = apply_pre_emphasis(&preemp, lowpassed)*2;
-            float current_input = hard_clip(preemphasized);
-#else
             float preemphasized = apply_pre_emphasis(&preemp, in)*2;
             float current_input = hard_clip(preemphasized);
-#endif
-#else
-#ifdef LPF
-            float lowpassed = apply_low_pass_filter(&lpf, in);
-            float current_input = hard_clip(lowpassed);
 #else
             float current_input = hard_clip(in);
-#endif
 #endif
 
             signal[i] = modulate_fm(&mod, current_input)*VOLUME;
