@@ -9,10 +9,12 @@ FM95 is a audio processor for FM, it does:
 - SSB Stereo
 - Polar Stereo
 - Polar SSB Stereo (huh)
+- TODO: SCA
 
 Supports 2 inputs:
 - Audio (via Pulse)
 - MPX (via Pulse)
+
 and one output:
 - MPX (via Pulse or ALSA)
 
@@ -24,7 +26,7 @@ SCAMod is a simple FM modulator which can be used to modulate a secondary audio 
 Has a fine quality, but as it goes for 12 khz fm signals
 
 # How to compile?
-To compile you need `cmake` and `libpulse-dev`, if you have those then do these commands:
+To compile you need `cmake`, `libasound2-dev` and `libpulse-dev`, if you have those then do these commands:
 ```
 mkdir build
 cd build

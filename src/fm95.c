@@ -69,7 +69,7 @@ static void stop(int signum) {
 }
 
 void show_version() {
-    printf("FM95 (an FM Processor by radio95) version 1.0\n");
+    printf("fm95 (an FM Processor by radio95) version 1.0\n");
 }
 
 void show_help(char *name) {
