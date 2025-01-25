@@ -23,7 +23,7 @@
 
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
-#define ALSA_OUTPUT // Output, not input or both
+// #define ALSA_OUTPUT // Output, not input or both
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.525 // Adjust this as needed
 
@@ -89,11 +89,13 @@ int main() {
         .maxlength = buffer_maxlength,
 	    .fragsize = buffer_tlength_fragsize
     };
+#ifndef ALSA_OUTPUT
     pa_buffer_attr output_buffer_atr = {
         .maxlength = buffer_maxlength,
         .tlength = buffer_tlength_fragsize,
 	    .prebuf = buffer_prebuf
     };
+#endif
 
     int open_pulse_error;
 
