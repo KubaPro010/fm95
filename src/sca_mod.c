@@ -208,6 +208,7 @@ int main() {
     #else
     snd_pcm_drain(output_handle);
     snd_pcm_close(output_handle);
+    snd_pcm_hw_params_free(&output_params);
     #endif
     return 0;
 }

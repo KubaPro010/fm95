@@ -16,6 +16,8 @@
         "stdbool.h": "c",
         "format": "c",
         "ios": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "asoundlib.h": "c",
+        "hilbert.h": "c"
     }
 }
