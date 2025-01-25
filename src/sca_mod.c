@@ -207,7 +207,7 @@ int main() {
     pa_simple_free(output_device);
     #else
     snd_pcm_drain(output_handle);
-    snd_pcm_free(output_handle);
+    snd_pcm_close(output_handle);
     #endif
     return 0;
 }

@@ -1,6 +1,4 @@
 #include <stdio.h>
-#include <pulse/simple.h>
-#include <pulse/error.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
@@ -16,8 +14,15 @@
 
 #define INPUT_DEVICE "real_real_tx_audio_input.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
+// #define ALSA_OUTPUT // Output, not input or both
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.525 // Adjust this as needed
+
+#include <pulse/simple.h>
+#include <pulse/error.h>
+#ifdef ALSA_OUTPUT
+#include <alsa/asoundlib.h>
+#endif
 
 #define MONO_VOLUME 0.45f // L+R Signal
 
@@ -60,11 +65,13 @@ int main() {
         .maxlength = buffer_maxlength,
 	    .fragsize = buffer_tlength_fragsize
     };
+#ifndef ALSA_OUTPUT
     pa_buffer_attr output_buffer_atr = {
         .maxlength = buffer_maxlength,
         .tlength = buffer_tlength_fragsize,
 	    .prebuf = buffer_prebuf
     };
+#endif
 
     printf("Connecting to input device... (%s)\n", INPUT_DEVICE);
 
@@ -86,6 +93,7 @@ int main() {
 
     printf("Connecting to output device... (%s)\n", OUTPUT_DEVICE);
 
+    #ifndef ALSA_OUTPUT
     pa_simple *output_device = pa_simple_new(
         NULL,
         "MonoPass",
@@ -102,6 +110,33 @@ int main() {
         pa_simple_free(input_device);
         return 1;
     }
+    #else
+    snd_pcm_hw_params_t *output_params;
+    snd_pcm_t *output_handle;
+    int output_error = snd_pcm_open(&output_handle, OUTPUT_DEVICE, SND_PCM_STREAM_PLAYBACK, 0);
+    if(output_error < 0) {
+        fprintf(stderr, "Error: cannot open output device: %s\n", snd_strerror(output_error));
+        pa_simple_free(input_device);
+        return 1;
+    }
+    snd_pcm_hw_params_malloc(&output_params);
+    snd_pcm_hw_params_any(output_handle, output_params);
+    snd_pcm_hw_params_set_access(output_handle, output_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_format(output_handle, output_params, SND_PCM_FORMAT_FLOAT); // Same as pulse's Float32NE
+    snd_pcm_hw_params_set_channels(output_handle, output_params, 1);
+    unsigned int rate = SAMPLE_RATE;
+    int dir;
+    snd_pcm_hw_params_set_rate_near(output_handle, output_params, &rate, &dir);
+    snd_pcm_uframes_t frames = BUFFER_SIZE;
+    snd_pcm_hw_params_set_period_size_near(output_handle, output_params, &frames, &dir); // i don't have a clue why like this
+    output_error = snd_pcm_hw_params(output_handle, output_params);
+    if(output_error < 0) {
+        fprintf(stderr, "Error: cannot open output device: %s\n", snd_strerror(output_error));
+        snd_pcm_close(output_handle);
+        pa_simple_free(input_device);
+        return 1;
+    }
+    #endif
 
 #ifdef PREEMPHASIS
     ResistorCapacitor preemp;
@@ -149,14 +184,23 @@ int main() {
             mpx[i] = current_input * MONO_VOLUME;
         }
 
+#ifndef ALSA_OUTPUT
         if (pa_simple_write(output_device, mpx, sizeof(mpx), &pulse_error) < 0) {
             fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
             to_run = 0;
             break;
         }
+#else
+        snd_pcm_writei(output_handle, mpx, sizeof(mpx));
+#endif
     }
     printf("Cleaning up...\n");
     pa_simple_free(input_device);
+    #ifndef ALSA_OUTPUT
     pa_simple_free(output_device);
+    #else
+    snd_pcm_drain(output_handle);
+    snd_pcm_close(output_handle);
+    #endif
     return 0;
 }

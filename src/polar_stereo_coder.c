@@ -1,6 +1,4 @@
 #include <stdio.h>
-#include <pulse/simple.h>
-#include <pulse/error.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
@@ -20,6 +18,12 @@
 // #define ALSA_OUTPUT // Output, not input or both
 #define BUFFER_SIZE 512
 #define CLIPPER_THRESHOLD 0.525 // Adjust this as needed
+
+#include <pulse/simple.h>
+#include <pulse/error.h>
+#ifdef ALSA_OUTPUT
+#include <alsa/asoundlib.h>
+#endif
 
 #define MONO_VOLUME 0.45f // L+R Signal
 #define STEREO_VOLUME 0.45f // L-R signal
@@ -233,6 +237,7 @@ int main() {
     pa_simple_free(output_device);
     #else
     snd_pcm_drain(output_handle);
-    snd_pcm_free(output_handle);
+    snd_pcm_close(output_handle);
+    #endif
     return 0;
 }
