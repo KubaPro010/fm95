@@ -35,7 +35,7 @@
 
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
-#define STEREO_VOLUME 0.45f // L-R signal possibly can be set to .9 because im not sure if usb will be 2 times stronger than dsb-sc
+#define STEREO_VOLUME 0.45f // L-R signal
 #define MPX_VOLUME 1.0f
 
 #ifdef PREEMPHASIS
