@@ -30,4 +30,10 @@ foreach(SRC_FILE ${SRC_FILES})
 
     # Link the necessary libraries and object files from lib/
     target_link_libraries(${EXEC_NAME} PRIVATE libfm ${LINK_LIBS})
+    
+    install(TARGETS ${EXEC_NAME}
+        DESTINATION /usr/bin
+        PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+                    GROUP_EXECUTE GROUP_READ
+                    WORLD_EXECUTE WORLD_READ)
 endforeach()
