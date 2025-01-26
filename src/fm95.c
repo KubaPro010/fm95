@@ -3,7 +3,7 @@
 #include <getopt.h>
 
 #define buffer_maxlength 12288
-#define buffer_tlength_fragsize 8192
+#define buffer_tlength_fragsize 12288
 #define buffer_prebuf 16
 
 #define DEFAULT_STEREO 1
@@ -43,6 +43,7 @@
 #define SCA_VOLUME 0.1f
 #define MPX_VOLUME 1.0f
 
+#define LPF_CUTOFF 15000
 
 volatile sig_atomic_t to_run = 1;
 
@@ -410,11 +411,15 @@ int main(int argc, char **argv) {
     HilbertTransformer hilbert; // An Hilbert shifts a signal in quadrature, generating the I/Q data
     init_hilbert(&hilbert);
     DelayLine monoDelay; // Hilbert introduces a delay of 99 samples, this should be here to sync the mono with stereo to a sample
-    init_delay_line(&monoDelay, 99);
+    init_delay_line(&monoDelay, (HILBERT_TAPS-1)/2);
 
     ResistorCapacitor preemp_l, preemp_r;
     init_rc_tau(&preemp_l, preemphasis_tau, SAMPLE_RATE);
     init_rc_tau(&preemp_r, preemphasis_tau, SAMPLE_RATE);
+
+    FrequencyFilter lpf_l, lpf_r;
+    init_lpf(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
+    init_lpf(&lpf_r, LPF_CUTOFF, SAMPLE_RATE);
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
@@ -454,8 +459,8 @@ int main(int argc, char **argv) {
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
-            float ready_l = l_in;
-            float ready_r = r_in;
+            float ready_l = apply_freqeuncy_filter(&lpf_l, r_in);
+            float ready_r = apply_freqeuncy_filter(&lpf_r, l_in);
             ready_l = apply_pre_emphasis(&preemp_l, ready_l)*2;
             ready_r = apply_pre_emphasis(&preemp_r, ready_r)*2;
             ready_l = hard_clip(ready_l, clipper_threshold);
@@ -473,9 +478,9 @@ int main(int argc, char **argv) {
                         stereo += 0.2;
                         apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
                         #ifdef USB
-                        float signal = (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier*0.775f));
+                        float signal = (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier));
                         #else
-                        float signal = (stereo_i*stereo_carrier_cos-stereo_q*(stereo_carrier*0.775f));
+                        float signal = (stereo_i*stereo_carrier_cos-stereo_q*(stereo_carrier));
                         #endif
                         output[i] = delay_line(&monoDelay, mono)*MONO_VOLUME +
                             signal*STEREO_VOLUME;
@@ -496,14 +501,10 @@ int main(int argc, char **argv) {
 
                         float stereo_i, stereo_q;
                         apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
-                        #ifdef USB
-                        float signal = (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier*0.775f));
-                        #else
-                        float signal = (stereo_i*stereo_carrier_cos-stereo_q*(stereo_carrier*0.775f));
-                        #endif
+
                         output[i] = delay_line(&monoDelay, mono)*MONO_VOLUME +
                             pilot*PILOT_VOLUME +
-                            signal*STEREO_VOLUME;
+                            (stereo_i*stereo_carrier_cos+stereo_q*stereo_carrier)*STEREO_VOLUME;
                         if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
                         if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
                     } else {
@@ -544,7 +545,6 @@ int main(int argc, char **argv) {
         snd_pcm_close(output_handle);
         snd_pcm_hw_params_free(output_params);
     }
-    exit_hilbert(&hilbert);
     exit_delay_line(&monoDelay);
     return 0;
 }

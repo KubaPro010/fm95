@@ -1,5 +1,5 @@
 #pragma once
-
+#define FILTER_TAPS 256
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,6 +13,15 @@ typedef struct {
 void init_rc(ResistorCapacitor *pe, float alpha);
 void init_rc_tau(ResistorCapacitor *pe, float tau, float sample_rate);
 float apply_pre_emphasis(ResistorCapacitor *pe, float sample);
+
+typedef struct {
+    float coeffs[FILTER_TAPS];
+    float delay[FILTER_TAPS];
+    int index;
+} FrequencyFilter;
+
+void init_lpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate);
+float apply_freqeuncy_filter(FrequencyFilter* filter, float input);
 
 typedef struct {
     float *buffer;
