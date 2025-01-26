@@ -31,7 +31,7 @@
 // #define MPX_DEVICE ""
 // #define SCA_DEVICE ""
 
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 768
 
 #include <pulse/simple.h>
 #include <pulse/error.h>
@@ -477,13 +477,8 @@ int main(int argc, char **argv) {
                         float stereo_i, stereo_q;
                         stereo += 0.2;
                         apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
-                        #ifdef USB
-                        float signal = (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier));
-                        #else
-                        float signal = (stereo_i*stereo_carrier_cos-stereo_q*(stereo_carrier));
-                        #endif
                         output[i] = delay_line(&monoDelay, mono)*MONO_VOLUME +
-                            signal*STEREO_VOLUME;
+                            (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier))*STEREO_VOLUME;
                         if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
                         if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
                     } else {
