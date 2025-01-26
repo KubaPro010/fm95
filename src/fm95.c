@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <getopt.h>
 
-#define PREEMPHASIS
-
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 8192
 #define buffer_prebuf 16
@@ -15,8 +13,8 @@
 #define DEFAULT_ALSA_OUTPUT 0
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
-#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
-#define DEFAULT_PREEMPHASIS_TAU 50e-6
+#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation
+#define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe
 
 //#define USB
 
