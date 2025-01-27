@@ -59,16 +59,15 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
 
 static void stop(int signum) {
     (void)signum;
-    printf("\nReceived stop signal. Cleaning up...\n");
+    printf("\nReceived stop signal.\n");
     to_run = 0;
 }
 
 void show_version() {
-    printf("fm95 (an FM Processor by radio95) version 1.0\n");
+    printf("fm95 (an FM Processor by radio95) version 1.1\n");
 }
 void show_help(char *name) {
     printf(
-        "fm95 (an FM Processor by radio95)\n"
         "Usage: %s\n\n"
         "   -m,--mono       Force Mono [default: %d]\n"
         "   -s,--stereo     Force Stereo [default: %d]\n"
