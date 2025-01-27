@@ -10,6 +10,7 @@
 #define DEFAULT_STEREO_POLAR 0
 #define DEFAULT_STEREO_SSB 0
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
+#define DEFAULT_SOFT_CLIPPER_THRESHOLD 0.95f
 #define DEFAULT_ALSA_OUTPUT 0
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
@@ -43,19 +44,10 @@
 #define SCA_VOLUME 0.1f
 #define MPX_VOLUME 1.0f
 
-#define LPF_CUTOFF 15000
+#define LPF_CUTOFF 15000 // Should't need to be changed
+#define HPF_CUTOFF 30 // Unless you wanna have SOME bass then leave this alone
 
 volatile sig_atomic_t to_run = 1;
-
-float hard_clip(float sample, float threshold) {
-    if (sample > threshold) {
-        return threshold;  // Clip to the upper threshold
-    } else if (sample < -threshold) {
-        return -threshold;  // Clip to the lower threshold
-    } else {
-        return sample;  // No clipping
-    }
-}
 
 void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
     // For stereo, usually it is like this: LEFT RIGHT LEFT RIGHT LEFT RIGHT so this is used to get LEFT LEFT LEFT and RIGHT RIGHT RIGHT
@@ -86,15 +78,16 @@ void show_help(char *name) {
         "   -p,--pulse_out  Force pulse output [default: %d]\n"
         "   -M,--mpx        Override MPX input device [default: %s]\n"
         "   -C,--sca        Override the SCA input device [default: %s]\n"
-        "   -f,--sca_freq   Override the SCA frequency [default: %f]\n"
-        "   -F,--sca_dev    Override the SCA deviation [default: %f]\n"
-        "   -L,--sca_clip   Override the SCA clipper threshold [default: %f]\n"
-        "   -c,--clipper    Override the clipper threshold [default: %f]\n"
+        "   -f,--sca_freq   Override the SCA frequency [default: %.1f]\n"
+        "   -F,--sca_dev    Override the SCA deviation [default: %.2f]\n"
+        "   -L,--sca_clip   Override the SCA clipper threshold [default: %.2f]\n"
+        "   -c,--clipper    Override the clipper threshold [default: %.2f]\n"
+        "   -l,--soft_clip  Override the soft clipper threshold [default: %.2f]\n"
         "   -P,--polar      Force Polar Stereo (does not take effect with -m%s)\n"
         "   -g,--ge         Force Zenith/GE stereo (does not take effect with -m%s)\n"
         "   -S,--ssb        Force SSB [default: %d]\n"
         "   -D,--dsb        Force DSB [default: %d]\n"
-        "   -R,--preemp     Override preemphasis [default: %f]\n"
+        "   -R,--preemp     Override preemphasis [default: %.2f µs]\n"
         ,name
         ,DEFAULT_STEREO^1
         ,DEFAULT_STEREO
@@ -116,11 +109,12 @@ void show_help(char *name) {
         ,DEFAULT_SCA_DEVIATION
         ,DEFAULT_SCA_CLIPPER_THRESHOLD
         ,DEFAULT_CLIPPER_THRESHOLD
+        ,DEFAULT_SOFT_CLIPPER_THRESHOLD
         ,(DEFAULT_STEREO_POLAR == 1) ? ", default" : ""
         ,(DEFAULT_STEREO_POLAR == 1) ? "" : ", default"
         ,DEFAULT_STEREO_SSB
         ,DEFAULT_STEREO_SSB^1
-        ,DEFAULT_PREEMPHASIS_TAU
+        ,DEFAULT_PREEMPHASIS_TAU/0.000001
     );
 }
 
@@ -134,6 +128,7 @@ int main(int argc, char **argv) {
     snd_pcm_t *output_handle;
 
     float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
+    float soft_clipper_threshold = DEFAULT_SOFT_CLIPPER_THRESHOLD;
     int stereo = DEFAULT_STEREO;
     int polar_stereo = DEFAULT_STEREO_POLAR;
     int ssb = DEFAULT_STEREO_SSB;
@@ -159,7 +154,7 @@ int main(int argc, char **argv) {
 
     // #region Parse Arguments
     int opt;
-    const char	*short_opt = "msi:o:apM:C:f:F:L:c:PgSDR:hv";
+    const char	*short_opt = "msi:o:apM:C:f:F:L:c:l:PgSDR:hv";
     struct option	long_opt[] =
 	{
         {"mono",        no_argument,       NULL, 'm'},
@@ -174,6 +169,7 @@ int main(int argc, char **argv) {
         {"sca_dev",     required_argument, NULL, 'F'},
         {"sca_clip",    required_argument, NULL, 'L'},
         {"clipper",     required_argument, NULL, 'c'},
+        {"soft_clip",   required_argument, NULL, 'l'},
         {"polar",       no_argument,       NULL, 'P'},
         {"ge",          no_argument,       NULL, 'g'},
         {"ssb",         no_argument,       NULL, 'S'},
@@ -182,7 +178,7 @@ int main(int argc, char **argv) {
         
         {"help",        no_argument,       NULL, 'h'},
         {"version",     no_argument,       NULL, 'v'},
-        {0,             0,                 0,    0}  // No trailing comma here
+        {0,             0,                 0,    0}
 	};
 
     while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
@@ -217,19 +213,23 @@ int main(int argc, char **argv) {
                 break;
             case 'f': //SCA freq
                 sca_frequency = strtof(optarg, NULL);
-                printf("Running with a SCA frequency of %f\n", sca_frequency);
+                printf("Running with a SCA frequency of %.2f\n", sca_frequency);
                 break;
             case 'F': //SCA deviation
                 sca_deviation = strtof(optarg, NULL);
-                printf("Running with a SCA deviation of %f\n", sca_deviation);
+                printf("Running with a SCA deviation of %.1f\n", sca_deviation);
                 break;
             case 'L': //SCA clip
                 sca_clipper_threshold = strtof(optarg, NULL);
-                printf("Running with a SCA clipper threshold of %f\n", sca_clipper_threshold);
+                printf("Running with a SCA clipper threshold of %.3f\n", sca_clipper_threshold);
                 break;
             case 'c': //Clipper
                 clipper_threshold = strtof(optarg, NULL);
-                printf("Running with a clipper threshold of %f\n", clipper_threshold);
+                printf("Running with a clipper threshold of %.3f\n", clipper_threshold);
+                break;
+            case 'l': //Soft Clipper
+                soft_clipper_threshold = strtof(optarg, NULL);
+                printf("Running with a soft clipper threshold of %.3f\n", soft_clipper_threshold);
                 break;
             case 'P': //Polar
                 polar_stereo = 1;
@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
                 break;
             case 'R': // Preemp
                 preemphasis_tau = strtof(optarg, NULL)*0.000001;
-                printf("Running with a premp of %f\n", preemphasis_tau);
+                printf("Running with a premp of %1.f µs\n", preemphasis_tau/0.000001);
                 break;
             case 'v': // Version
                 show_version();
@@ -398,11 +398,12 @@ int main(int argc, char **argv) {
     }
     // #endregion
 
-    Oscillator pilot_osc;
+    // #region Setup Filters/Modulaltors/Oscillators
+    Oscillator osc;
     if(polar_stereo == 1) {
-        init_oscillator(&pilot_osc, 31250.0, SAMPLE_RATE); // The stereo carrier itself, the stereo carrier in polar is modulated directly on 31.25 khz with a bit of a carrier
+        init_oscillator(&osc, 31250.0, SAMPLE_RATE); // The stereo carrier itself, the stereo carrier in polar is modulated directly on 31.25 khz with a bit of a carrier
     } else {
-        init_oscillator(&pilot_osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
+        init_oscillator(&osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
     }
 
     FMModulator sca_mod;
@@ -410,7 +411,7 @@ int main(int argc, char **argv) {
 
     HilbertTransformer hilbert; // An Hilbert shifts a signal in quadrature, generating the I/Q data
     init_hilbert(&hilbert);
-    DelayLine monoDelay; // Hilbert introduces a delay of 99 samples, this should be here to sync the mono with stereo to a sample
+    DelayLine monoDelay; // Hilbert introduces a delay, this should be here to sync the mono with stereo to a sample
     init_delay_line(&monoDelay, (HILBERT_TAPS-1)/2);
 
     ResistorCapacitor preemp_l, preemp_r;
@@ -420,6 +421,11 @@ int main(int argc, char **argv) {
     FrequencyFilter lpf_l, lpf_r;
     init_lpf(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
     init_lpf(&lpf_r, LPF_CUTOFF, SAMPLE_RATE);
+
+    FrequencyFilter hpf_l, hpf_r;
+    init_hpf(&hpf_l, HPF_CUTOFF, SAMPLE_RATE);
+    init_hpf(&hpf_r, HPF_CUTOFF, SAMPLE_RATE);
+    // #endregion
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
@@ -459,10 +465,14 @@ int main(int argc, char **argv) {
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
-            float ready_l = apply_freqeuncy_filter(&lpf_l, r_in);
-            float ready_r = apply_freqeuncy_filter(&lpf_r, l_in);
+            float ready_l = apply_frequency_filter(&lpf_l, r_in);
+            float ready_r = apply_frequency_filter(&lpf_r, l_in);
+            ready_l = apply_frequency_filter(&hpf_l, ready_l);
+            ready_r = apply_frequency_filter(&hpf_r, ready_r);
             ready_l = apply_pre_emphasis(&preemp_l, ready_l)*2;
             ready_r = apply_pre_emphasis(&preemp_r, ready_r)*2;
+            ready_l = soft_clip(ready_l, soft_clipper_threshold);
+            ready_r = soft_clip(ready_r, soft_clipper_threshold);
             ready_l = hard_clip(ready_l, clipper_threshold);
             ready_r = hard_clip(ready_r, clipper_threshold);
 
@@ -471,8 +481,8 @@ int main(int argc, char **argv) {
                 float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent
                 if(polar_stereo == 1) {
                     if(ssb) {
-                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc, 1); // Get stereo carrier via multiplication
-                        float stereo_carrier_cos = get_oscillator_cos_sample(&pilot_osc); // Get Carrier Q of I/Q
+                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 1); // Get stereo carrier via multiplication
+                        float stereo_carrier_cos = get_oscillator_cos_sample(&osc); // Get Carrier Q of I/Q
 
                         float stereo_i, stereo_q;
                         stereo += 0.2;
@@ -482,7 +492,7 @@ int main(int argc, char **argv) {
                         if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
                         if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
                     } else {
-                        float stereo_carrier = get_oscillator_sin_sample(&pilot_osc);
+                        float stereo_carrier = get_oscillator_sin_sample(&osc);
                         output[i] = mono*MONO_VOLUME +
                             ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
                         if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
@@ -490,9 +500,9 @@ int main(int argc, char **argv) {
                     }
                 } else {
                     if(ssb) {
-                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc, 2); // Get stereo carrier via multiplication
-                        float stereo_carrier_cos = get_oscillator_cos_multiplier_ni(&pilot_osc, 2); // Get Carrier Q of I/Q
-                        float pilot = get_oscillator_sin_sample(&pilot_osc);
+                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 2); // Get stereo carrier via multiplication
+                        float stereo_carrier_cos = get_oscillator_cos_multiplier_ni(&osc, 2); // Get Carrier Q of I/Q
+                        float pilot = get_oscillator_sin_sample(&osc);
 
                         float stereo_i, stereo_q;
                         apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
@@ -503,8 +513,8 @@ int main(int argc, char **argv) {
                         if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
                         if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
                     } else {
-                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&pilot_osc,2);
-                        float pilot = get_oscillator_sin_sample(&pilot_osc);
+                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc,2);
+                        float pilot = get_oscillator_sin_sample(&osc);
                         output[i] = mono*MONO_VOLUME +
                             pilot*PILOT_VOLUME +
                             (stereo*stereo_carrier)*STEREO_VOLUME;

@@ -74,7 +74,7 @@ void init_hpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate) {
     filter->index = 0;
 }
 
-float apply_freqeuncy_filter(FrequencyFilter* filter, float input) {
+float apply_frequency_filter(FrequencyFilter* filter, float input) {
     // Shift delay line
     filter->delay[filter->index] = input;
     
@@ -90,6 +90,24 @@ float apply_freqeuncy_filter(FrequencyFilter* filter, float input) {
     filter->index = (filter->index + FILTER_TAPS - 1) % FILTER_TAPS;
     
     return output;
+}
+
+float hard_clip(float sample, float threshold) {
+    if (sample > threshold) {
+        return threshold;  // Clip to the upper threshold
+    } else if (sample < -threshold) {
+        return -threshold;  // Clip to the lower threshold
+    } else {
+        return sample;  // No clipping
+    }
+}
+float soft_clip(float sample, float threshold) {
+    if (fabs(sample) <= threshold) {
+        return sample; // Linear region
+    } else {
+        float sign = (sample > 0) ? 1.0f : -1.0f;
+        return sign * (threshold + (1.0f - threshold) * pow(fabs(sample) - threshold, 0.5f));
+    }
 }
 
 void init_delay_line(DelayLine *delay_line, int max_delay) {

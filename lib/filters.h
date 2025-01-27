@@ -21,7 +21,11 @@ typedef struct {
 } FrequencyFilter;
 
 void init_lpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate);
-float apply_freqeuncy_filter(FrequencyFilter* filter, float input);
+void init_hpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate);
+float apply_frequency_filter(FrequencyFilter* filter, float input);
+
+float hard_clip(float sample, float threshold);
+float soft_clip(float sample, float threshold);
 
 typedef struct {
     float *buffer;
