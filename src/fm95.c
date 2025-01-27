@@ -11,7 +11,7 @@
 #define DEFAULT_STEREO_SSB 0
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_SOFT_CLIPPER_THRESHOLD 0.95f
-#define DEFAULT_ALSA_OUTPUT 0
+#define DEFAULT_ALSA_OUTPUT 1
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation
@@ -27,8 +27,8 @@
 
 #define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
 
-#define INPUT_DEVICE "real_real_tx_audio_input.monitor"
-#define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
+#define INPUT_DEVICE "FM_Audio.monitor"
+#define OUTPUT_DEVICE "plughw:1,0"
 // #define MPX_DEVICE ""
 // #define SCA_DEVICE ""
 
