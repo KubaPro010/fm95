@@ -29,7 +29,7 @@
 
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "plughw:1,0"
-// #define MPX_DEVICE ""
+#define MPX_DEVICE "FM_MPX.monitor"
 // #define SCA_DEVICE ""
 
 #define BUFFER_SIZE 768
@@ -68,7 +68,7 @@ void show_version() {
 }
 void show_help(char *name) {
     printf(
-        "Usage: %s\n\n"
+        "Usage: %s\n"
         "   -m,--mono       Force Mono [default: %d]\n"
         "   -s,--stereo     Force Stereo [default: %d]\n"
         "   -i,--input      Override input device [default: %s]\n"
@@ -396,7 +396,6 @@ int main(int argc, char **argv) {
         }
     }
     // #endregion
-
     // #region Setup Filters/Modulaltors/Oscillators
     Oscillator osc;
     if(polar_stereo == 1) {
