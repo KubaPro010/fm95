@@ -4,7 +4,7 @@
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
-#define buffer_prebuf 16
+#define buffer_prebuf 32
 
 #define DEFAULT_STEREO 1
 #define DEFAULT_STEREO_POLAR 0
@@ -14,8 +14,8 @@
 #define DEFAULT_ALSA_OUTPUT 1
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
-#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation
-#define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe
+#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation, if you set this to 0.5 then you may as well set the deviation to 3.5k
+#define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
 
 //#define USB
 
@@ -25,7 +25,7 @@
 #include "../lib/hilbert.h"
 #include "../lib/fm_modulator.h"
 
-#define SAMPLE_RATE 192000 // Don't go lower than 108 KHz, becuase it (53000*2) and (38000+15000)
+#define SAMPLE_RATE 192000
 
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "plughw:1,0"
@@ -46,6 +46,7 @@
 
 #define LPF_CUTOFF 15000 // Should't need to be changed
 #define HPF_CUTOFF 30 // Unless you wanna have SOME bass then leave this alone
+#define CENTER_BASS 50 // Bass upto this will be mono
 
 volatile sig_atomic_t to_run = 1;
 
@@ -398,7 +399,7 @@ int main(int argc, char **argv) {
     // #endregion
     // #region Setup Filters/Modulaltors/Oscillators
     Oscillator osc;
-    if(polar_stereo == 1) {
+    if(polar_stereo) {
         init_oscillator(&osc, 31250.0, SAMPLE_RATE); // The stereo carrier itself, the stereo carrier in polar is modulated directly on 31.25 khz with a bit of a carrier
     } else {
         init_oscillator(&osc, 19000.0, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
@@ -423,6 +424,9 @@ int main(int argc, char **argv) {
     FrequencyFilter hpf_l, hpf_r;
     init_hpf(&hpf_l, HPF_CUTOFF, SAMPLE_RATE);
     init_hpf(&hpf_r, HPF_CUTOFF, SAMPLE_RATE);
+
+    FrequencyFilter bass_hpf;
+    init_hpf(&bass_hpf, CENTER_BASS, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -477,54 +481,47 @@ int main(int argc, char **argv) {
             float mono = (ready_l + ready_r) / 2.0f; // Stereo to Mono
             if(stereo == 1) {
                 float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent
-                if(polar_stereo == 1) {
-                    if(ssb) {
-                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 1); // Get stereo carrier via multiplication
-                        float stereo_carrier_cos = get_oscillator_cos_sample(&osc); // Get Carrier Q of I/Q
+                if(CENTER_BASS != 0) stereo = apply_frequency_filter(&bass_hpf, stereo);
 
-                        float stereo_i, stereo_q;
-                        stereo += 0.2;
-                        apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
-                        output[i] = delay_line(&monoDelay, mono)*MONO_VOLUME +
-                            (stereo_i*stereo_carrier_cos+stereo_q*(stereo_carrier))*STEREO_VOLUME;
-                        if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
-                        if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+                float stereo_i, stereo_q;
+                if(ssb) {
+                    // Compute hilbert here
+                    apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q);
+                    mono = delay_line(&monoDelay, mono); // Delay Mono
+                }
+                
+                if(polar_stereo) {
+                    float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 1);
+                    if(ssb) {
+                        float stereo_carrier_cos = get_oscillator_cos_multiplier_ni(&osc, 1); // Get Carrier Q of I/Q
+
+                        output[i] = mono*MONO_VOLUME +
+                            ((stereo_i+0.2)*stereo_carrier_cos+(stereo_q+0.2)*stereo_carrier)*STEREO_VOLUME;
                     } else {
-                        float stereo_carrier = get_oscillator_sin_sample(&osc);
+                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 1);
                         output[i] = mono*MONO_VOLUME +
                             ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
-                        if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
-                        if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
                     }
                 } else {
+                    float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 2); // Get stereo carrier via multiplication
+                    float pilot = get_oscillator_sin_multiplier_ni(&osc, 1);
                     if(ssb) {
-                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 2); // Get stereo carrier via multiplication
                         float stereo_carrier_cos = get_oscillator_cos_multiplier_ni(&osc, 2); // Get Carrier Q of I/Q
-                        float pilot = get_oscillator_sin_sample(&osc);
-
-                        float stereo_i, stereo_q;
-                        apply_hilbert(&hilbert, stereo, &stereo_i, &stereo_q); // Compute I/Q
-
-                        output[i] = delay_line(&monoDelay, mono)*MONO_VOLUME +
+                        output[i] = mono*MONO_VOLUME +
                             pilot*PILOT_VOLUME +
                             (stereo_i*stereo_carrier_cos+stereo_q*stereo_carrier)*STEREO_VOLUME;
-                        if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
-                        if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
                     } else {
-                        float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc,2);
-                        float pilot = get_oscillator_sin_sample(&osc);
                         output[i] = mono*MONO_VOLUME +
                             pilot*PILOT_VOLUME +
                             (stereo*stereo_carrier)*STEREO_VOLUME;
-                        if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
-                        if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
                     }
                 }
+                advance_oscillator(&osc);
             } else {
                 output[i] = mono*MONO_VOLUME; // Only Mono
-                if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
-                if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
             }
+            if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
+            if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
         }
 
         if(alsa_output == 0) {

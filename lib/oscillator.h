@@ -15,3 +15,4 @@ float get_oscillator_sin_sample(Oscillator *osc);
 float get_oscillator_cos_sample(Oscillator *osc);
 float get_oscillator_sin_multiplier_ni(Oscillator *osc, float multiplier);
 float get_oscillator_cos_multiplier_ni(Oscillator *osc, float multiplier);
+void advance_oscillator(Oscillator *osc);

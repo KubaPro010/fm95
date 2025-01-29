@@ -12,25 +12,23 @@ void change_oscillator_frequency(Oscillator *osc, float frequency) {
 
 float get_oscillator_sin_sample(Oscillator *osc) {
     float sample = sinf(osc->phase);
-    osc->phase += osc->phase_increment;
-    if (osc->phase >= M_2PI) {
-        osc->phase -= M_2PI;
-    }
+    advance_oscillator(osc);
     return sample;
 }
 
 float get_oscillator_cos_sample(Oscillator *osc) {
     float sample = cosf(osc->phase);
-    osc->phase += osc->phase_increment;
-    if (osc->phase >= M_2PI) {
-        osc->phase -= M_2PI;
-    }
+    advance_oscillator(osc);
     return sample;
 }
 
-float get_oscillator_sin_multiplier_ni(Oscillator *osc, float multiplier) {
+float get_oscillator_sin_multiplier_ni(Oscillator *osc, float multiplier) { // ni = No Increment
     return sinf(osc->phase*multiplier);
 }
 float get_oscillator_cos_multiplier_ni(Oscillator *osc, float multiplier) {
     return cosf(osc->phase*multiplier);
+}
+
+void advance_oscillator(Oscillator *osc) {
+    osc->phase = fmodf(osc->phase + osc->phase_increment, M_2PI);
 }

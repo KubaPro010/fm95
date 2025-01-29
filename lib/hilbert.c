@@ -6,7 +6,7 @@ void compute_hilbert_coeffs(float* coeffs, int taps) {
         if ((i - mid) % 2 == 0) {
             coeffs[i] = 0.0f;
         } else {
-            coeffs[i] = 2.0f / (PI * (i - mid));
+            coeffs[i] = 2.0f / (M_PI * (i - mid));
         }
     }
 }

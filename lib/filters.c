@@ -25,11 +25,11 @@ void init_lpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate) {
         float m = n - (FILTER_TAPS - 1.0f) / 2.0f;
         
         // Sinc function
-        float sinc = (m == 0) ? 1.0f : sinf(PI * m * fc) / (PI * m);
+        float sinc = (m == 0) ? 1.0f : sinf(M_PI * m * fc) / (M_PI * m);
         
         // Blackman window
-        float window = 0.42f - 0.5f * cosf(2.0f * PI * n / (FILTER_TAPS - 1)) 
-                     + 0.08f * cosf(4.0f * PI * n / (FILTER_TAPS - 1));
+        float window = 0.42f - 0.5f * cosf(2.0f * M_PI * n / (FILTER_TAPS - 1)) 
+                     + 0.08f * cosf(4.0f * M_PI * n / (FILTER_TAPS - 1));
         
         filter->coeffs[n] = sinc * window;
     }
@@ -53,11 +53,11 @@ void init_hpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate) {
         float m = n - (FILTER_TAPS - 1.0f) / 2.0f;
         
         // Sinc function
-        float sinc = (m == 0) ? -1.0f : sinf(PI * m * fc) / (PI * m);
+        float sinc = (m == 0) ? 1.0f : -sinf(M_PI * m * fc) / (M_PI * m);
         
         // Blackman window
-        float window = 0.42f - 0.5f * cosf(2.0f * PI * n / (FILTER_TAPS - 1)) 
-                     + 0.08f * cosf(4.0f * PI * n / (FILTER_TAPS - 1));
+        float window = 0.42f - 0.5f * cosf(2.0f * M_PI * n / (FILTER_TAPS - 1)) 
+                     + 0.08f * cosf(4.0f * M_PI * n / (FILTER_TAPS - 1));
         
         filter->coeffs[n] = sinc * window;
     }
@@ -148,4 +148,5 @@ float delay_line(DelayLine *delay_line, float in) {
 
 void exit_delay_line(DelayLine *delay_line) {
     free(delay_line->buffer);
+    delay_line->buffer = NULL;
 }
