@@ -90,6 +90,7 @@ void show_help(char *name) {
         "   -D,--dsb        Force DSB [default: %d]\n"
         "   -R,--preemp     Override preemphasis [default: %.2f µs]\n"
         "   -V,--calibrate  Enable Calibration mode [default: off]"
+        "   -A,--master_vol Set master volume [default: %.3f]"
         ,name
         ,DEFAULT_STEREO^1
         ,DEFAULT_STEREO
@@ -117,6 +118,7 @@ void show_help(char *name) {
         ,DEFAULT_STEREO_SSB
         ,DEFAULT_STEREO_SSB^1
         ,DEFAULT_PREEMPHASIS_TAU/0.000001
+        ,MASTER_VOLUME
     );
 }
 
@@ -155,10 +157,11 @@ int main(int argc, char **argv) {
     float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
     int calibration_mode = 0;
+    float master_volume = MASTER_VOLUME;
 
     // #region Parse Arguments
     int opt;
-    const char	*short_opt = "msi:o:apM:C:f:F:L:c:l:PgSDR:hv";
+    const char	*short_opt = "msi:o:apM:C:f:F:L:c:l:PgSDR:VA:hv";
     struct option	long_opt[] =
 	{
         {"mono",        no_argument,       NULL, 'm'},
@@ -180,6 +183,7 @@ int main(int argc, char **argv) {
         {"dsb",         no_argument,       NULL, 'D'},
         {"preemp",      required_argument,       NULL, 'R'},
         {"calibrate",     no_argument,       NULL, 'V'},
+        {"master_vol",     no_argument,       NULL, 'A'},
         
         {"help",        no_argument,       NULL, 'h'},
         {"version",     no_argument,       NULL, 'v'},
@@ -190,11 +194,9 @@ int main(int argc, char **argv) {
         switch(opt) {
             case 'm': // Mono
                 stereo = 0;
-                printf("Running in Mono\n");
                 break;
             case 's': // Stereo
                 stereo = 1;
-                printf("Running in Stereo\n");
                 break;
             case 'i': // Input Device
                 memcpy(audio_input_device, optarg, 63);
@@ -204,11 +206,9 @@ int main(int argc, char **argv) {
                 break;
             case 'a': // Alsa output
                 alsa_output = 1;
-                printf("Outputting via alsa\n");
                 break;
             case 'p': // Pulse output
                 alsa_output = 0;
-                printf("Outputting via pulse\n");
                 break;
             case 'M': //MPX in
                 memcpy(audio_mpx_device, optarg, 63);
@@ -218,43 +218,39 @@ int main(int argc, char **argv) {
                 break;
             case 'f': //SCA freq
                 sca_frequency = strtof(optarg, NULL);
-                printf("Running with a SCA frequency of %.2f\n", sca_frequency);
                 break;
             case 'F': //SCA deviation
                 sca_deviation = strtof(optarg, NULL);
-                printf("Running with a SCA deviation of %.1f\n", sca_deviation);
                 break;
             case 'L': //SCA clip
                 sca_clipper_threshold = strtof(optarg, NULL);
-                printf("Running with a SCA clipper threshold of %.3f\n", sca_clipper_threshold);
                 break;
             case 'c': //Clipper
                 clipper_threshold = strtof(optarg, NULL);
-                printf("Running with a clipper threshold of %.3f\n", clipper_threshold);
                 break;
             case 'l': //Soft Clipper
                 soft_clipper_threshold = strtof(optarg, NULL);
-                printf("Running with a soft clipper threshold of %.3f\n", soft_clipper_threshold);
                 break;
             case 'P': //Polar
                 polar_stereo = 1;
-                printf("Using polar stereo\n");
                 break;
             case 'g': //GE
                 polar_stereo = 0;
-                printf("Using Zenith/GE stereo\n");
                 break;
             case 'S': //SSB
                 ssb = 1;
-                printf("Using SSB\n");
                 break;
             case 'D': //DSB
                 ssb = 0;
-                printf("Using DSB\n");
                 break;
             case 'R': // Preemp
                 preemphasis_tau = strtof(optarg, NULL)*0.000001;
-                printf("Running with a premp of %1.f µs\n", preemphasis_tau/0.000001);
+                break;
+            case 'V': // Calibration
+                calibration_mode = 1;
+                break;
+            case 'A': // Master vol
+                master_volume = strtof(optarg, NULL);
                 break;
             case 'v': // Version
                 show_version();
@@ -414,7 +410,7 @@ int main(int argc, char **argv) {
 
         while(to_run) {
             for (int i = 0; i < BUFFER_SIZE; i++) {
-                output[i] = get_oscillator_sin_sample(&osc)*MASTER_VOLUME;
+                output[i] = get_oscillator_sin_sample(&osc)*master_volume;
             }
             if(alsa_output == 0) {
                 if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
@@ -565,7 +561,7 @@ int main(int argc, char **argv) {
             }
             if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
             if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
-            output[i] *= MASTER_VOLUME;
+            output[i] *= master_volume;
         }
 
         if(alsa_output == 0) {
