@@ -78,14 +78,6 @@ float hard_clip(float sample, float threshold) {
         return sample;  // No clipping
     }
 }
-float soft_clip(float sample, float threshold) {
-    if (fabs(sample) <= threshold) {
-        return sample; // Linear region
-    } else {
-        float sign = (sample > 0) ? 1.0f : -1.0f;
-        return sign * (threshold + (1.0f - threshold) * pow(fabs(sample) - threshold, 0.5f));
-    }
-}
 
 void init_delay_line(DelayLine *delay_line, int max_delay) {
     delay_line->buffer = (float *)calloc(max_delay, sizeof(float));

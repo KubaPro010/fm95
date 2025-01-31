@@ -10,7 +10,6 @@
 #define DEFAULT_STEREO_POLAR 0
 #define DEFAULT_STEREO_SSB 0
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
-#define DEFAULT_SOFT_CLIPPER_THRESHOLD 0.95f
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation, if you set this to 0.5 then you may as well set the deviation to 3.5k
@@ -44,8 +43,6 @@
 #define MPX_VOLUME 1.0f
 
 #define LPF_CUTOFF 15000 // Should't need to be changed
-#define HPF_CUTOFF 30 // Unless you wanna have SOME bass then leave this alone
-#define CENTER_BASS 50 // Bass upto this will be mono
 
 volatile sig_atomic_t to_run = 1;
 
@@ -79,7 +76,6 @@ void show_help(char *name) {
         "   -F,--sca_dev    Override the SCA deviation [default: %.2f]\n"
         "   -L,--sca_clip   Override the SCA clipper threshold [default: %.2f]\n"
         "   -c,--clipper    Override the clipper threshold [default: %.2f]\n"
-        "   -l,--soft_clip  Override the soft clipper threshold [default: %.2f]\n"
         "   -P,--polar      Force Polar Stereo (does not take effect with -m%s)\n"
         "   -g,--ge         Force Zenith/GE stereo (does not take effect with -m%s)\n"
         "   -S,--ssb        Force SSB [default: %d]\n"
@@ -106,7 +102,6 @@ void show_help(char *name) {
         ,DEFAULT_SCA_DEVIATION
         ,DEFAULT_SCA_CLIPPER_THRESHOLD
         ,DEFAULT_CLIPPER_THRESHOLD
-        ,DEFAULT_SOFT_CLIPPER_THRESHOLD
         ,(DEFAULT_STEREO_POLAR == 1) ? ", default" : ""
         ,(DEFAULT_STEREO_POLAR == 1) ? "" : ", default"
         ,DEFAULT_STEREO_SSB
@@ -124,7 +119,6 @@ int main(int argc, char **argv) {
     pa_simple *output_device;
 
     float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
-    float soft_clipper_threshold = DEFAULT_SOFT_CLIPPER_THRESHOLD;
     int stereo = DEFAULT_STEREO;
     int polar_stereo = DEFAULT_STEREO_POLAR;
     int ssb = DEFAULT_STEREO_SSB;
@@ -165,7 +159,6 @@ int main(int argc, char **argv) {
         {"sca_dev",     required_argument, NULL, 'F'},
         {"sca_clip",    required_argument, NULL, 'L'},
         {"clipper",     required_argument, NULL, 'c'},
-        {"soft_clip",   required_argument, NULL, 'l'},
         {"polar",       no_argument,       NULL, 'P'},
         {"ge",          no_argument,       NULL, 'g'},
         {"ssb",         no_argument,       NULL, 'S'},
@@ -210,9 +203,6 @@ int main(int argc, char **argv) {
                 break;
             case 'c': //Clipper
                 clipper_threshold = strtof(optarg, NULL);
-                break;
-            case 'l': //Soft Clipper
-                soft_clipper_threshold = strtof(optarg, NULL);
                 break;
             case 'P': //Polar
                 polar_stereo = 1;
@@ -403,13 +393,6 @@ int main(int argc, char **argv) {
     BiquadFilter lpf_l, lpf_r;
     init_lpf(&lpf_l, LPF_CUTOFF, 1.0f, SAMPLE_RATE);
     init_lpf(&lpf_r, LPF_CUTOFF, 1.0f, SAMPLE_RATE);
-
-    BiquadFilter hpf_l, hpf_r;
-    init_hpf(&hpf_l, HPF_CUTOFF, 1.0f, SAMPLE_RATE);
-    init_hpf(&hpf_r, HPF_CUTOFF, 1.0f, SAMPLE_RATE);
-
-    BiquadFilter bass_hpf;
-    init_hpf(&bass_hpf, CENTER_BASS, 1.0f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -452,19 +435,14 @@ int main(int argc, char **argv) {
 
             float ready_l = apply_frequency_filter(&lpf_l, l_in);
             float ready_r = apply_frequency_filter(&lpf_r, r_in);
-            ready_l = apply_frequency_filter(&hpf_l, ready_l);
-            ready_r = apply_frequency_filter(&hpf_r, ready_r);
             ready_l = apply_preemphasis(&preemp_l, ready_l);
             ready_r = apply_preemphasis(&preemp_r, ready_r);
-            ready_l = soft_clip(ready_l, soft_clipper_threshold);
-            ready_r = soft_clip(ready_r, soft_clipper_threshold);
             ready_l = hard_clip(ready_l, clipper_threshold);
             ready_r = hard_clip(ready_r, clipper_threshold);
 
             float mono = (ready_l + ready_r) / 2.0f; // Stereo to Mono
             if(stereo == 1) {
                 float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent
-                if(CENTER_BASS != 0) stereo = apply_frequency_filter(&bass_hpf, stereo);
 
                 float stereo_i, stereo_q;
                 if(ssb) {

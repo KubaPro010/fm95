@@ -25,7 +25,6 @@ void init_hpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampl
 float apply_frequency_filter(BiquadFilter* filter, float input);
 
 float hard_clip(float sample, float threshold);
-float soft_clip(float sample, float threshold);
 
 typedef struct {
     float *buffer;
