@@ -89,8 +89,8 @@ void show_help(char *name) {
         "   -S,--ssb        Force SSB [default: %d]\n"
         "   -D,--dsb        Force DSB [default: %d]\n"
         "   -R,--preemp     Override preemphasis [default: %.2f µs]\n"
-        "   -V,--calibrate  Enable Calibration mode [default: off]"
-        "   -A,--master_vol Set master volume [default: %.3f]"
+        "   -V,--calibrate  Enable Calibration mode [default: off]\n"
+        "   -A,--master_vol Set master volume [default: %.3f]\n"
         ,name
         ,DEFAULT_STEREO^1
         ,DEFAULT_STEREO
