@@ -400,7 +400,8 @@ int main(int argc, char **argv) {
             if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
             return 1;
         }
-        snd_pcm_uframes_t frames = BUFFER_SIZE;
+        snd_pcm_uframes_t frames;
+        snd_pcm_hw_params_get_period_size_min(output_params, &frames, &dir);
         snd_pcm_hw_params_set_period_size_near(output_handle, output_params, &frames, &dir); // i don't have a clue why like this
         output_error = snd_pcm_hw_params(output_handle, output_params);
         if(output_error < 0) {
