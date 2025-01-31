@@ -411,6 +411,7 @@ int main(int argc, char **argv) {
             snd_pcm_hw_params_free(output_params);
             return 1;
         }
+        snd_pcm_prepare(output_handle);
     }
     // #endregion
 
