@@ -456,9 +456,9 @@ int main(int argc, char **argv) {
     DelayLine monoDelay; // Hilbert introduces a delay, this should be here to sync the mono with stereo to a sample
     init_delay_line(&monoDelay, (HILBERT_TAPS-1)/2);
 
-    ResistorCapacitor preemp_l, preemp_r;
-    init_rc_tau(&preemp_l, preemphasis_tau, SAMPLE_RATE);
-    init_rc_tau(&preemp_r, preemphasis_tau, SAMPLE_RATE);
+    BiquadFilter preemp_l, preemp_r;
+    init_preemphasis(&preemp_l, preemphasis_tau, SAMPLE_RATE);
+    init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
 
     FrequencyFilter lpf_l, lpf_r;
     init_lpf(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
@@ -514,8 +514,8 @@ int main(int argc, char **argv) {
             float ready_r = apply_frequency_filter(&lpf_r, l_in);
             ready_l = apply_frequency_filter(&hpf_l, ready_l);
             ready_r = apply_frequency_filter(&hpf_r, ready_r);
-            ready_l = apply_pre_emphasis(&preemp_l, ready_l)*2;
-            ready_r = apply_pre_emphasis(&preemp_r, ready_r)*2;
+            ready_l = apply_preemphasis(&preemp_l, ready_l);
+            ready_r = apply_preemphasis(&preemp_r, ready_r);
             ready_l = soft_clip(ready_l, soft_clipper_threshold);
             ready_r = soft_clip(ready_r, soft_clipper_threshold);
             ready_l = hard_clip(ready_l, clipper_threshold);

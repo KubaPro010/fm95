@@ -1,19 +1,51 @@
 #include "filters.h"
 
-void init_rc(ResistorCapacitor *rc, float alpha) {
-    rc->prev_sample = 0.0f;
-    rc->alpha = alpha;
-}
+void init_preemphasis(BiquadFilter *filter, float tau, float sample_rate) {
+    /*
+    premphasis should go like this:
+    cutoff: +0
+    2cutoff: +6
+    3cutoff: +12
+    4cutoff: +18
+    ...
+    */
 
-void init_rc_tau(ResistorCapacitor *rc, float tau, float sample_rate) {
-    rc->prev_sample = 0.0f;
-    rc->alpha = exp(-1 / (tau * sample_rate));
-}
+    // Calculate the cutoff frequency from tau (f_c = 1/(2πτ))
+    float cutoff_freq = 1.0f / (2.0f * M_PI * tau);
+    
+    // Pre-warp the cutoff frequency for the bilinear transform
+    float omega = 2.0f * M_PI * cutoff_freq / sample_rate;
+    float K = tanf(omega / 2.0f);
 
-float apply_pre_emphasis(ResistorCapacitor *rc, float sample) {
-    float audio = sample-rc->alpha*rc->prev_sample;
-    rc->prev_sample = audio;
-    return audio;
+    // Calculate filter coefficients for 1st-order high-pass (converted to biquad)
+    float alpha = 1.0f + K;
+    filter->b0 = 1.0f / alpha;
+    filter->b1 = -filter->b0;
+    filter->b2 = 0.0f;
+    filter->a1 = (K - 1.0f) / alpha;
+    filter->a2 = 0.0f;
+
+    // Reset state variables
+    filter->x1 = 0.0f;
+    filter->x2 = 0.0f;
+    filter->y1 = 0.0f;
+    filter->y2 = 0.0f;
+}
+float apply_preemphasis(BiquadFilter *filter, float input) {
+    // Direct Form I implementation
+    float output = filter->b0 * input
+                 + filter->b1 * filter->x1
+                 + filter->b2 * filter->x2
+                 - filter->a1 * filter->y1
+                 - filter->a2 * filter->y2;
+
+    // Update state variables
+    filter->x2 = filter->x1;
+    filter->x1 = input;
+    filter->y2 = filter->y1;
+    filter->y1 = output;
+
+    return output;
 }
 
 void init_lpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate) {

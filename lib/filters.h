@@ -6,13 +6,14 @@
 #include "constants.h"
 
 typedef struct {
-    float alpha;
-    float prev_sample;
-} ResistorCapacitor; 
+    float b0, b1, b2;
+    float a1, a2;
+    float x1, x2;
+    float y1, y2;
+} BiquadFilter;
 
-void init_rc(ResistorCapacitor *pe, float alpha);
-void init_rc_tau(ResistorCapacitor *pe, float tau, float sample_rate);
-float apply_pre_emphasis(ResistorCapacitor *pe, float sample);
+void init_preemphasis(BiquadFilter *filter, float tau, float sample_rate);
+float apply_preemphasis(BiquadFilter *filter, float input);
 
 typedef struct {
     float coeffs[FILTER_TAPS];
