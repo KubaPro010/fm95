@@ -38,6 +38,7 @@
 #include <pulse/error.h>
 #include <alsa/asoundlib.h>
 
+#define MASTER_VOLUME 1.0f // Volume of everything combined
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
 #define STEREO_VOLUME 0.45f // L-R signal
@@ -88,6 +89,7 @@ void show_help(char *name) {
         "   -S,--ssb        Force SSB [default: %d]\n"
         "   -D,--dsb        Force DSB [default: %d]\n"
         "   -R,--preemp     Override preemphasis [default: %.2f µs]\n"
+        "   -V,--calibrate  Enable Calibration mode [default: off]"
         ,name
         ,DEFAULT_STEREO^1
         ,DEFAULT_STEREO
@@ -152,6 +154,8 @@ int main(int argc, char **argv) {
     int alsa_output = DEFAULT_ALSA_OUTPUT;
     float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
+    int calibration_mode = 0;
+
     // #region Parse Arguments
     int opt;
     const char	*short_opt = "msi:o:apM:C:f:F:L:c:l:PgSDR:hv";
@@ -174,7 +178,8 @@ int main(int argc, char **argv) {
         {"ge",          no_argument,       NULL, 'g'},
         {"ssb",         no_argument,       NULL, 'S'},
         {"dsb",         no_argument,       NULL, 'D'},
-        {"preemp",      no_argument,       NULL, 'R'},
+        {"preemp",      required_argument,       NULL, 'R'},
+        {"calibrate",     no_argument,       NULL, 'V'},
         
         {"help",        no_argument,       NULL, 'h'},
         {"version",     no_argument,       NULL, 'v'},
@@ -397,6 +402,44 @@ int main(int argc, char **argv) {
         }
     }
     // #endregion
+
+    if(calibration_mode) {
+        Oscillator osc;
+        init_oscillator(&osc, 400, SAMPLE_RATE);
+
+        signal(SIGINT, stop);
+        signal(SIGTERM, stop);
+        int pulse_error;
+        float output[BUFFER_SIZE]; // MPX, this goes to the output
+
+        while(to_run) {
+            for (int i = 0; i < BUFFER_SIZE; i++) {
+                output[i] = get_oscillator_sin_sample(&osc)*MASTER_VOLUME;
+            }
+            if(alsa_output == 0) {
+                if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
+                    fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+                    to_run = 0;
+                    break;
+                }
+            } else {
+                snd_pcm_writei(output_handle, output, sizeof(output));
+            }
+        }
+        printf("Cleaning up...\n");
+        pa_simple_free(input_device);
+        if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+        if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+        if(alsa_output == 0) {
+            pa_simple_free(output_device);
+        } else {
+            snd_pcm_drain(output_handle);
+            snd_pcm_close(output_handle);
+            snd_pcm_hw_params_free(output_params);
+        }
+        return 0;
+    }
+
     // #region Setup Filters/Modulaltors/Oscillators
     Oscillator osc;
     if(polar_stereo) {
@@ -435,8 +478,8 @@ int main(int argc, char **argv) {
     int pulse_error;
 
     float audio_stereo_input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
-    float mpx_in[BUFFER_SIZE]; // Input from MPX device
-    float sca_in[BUFFER_SIZE]; // Input from SCA device
+    float mpx_in[BUFFER_SIZE] = {0}; // Input from MPX device
+    float sca_in[BUFFER_SIZE] = {0}; // Input from SCA device
     float left[BUFFER_SIZE+64], right[BUFFER_SIZE+64]; // Audio, same thing as in input but uninterleaved, ai told be there could be a buffer overflow here
     float output[BUFFER_SIZE]; // MPX, this goes to the output
     while (to_run) {
@@ -522,6 +565,7 @@ int main(int argc, char **argv) {
             }
             if(strlen(audio_mpx_device) != 0) output[i] += current_mpx_in*MPX_VOLUME;
             if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+            output[i] *= MASTER_VOLUME;
         }
 
         if(alsa_output == 0) {
