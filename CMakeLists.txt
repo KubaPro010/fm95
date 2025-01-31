@@ -18,7 +18,7 @@ file(GLOB LIB_FILES "lib/*.c")
 add_library(libfm OBJECT ${LIB_FILES})
 
 # Linker flags for libraries
-set(LINK_LIBS "-lpulse -lpulse-simple -lm -lasound")
+set(LINK_LIBS "-lpulse -lpulse-simple -lm")
 
 # Loop through each file in src and create an executable
 foreach(SRC_FILE ${SRC_FILES})

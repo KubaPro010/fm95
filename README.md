@@ -13,10 +13,10 @@ Supports 2 inputs:
 - MPX (via Pulse)
 
 and one output:
-- MPX (via Pulse or ALSA)
+- MPX (via Pulse)
 
 # How to compile?
-To compile you need `cmake`, `libasound2-dev` and `libpulse-dev`, if you have those then do these commands:
+To compile you need `cmake` and `libpulse-dev`, if you have those then do these commands:
 ```
 mkdir build
 cd build

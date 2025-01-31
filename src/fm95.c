@@ -11,7 +11,6 @@
 #define DEFAULT_STEREO_SSB 0
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_SOFT_CLIPPER_THRESHOLD 0.95f
-#define DEFAULT_ALSA_OUTPUT 0
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation, if you set this to 0.5 then you may as well set the deviation to 3.5k
@@ -36,7 +35,6 @@
 
 #include <pulse/simple.h>
 #include <pulse/error.h>
-#include <alsa/asoundlib.h>
 
 #define MASTER_VOLUME 1.0f // Volume of everything combined
 #define MONO_VOLUME 0.45f // L+R Signal
@@ -75,8 +73,6 @@ void show_help(char *name) {
         "   -s,--stereo     Force Stereo [default: %d]\n"
         "   -i,--input      Override input device [default: %s]\n"
         "   -o,--output     Override output device [default: %s]\n"
-        "   -a,--alsa_out   Force alsa output [default: %d]\n"
-        "   -p,--pulse_out  Force pulse output [default: %d]\n"
         "   -M,--mpx        Override MPX input device [default: %s]\n"
         "   -C,--sca        Override the SCA input device [default: %s]\n"
         "   -f,--sca_freq   Override the SCA frequency [default: %.1f]\n"
@@ -96,8 +92,6 @@ void show_help(char *name) {
         ,DEFAULT_STEREO
         ,INPUT_DEVICE
         ,OUTPUT_DEVICE
-        ,DEFAULT_ALSA_OUTPUT
-        ,DEFAULT_ALSA_OUTPUT^1
         #ifdef MPX_DEVICE
         ,MPX_DEVICE
         #else
@@ -128,8 +122,6 @@ int main(int argc, char **argv) {
     pa_simple *mpx_device;
     pa_simple *sca_device;
     pa_simple *output_device;
-    snd_pcm_hw_params_t *output_params;
-    snd_pcm_t *output_handle;
 
     float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
     float soft_clipper_threshold = DEFAULT_SOFT_CLIPPER_THRESHOLD;
@@ -153,7 +145,6 @@ int main(int argc, char **argv) {
 #else
     char audio_sca_device[64] = SCA_DEVICE;
 #endif
-    int alsa_output = DEFAULT_ALSA_OUTPUT;
     float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
     int calibration_mode = 0;
@@ -168,8 +159,6 @@ int main(int argc, char **argv) {
         {"stereo",      no_argument,       NULL, 's'},
         {"input",       required_argument, NULL, 'i'},
         {"output",      required_argument, NULL, 'o'},
-        {"alsa_out",    no_argument,       NULL, 'a'},
-        {"pulse_out",   no_argument,       NULL, 'p'},
         {"mpx",         required_argument, NULL, 'M'},
         {"sca",         required_argument, NULL, 'C'},
         {"sca_freq",    required_argument, NULL, 'f'},
@@ -203,13 +192,7 @@ int main(int argc, char **argv) {
                 break;
             case 'o': // Output Device
                 memcpy(audio_output_device, optarg, 63);
-                break;
-            case 'a': // Alsa output
-                alsa_output = 1;
-                break;
-            case 'p': // Pulse output
-                alsa_output = 0;
-                break;
+                break;;
             case 'M': //MPX in
                 memcpy(audio_mpx_device, optarg, 63);
                 break;
@@ -350,76 +333,23 @@ int main(int argc, char **argv) {
 
     printf("Connecting to output device... (%s)\n", audio_output_device);
 
-    if(alsa_output == 0) {
-        output_device = pa_simple_new(
-            NULL,
-            "StereoEncoder",
-            PA_STREAM_PLAYBACK,
-            audio_output_device,
-            "MPX Output",
-            &mono_format,
-            NULL,
-            &output_buffer_atr,
-            &opentime_pulse_error
-        );
-        if (!output_device) {
-            fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
-            pa_simple_free(input_device);
-            if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-            if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
-            return 1;
-        }
-    } else {
-        int output_error = snd_pcm_open(&output_handle, audio_output_device, SND_PCM_STREAM_PLAYBACK, 0);
-        if(output_error < 0) {
-            fprintf(stderr, "Error: cannot open output device: %s\n", snd_strerror(output_error));
-            pa_simple_free(input_device);
-            if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-            if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
-            return 1;
-        }
-        snd_pcm_hw_params_malloc(&output_params);
-        snd_pcm_hw_params_any(output_handle, output_params);
-        snd_pcm_hw_params_set_access(output_handle, output_params, SND_PCM_ACCESS_RW_INTERLEAVED);
-        snd_pcm_hw_params_set_format(output_handle, output_params, SND_PCM_FORMAT_FLOAT); // Same as pulse's Float32NE
-        output_error = snd_pcm_hw_params_set_channels(output_handle, output_params, 1);
-        if(output_error < 0) {
-            fprintf(stderr, "Error: cannot open output device (channel setting): %s\n", snd_strerror(output_error));
-            pa_simple_free(input_device);
-            if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-            if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
-            return 1;
-        }
-        // Set hardware parameters
-        unsigned int rate = SAMPLE_RATE;
-        int dir;
-        output_error = snd_pcm_hw_params_set_rate_near(output_handle, output_params, &rate, &dir);
-        if (output_error < 0) {
-            fprintf(stderr, "Error: cannot set sample rate: %s\n", snd_strerror(output_error));
-            return 1;
-        }
-        if (rate != SAMPLE_RATE) {
-            fprintf(stderr, "Warning: sample rate %u not supported, using %u instead\n", SAMPLE_RATE, rate);
-        }
-
-        // Set buffer size and period size
-        snd_pcm_uframes_t buffer_size;
-        snd_pcm_hw_params_get_buffer_size_max(output_params, &buffer_size);
-        snd_pcm_hw_params_set_buffer_size_near(output_handle, output_params, &buffer_size);
-
-        snd_pcm_uframes_t period_size;
-        snd_pcm_hw_params_get_period_size_min(output_params, &period_size, &dir);
-        snd_pcm_hw_params_set_period_size_near(output_handle, output_params, &period_size, &dir);
-
-        // Apply hardware parameters
-        output_error = snd_pcm_hw_params(output_handle, output_params);
-        if (output_error < 0) {
-            fprintf(stderr, "Error: cannot set hardware parameters: %s\n", snd_strerror(output_error));
-            return 1;
-        }
-
-        // Prepare the PCM device
-        snd_pcm_prepare(output_handle);
+    output_device = pa_simple_new(
+        NULL,
+        "StereoEncoder",
+        PA_STREAM_PLAYBACK,
+        audio_output_device,
+        "MPX Output",
+        &mono_format,
+        NULL,
+        &output_buffer_atr,
+        &opentime_pulse_error
+    );
+    if (!output_device) {
+        fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
+        pa_simple_free(input_device);
+        if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+        if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+        return 1;
     }
     // #endregion
 
@@ -436,34 +366,17 @@ int main(int argc, char **argv) {
             for (int i = 0; i < BUFFER_SIZE; i++) {
                 output[i] = get_oscillator_sin_sample(&osc)*master_volume;
             }
-            if(alsa_output == 0) {
-                if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
-                    fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
-                    to_run = 0;
-                    break;
-                }
-            } else {
-                snd_pcm_sframes_t frames_written = snd_pcm_writei(output_handle, output, BUFFER_SIZE);
-                if (frames_written < 0) {
-                    fprintf(stderr, "Error: write to audio interface failed: %s\n", snd_strerror(frames_written));
-                    to_run = 0;
-                    break;
-                } else if (frames_written < BUFFER_SIZE) {
-                    fprintf(stderr, "Warning: underrun, only %ld frames written out of %d\n", frames_written, BUFFER_SIZE);
-                }
+            if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
+                fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+                to_run = 0;
+                break;
             }
         }
         printf("Cleaning up...\n");
         pa_simple_free(input_device);
         if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
         if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
-        if(alsa_output == 0) {
-            pa_simple_free(output_device);
-        } else {
-            snd_pcm_drain(output_handle);
-            snd_pcm_close(output_handle);
-            snd_pcm_hw_params_free(output_params);
-        }
+        pa_simple_free(output_device);
         return 0;
     }
 
@@ -595,32 +508,17 @@ int main(int argc, char **argv) {
             output[i] *= master_volume;
         }
 
-        if(alsa_output == 0) {
-            if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
-                fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
-                to_run = 0;
-                break;
-            }
-        } else {
-            snd_pcm_sframes_t frames_written = snd_pcm_writei(output_handle, output, BUFFER_SIZE);
-            if (frames_written < 0) {
-                fprintf(stderr, "Error: write to audio interface failed: %s\n", snd_strerror(frames_written));
-            } else if (frames_written < BUFFER_SIZE) {
-                fprintf(stderr, "Warning: underrun, only %ld frames written out of %d\n", frames_written, BUFFER_SIZE);
-            }
+        if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
+            fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+            to_run = 0;
+            break;
         }
     }
     printf("Cleaning up...\n");
     pa_simple_free(input_device);
     if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
     if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
-    if(alsa_output == 0) {
-        pa_simple_free(output_device);
-    } else {
-        snd_pcm_drain(output_handle);
-        snd_pcm_close(output_handle);
-        snd_pcm_hw_params_free(output_params);
-    }
+    pa_simple_free(output_device);
     exit_delay_line(&monoDelay);
     return 0;
 }
