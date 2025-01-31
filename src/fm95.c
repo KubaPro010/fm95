@@ -390,27 +390,35 @@ int main(int argc, char **argv) {
             if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
             return 1;
         }
+        // Set hardware parameters
         unsigned int rate = SAMPLE_RATE;
         int dir;
         output_error = snd_pcm_hw_params_set_rate_near(output_handle, output_params, &rate, &dir);
-        if(output_error < 0) {
-            fprintf(stderr, "Error: cannot open output device (rate setting): %s\n", snd_strerror(output_error));
-            pa_simple_free(input_device);
-            if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-            if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+        if (output_error < 0) {
+            fprintf(stderr, "Error: cannot set sample rate: %s\n", snd_strerror(output_error));
             return 1;
         }
-        snd_pcm_uframes_t frames;
-        snd_pcm_hw_params_get_period_size_min(output_params, &frames, &dir);
-        snd_pcm_hw_params_set_period_size_near(output_handle, output_params, &frames, &dir); // i don't have a clue why like this
+        if (rate != SAMPLE_RATE) {
+            fprintf(stderr, "Warning: sample rate %u not supported, using %u instead\n", SAMPLE_RATE, rate);
+        }
+
+        // Set buffer size and period size
+        snd_pcm_uframes_t buffer_size;
+        snd_pcm_hw_params_get_buffer_size_max(output_params, &buffer_size);
+        snd_pcm_hw_params_set_buffer_size_near(output_handle, output_params, &buffer_size);
+
+        snd_pcm_uframes_t period_size;
+        snd_pcm_hw_params_get_period_size_min(output_params, &period_size, &dir);
+        snd_pcm_hw_params_set_period_size_near(output_handle, output_params, &period_size, &dir);
+
+        // Apply hardware parameters
         output_error = snd_pcm_hw_params(output_handle, output_params);
-        if(output_error < 0) {
-            fprintf(stderr, "Error: cannot open output device: %s\n", snd_strerror(output_error));
-            snd_pcm_close(output_handle);
-            pa_simple_free(input_device);
-            snd_pcm_hw_params_free(output_params);
+        if (output_error < 0) {
+            fprintf(stderr, "Error: cannot set hardware parameters: %s\n", snd_strerror(output_error));
             return 1;
         }
+
+        // Prepare the PCM device
         snd_pcm_prepare(output_handle);
     }
     // #endregion
