@@ -435,7 +435,14 @@ int main(int argc, char **argv) {
                     break;
                 }
             } else {
-                snd_pcm_writei(output_handle, output, sizeof(output));
+                snd_pcm_sframes_t frames_written = snd_pcm_writei(output_handle, output, BUFFER_SIZE);
+                if (frames_written < 0) {
+                    fprintf(stderr, "Error: write to audio interface failed: %s\n", snd_strerror(frames_written));
+                    to_run = 0;
+                    break;
+                } else if (frames_written < BUFFER_SIZE) {
+                    fprintf(stderr, "Warning: underrun, only %ld frames written out of %d\n", frames_written, BUFFER_SIZE);
+                }
             }
         }
         printf("Cleaning up...\n");
