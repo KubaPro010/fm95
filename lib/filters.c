@@ -48,80 +48,63 @@ float apply_preemphasis(BiquadFilter *filter, float input) {
     return output;
 }
 
-void init_lpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate) {
-    float nyquist = sampleRate / 2.0f;
-    float fc = cutoffFreq / nyquist;
-    
-    // Blackman window for sharp transition
-    for (int n = 0; n < FILTER_TAPS; n++) {
-        float m = n - (FILTER_TAPS - 1.0f) / 2.0f;
-        
-        // Sinc function
-        float sinc = (m == 0) ? 1.0f : sinf(M_PI * m * fc) / (M_PI * m);
-        
-        // Blackman window
-        float window = 0.42f - 0.5f * cosf(2.0f * M_PI * n / (FILTER_TAPS - 1)) 
-                     + 0.08f * cosf(4.0f * M_PI * n / (FILTER_TAPS - 1));
-        
-        filter->coeffs[n] = sinc * window;
-    }
-    
-    // Normalize
-    float sum = 0;
-    for (int i = 0; i < FILTER_TAPS; i++) sum += filter->coeffs[i];
-    for (int i = 0; i < FILTER_TAPS; i++) filter->coeffs[i] /= sum;
-    
-    // Clear delay line
-    memset(filter->delay, 0, sizeof(filter->delay));
-    filter->index = 0;
+void init_lpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate) {
+    float x = (cutoffFreq * M_2PI) / sampleRate;
+    float sinX = sin(x);
+    float y = sinX / (qFactor*2.0f);
+    float cosX = cos(x);
+    float z = (1.0f-cosX)/2.0f;
+
+    float _a0 = y + 1.0f;
+    float _a1 = cosX * -2.0f;
+    float _a2 = 1.0f - y;
+    float _b0 = z;
+    float _b1 = 1.0f - cosX;
+    float _b2 = z;
+
+    filter->y2 = 0;
+    filter->y1 = 0;
+    filter->x2 = 0;
+    filter->x1 = 0;
+    filter->b0 = _b0/_a0;
+    filter->b1 = _b1/_a0;
+    filter->b2 = _b2/_a0;
+    filter->a1 = -_a1/_a0;
+    filter->a2 = -_a2/_a0;
 }
 
-void init_hpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate) {
-    float nyquist = sampleRate / 2.0f;
-    float fc = cutoffFreq / nyquist;
-    
-    // Blackman window for sharp transition
-    for (int n = 0; n < FILTER_TAPS; n++) {
-        float m = n - (FILTER_TAPS - 1.0f) / 2.0f;
-        
-        // Sinc function
-        float sinc = (m == 0) ? 1.0f : -sinf(M_PI * m * fc) / (M_PI * m);
-        
-        // Blackman window
-        float window = 0.42f - 0.5f * cosf(2.0f * M_PI * n / (FILTER_TAPS - 1)) 
-                     + 0.08f * cosf(4.0f * M_PI * n / (FILTER_TAPS - 1));
-        
-        filter->coeffs[n] = sinc * window;
-    }
+void init_hpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate) {
+    float x = (cutoffFreq * M_2PI) / sampleRate;
+    float sinX = sin(x);
+    float y = sinX / (qFactor*2.0f);
+    float cosX = cos(x);
+    float z = (1.0f-cosX)/2.0f;
 
-    filter->coeffs[FILTER_TAPS/2] += 1.0f;
-    
-    // Normalize
-    float sum = 0;
-    for (int i = 0; i < FILTER_TAPS; i++) sum += filter->coeffs[i];
-    for (int i = 0; i < FILTER_TAPS; i++) filter->coeffs[i] /= sum;
-    
-    // Clear delay line
-    memset(filter->delay, 0, sizeof(filter->delay));
-    filter->index = 0;
+    float _a0 = y + 1.0f;
+    float _a1 = cosX * -2.0f;
+    float _a2 = 1.0f - y;
+    float _b0 = 1.0f - z;
+    float _b1 = cosX * -2.0f;
+    float _b2 = 1.0f - z;
+
+    filter->y2 = 0;
+    filter->y1 = 0;
+    filter->x2 = 0;
+    filter->x1 = 0;
+    filter->b0 = _b0/_a0;
+    filter->b1 = _b1/_a0;
+    filter->b2 = _b2/_a0;
+    filter->a1 = -_a1/_a0;
+    filter->a2 = -_a2/_a0;
 }
 
-float apply_frequency_filter(FrequencyFilter* filter, float input) {
-    // Shift delay line
-    filter->delay[filter->index] = input;
-    
-    // Compute output
-    float output = 0;
-    int j = filter->index;
-    for (int i = 0; i < FILTER_TAPS; i++) {
-        output += filter->coeffs[i] * filter->delay[j];
-        j = (j + 1) % FILTER_TAPS;
-    }
-    
-    // Update index
-    filter->index = (filter->index + FILTER_TAPS - 1) % FILTER_TAPS;
-    
-    return output;
+float apply_frequency_filter(BiquadFilter* filter, float input) {
+    float out = input*filter->b0+filter->x1*filter->b1+filter->x2*filter->b2+filter->y1*filter->a1+filter->y2*filter->a2;
+    filter->y2 = filter->y1;
+    filter->y1 = out;
+    filter->x2 = filter->x1;
+    filter->x1 = input;
+    return out;
 }
 
 float hard_clip(float sample, float threshold) {

@@ -15,15 +15,9 @@ typedef struct {
 void init_preemphasis(BiquadFilter *filter, float tau, float sample_rate);
 float apply_preemphasis(BiquadFilter *filter, float input);
 
-typedef struct {
-    float coeffs[FILTER_TAPS];
-    float delay[FILTER_TAPS];
-    int index;
-} FrequencyFilter;
-
-void init_lpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate);
-void init_hpf(FrequencyFilter* filter, float cutoffFreq, float sampleRate);
-float apply_frequency_filter(FrequencyFilter* filter, float input);
+void init_lpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate);
+void init_hpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate);
+float apply_frequency_filter(BiquadFilter* filter, float input);
 
 float hard_clip(float sample, float threshold);
 float soft_clip(float sample, float threshold);

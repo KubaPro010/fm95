@@ -11,7 +11,7 @@
 #define DEFAULT_STEREO_SSB 0
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_SOFT_CLIPPER_THRESHOLD 0.95f
-#define DEFAULT_ALSA_OUTPUT 1
+#define DEFAULT_ALSA_OUTPUT 0
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation, if you set this to 0.5 then you may as well set the deviation to 3.5k
@@ -28,7 +28,7 @@
 #define SAMPLE_RATE 192000
 
 #define INPUT_DEVICE "FM_Audio.monitor"
-#define OUTPUT_DEVICE "plughw:1,0"
+#define OUTPUT_DEVICE "alsa_output.pci-0000_00_14.2.analog-stereo"
 #define MPX_DEVICE "FM_MPX.monitor"
 // #define SCA_DEVICE ""
 
@@ -470,16 +470,16 @@ int main(int argc, char **argv) {
     init_preemphasis(&preemp_l, preemphasis_tau, SAMPLE_RATE);
     init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
 
-    FrequencyFilter lpf_l, lpf_r;
-    init_lpf(&lpf_l, LPF_CUTOFF, SAMPLE_RATE);
-    init_lpf(&lpf_r, LPF_CUTOFF, SAMPLE_RATE);
+    BiquadFilter lpf_l, lpf_r;
+    init_lpf(&lpf_l, LPF_CUTOFF, 1.0f, SAMPLE_RATE);
+    init_lpf(&lpf_r, LPF_CUTOFF, 1.0f, SAMPLE_RATE);
 
-    FrequencyFilter hpf_l, hpf_r;
-    init_hpf(&hpf_l, HPF_CUTOFF, SAMPLE_RATE);
-    init_hpf(&hpf_r, HPF_CUTOFF, SAMPLE_RATE);
+    BiquadFilter hpf_l, hpf_r;
+    init_hpf(&hpf_l, HPF_CUTOFF, 1.0f, SAMPLE_RATE);
+    init_hpf(&hpf_r, HPF_CUTOFF, 1.0f, SAMPLE_RATE);
 
-    FrequencyFilter bass_hpf;
-    init_hpf(&bass_hpf, CENTER_BASS, SAMPLE_RATE);
+    BiquadFilter bass_hpf;
+    init_hpf(&bass_hpf, CENTER_BASS, 1.0f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
