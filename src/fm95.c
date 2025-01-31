@@ -450,8 +450,8 @@ int main(int argc, char **argv) {
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
-            float ready_l = apply_frequency_filter(&lpf_l, r_in);
-            float ready_r = apply_frequency_filter(&lpf_r, l_in);
+            float ready_l = apply_frequency_filter(&lpf_l, l_in);
+            float ready_r = apply_frequency_filter(&lpf_r, r_in);
             ready_l = apply_frequency_filter(&hpf_l, ready_l);
             ready_r = apply_frequency_filter(&hpf_r, ready_r);
             ready_l = apply_preemphasis(&preemp_l, ready_l);
