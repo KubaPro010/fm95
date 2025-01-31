@@ -382,10 +382,24 @@ int main(int argc, char **argv) {
         snd_pcm_hw_params_any(output_handle, output_params);
         snd_pcm_hw_params_set_access(output_handle, output_params, SND_PCM_ACCESS_RW_INTERLEAVED);
         snd_pcm_hw_params_set_format(output_handle, output_params, SND_PCM_FORMAT_FLOAT); // Same as pulse's Float32NE
-        snd_pcm_hw_params_set_channels(output_handle, output_params, 1);
+        output_error = snd_pcm_hw_params_set_channels(output_handle, output_params, 1);
+        if(output_error < 0) {
+            fprintf(stderr, "Error: cannot open output device (channel setting): %s\n", snd_strerror(output_error));
+            pa_simple_free(input_device);
+            if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+            if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+            return 1;
+        }
         unsigned int rate = SAMPLE_RATE;
         int dir;
-        snd_pcm_hw_params_set_rate_near(output_handle, output_params, &rate, &dir);
+        output_error = snd_pcm_hw_params_set_rate_near(output_handle, output_params, &rate, &dir);
+        if(output_error < 0) {
+            fprintf(stderr, "Error: cannot open output device (rate setting): %s\n", snd_strerror(output_error));
+            pa_simple_free(input_device);
+            if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+            if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+            return 1;
+        }
         snd_pcm_uframes_t frames = BUFFER_SIZE;
         snd_pcm_hw_params_set_period_size_near(output_handle, output_params, &frames, &dir); // i don't have a clue why like this
         output_error = snd_pcm_hw_params(output_handle, output_params);
