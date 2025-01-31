@@ -396,7 +396,7 @@ int main(int argc, char **argv) {
     DelayLine monoDelay; // Hilbert introduces a delay, this should be here to sync the mono with stereo to a sample
     init_delay_line(&monoDelay, (HILBERT_TAPS-1)/2);
 
-    BiquadFilter preemp_l, preemp_r;
+    ResistorCapacitor preemp_l, preemp_r;
     init_preemphasis(&preemp_l, preemphasis_tau, SAMPLE_RATE);
     init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
 
