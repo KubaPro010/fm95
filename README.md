@@ -23,3 +23,6 @@ cmake ..
 make
 ```
 Done!
+
+# CPU Usage?
+Should run completly fine on a pi 5, right now with the preemp, lpf, compressor on a pi 3b, its 35-40% cpu usage, get rid of compressor and it goes to 20%

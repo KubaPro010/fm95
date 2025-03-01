@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
     init_lpf(&lpf_r, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
 
     StereoCompressor comp;
-    init_compressor_stereo(&comp, -2.0f, 15.0f, 2.0f, 0.0f, 0.015f, 0.25f, 0.01f, SAMPLE_RATE);
+    init_compressor_stereo(&comp, -3.0f, 12.5f, 8.0f, 0.0f, 0.02f, 0.4f, 0.015f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
