@@ -3,14 +3,13 @@ FM95 is a audio processor for FM, it does:
 - Pre-Emphasis
 - Low Pass Filter
 - Stereo
-- SSB Stereo
 - Polar Stereo
-- Polar SSB Stereo (huh)
 - SCA
 
 Supports 2 inputs:
 - Audio (via Pulse)
 - MPX (via Pulse)
+- SCA (via Pulse)
 
 and one output:
 - MPX (via Pulse)
