@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
     init_lpf(&lpf_r, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
 
     StereoCompressor comp;
-    init_compressor_stereo(&comp, -3.0f, 12.5f, 8.0f, 0.0f, 0.02f, 0.4f, 0.015f, SAMPLE_RATE);
+    init_compressor_stereo(&comp, -2.5f, 20f, 8.0f, 3.0f, 0.02f, 0.4f, 0.015f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -417,11 +417,11 @@ int main(int argc, char **argv) {
             float current_sca_in = sca_in[i];
 
             float ready_r;
-            float ready_l = peak_compress_stereo(&comp, l_in, r_in, &ready_r);
+            float ready_l = rms_compress_stereo(&comp, l_in, r_in, &ready_r);
             ready_l = apply_frequency_filter(&lpf_l, l_in);
             ready_r = apply_frequency_filter(&lpf_r, r_in);
-            ready_l = apply_preemphasis(&preemp_l, ready_l)*2;
-            ready_r = apply_preemphasis(&preemp_r, ready_r)*2;
+            ready_l = apply_preemphasis(&preemp_l, ready_l)*4;
+            ready_r = apply_preemphasis(&preemp_r, ready_r)*4;
             ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
             ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
