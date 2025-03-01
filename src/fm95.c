@@ -34,7 +34,7 @@
 #include <pulse/error.h>
 
 #define MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
-#define AUDIO_VOLUME 2.0f // Audio volume, before clipper
+#define AUDIO_VOLUME 1.0f // Audio volume, before clipper
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
 #define STEREO_VOLUME 0.45f // L-R signal, should be same as MONO
@@ -373,6 +373,9 @@ int main(int argc, char **argv) {
     BiquadFilter lpf_l, lpf_r;
     init_lpf(&lpf_l, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
     init_lpf(&lpf_r, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
+
+    StereoCompressor comp;
+    init_compressor_stereo(&comp, -2.0f, 15.0f, 2.0f, 0.0f, 0.015f, 0.25f, 0.01f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -413,8 +416,10 @@ int main(int argc, char **argv) {
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
-            float ready_l = apply_frequency_filter(&lpf_l, l_in);
-            float ready_r = apply_frequency_filter(&lpf_r, r_in);
+            float ready_r;
+            float ready_l = peak_compress_stereo(&comp, l_in, r_in, &ready_r);
+            ready_l = apply_frequency_filter(&lpf_l, l_in);
+            ready_r = apply_frequency_filter(&lpf_r, r_in);
             ready_l = apply_preemphasis(&preemp_l, ready_l)*2;
             ready_r = apply_preemphasis(&preemp_r, ready_r)*2;
             ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);

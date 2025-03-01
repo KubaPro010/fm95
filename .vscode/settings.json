@@ -19,5 +19,6 @@
         "stdint.h": "c",
         "asoundlib.h": "c",
         "hilbert.h": "c"
-    }
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

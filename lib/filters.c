@@ -78,3 +78,236 @@ float hard_clip(float sample, float threshold) {
         return sample;  // No clipping
     }
 }
+
+float voltage_db_to_voltage(float db) {
+    return powf(10.0f, db / 20.0f);
+}
+
+float power_db_to_voltage(float db) {
+    return powf(10.0f, db / 10.0f);
+}
+
+float voltage_to_voltage_db(float linear) {
+    return 20.0f * log10f(fmaxf(linear, 1e-10f)); // Avoid log(0)
+}
+
+float voltage_to_power_db(float linear) {
+    return 10.0f * log10f(fmaxf(linear, 1e-10f)); // Avoid log(0)
+}
+
+void init_compressor(Compressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate) {
+    compressor->threshold = threshold;
+    compressor->ratio = ratio;
+    compressor->knee = knee;
+    compressor->makeup_gain = makeup_gain;
+    compressor->attack = attack;
+    compressor->release = release;
+    compressor->sample_rate = sample_rate;
+    compressor->gainReduction = 0.0f;
+    compressor->rmsEnv = 0.0f;
+    compressor->rmsTime = rmsTime;
+}
+
+float rms_compress(Compressor *compressor, float sample) {
+    float env;
+    float rmsAlpha = 1.0f - exp(-1.0f / (compressor->rmsTime * compressor->sample_rate));
+    compressor->rmsEnv = (1.0f - rmsAlpha) * compressor->rmsEnv + rmsAlpha * (sample * sample);
+    env = sqrtf(compressor->rmsEnv);
+
+    float input_db = voltage_to_voltage_db(env);
+
+    float targetGR = 0.0f;
+    if(input_db > compressor->threshold) {
+        if(compressor->knee > 0.0f) {
+            float delta = input_db - compressor->threshold;
+            if(delta < compressor->knee / 2.0f) {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
+            } else {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * delta;
+            }
+        } else {
+            targetGR = (1.0f - 1.0f / compressor->ratio) * (input_db - compressor->threshold);
+        }
+    } else {
+        targetGR = 0.0f;
+    }
+
+    float coeff;
+    if(targetGR > compressor->gainReduction) {
+        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
+    } else {
+        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
+    }
+    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * targetGR;
+
+    float gain = voltage_db_to_voltage(compressor->makeup_gain - compressor->gainReduction);
+    return sample * gain;
+}
+
+float peak_compress(Compressor *compressor, float sample) {
+    float env = fabsf(sample);
+
+    float input_db = voltage_to_voltage_db(env);
+
+    float targetGR = 0.0f;
+    if(input_db > compressor->threshold) {
+        if(compressor->knee > 0.0f) {
+            float delta = input_db - compressor->threshold;
+            if(delta < compressor->knee / 2.0f) {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
+            } else {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * delta;
+            }
+        } else {
+            targetGR = (1.0f - 1.0f / compressor->ratio) * (input_db - compressor->threshold);
+        }
+    } else {
+        targetGR = 0.0f;
+    }
+
+    float coeff;
+    if(targetGR > compressor->gainReduction) {
+        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
+    } else {
+        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
+    }
+    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * targetGR;
+
+    float gain = voltage_db_to_voltage(compressor->makeup_gain - compressor->gainReduction);
+    return sample * gain;
+}
+
+void init_compressor_stereo(StereoCompressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate) {
+    compressor->threshold = threshold;
+    compressor->ratio = ratio;
+    compressor->knee = knee;
+    compressor->makeup_gain = makeup_gain;
+    compressor->attack = attack;
+    compressor->release = release;
+    compressor->sample_rate = sample_rate;
+    compressor->gainReduction = 0.0f;
+    compressor->rmsEnv = 0.0f;
+    compressor->rmsEnv2 = 0.0f;
+    compressor->rmsTime = rmsTime;
+}
+
+float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
+    float env_l;
+    float env_r;
+    float rmsAlpha = 1.0f - exp(-1.0f / (compressor->rmsTime * compressor->sample_rate));
+    compressor->rmsEnv = (1.0f - rmsAlpha) * compressor->rmsEnv + rmsAlpha * (l * l);
+    compressor->rmsEnv2 = (1.0f - rmsAlpha) * compressor->rmsEnv + rmsAlpha * (r * r);
+    env_l = sqrtf(compressor->rmsEnv);
+    env_r = sqrtf(compressor->rmsEnv2);
+
+    float input_db = voltage_to_voltage_db(env_l);
+    float input_db_r = voltage_to_voltage_db(env_r);
+
+    float targetGR = 0.0f;
+    if(input_db > compressor->threshold) {
+        if(compressor->knee > 0.0f) {
+            float delta = input_db - compressor->threshold;
+            if(delta < compressor->knee / 2.0f) {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
+            } else {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * delta;
+            }
+        } else {
+            targetGR = (1.0f - 1.0f / compressor->ratio) * (input_db - compressor->threshold);
+        }
+    } else {
+        targetGR = 0.0f;
+    }
+    float targetGR_r = 0.0f;
+    if(input_db_r > compressor->threshold) {
+        if(compressor->knee > 0.0f) {
+            float delta = input_db_r - compressor->threshold;
+            if(delta < compressor->knee / 2.0f) {
+                targetGR_r = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
+            } else {
+                targetGR_r = (1.0f - 1.0f / compressor->ratio) * delta;
+            }
+        } else {
+            targetGR_r = (1.0f - 1.0f / compressor->ratio) * (input_db_r - compressor->threshold);
+        }
+    } else {
+        targetGR_r = 0.0f;
+    }
+
+    float shared_target_gr;
+    if(targetGR > targetGR_r) {
+        shared_target_gr = targetGR;
+    } else {
+        shared_target_gr = targetGR_r;
+    }
+
+    float coeff;
+    if(shared_target_gr > compressor->gainReduction) {
+        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
+    } else {
+        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
+    }
+    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * shared_target_gr;
+
+    float gain = voltage_db_to_voltage(compressor->makeup_gain - compressor->gainReduction);
+    *output_r = r * gain;
+    return l * gain;
+}
+
+float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
+    float env_l = fabsf(l);
+    float env_r = fabsf(r);
+
+    float input_db = voltage_to_voltage_db(env_l);
+    float input_db_r = voltage_to_voltage_db(env_r);
+
+    float targetGR = 0.0f;
+    if(input_db > compressor->threshold) {
+        if(compressor->knee > 0.0f) {
+            float delta = input_db - compressor->threshold;
+            if(delta < compressor->knee / 2.0f) {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
+            } else {
+                targetGR = (1.0f - 1.0f / compressor->ratio) * delta;
+            }
+        } else {
+            targetGR = (1.0f - 1.0f / compressor->ratio) * (input_db - compressor->threshold);
+        }
+    } else {
+        targetGR = 0.0f;
+    }
+    float targetGR_r = 0.0f;
+    if(input_db_r > compressor->threshold) {
+        if(compressor->knee > 0.0f) {
+            float delta = input_db_r - compressor->threshold;
+            if(delta < compressor->knee / 2.0f) {
+                targetGR_r = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
+            } else {
+                targetGR_r = (1.0f - 1.0f / compressor->ratio) * delta;
+            }
+        } else {
+            targetGR_r = (1.0f - 1.0f / compressor->ratio) * (input_db_r - compressor->threshold);
+        }
+    } else {
+        targetGR_r = 0.0f;
+    }
+
+    float shared_target_gr;
+    if(targetGR > targetGR_r) {
+        shared_target_gr = targetGR;
+    } else {
+        shared_target_gr = targetGR_r;
+    }
+
+    float coeff;
+    if(shared_target_gr > compressor->gainReduction) {
+        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
+    } else {
+        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
+    }
+    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * shared_target_gr;
+
+    float gain = voltage_db_to_voltage(compressor->makeup_gain - compressor->gainReduction);
+    *output_r = r * gain;
+    return l * gain;
+}

@@ -25,16 +25,40 @@ void init_hpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampl
 float apply_frequency_filter(BiquadFilter* filter, float input);
 
 float hard_clip(float sample, float threshold);
+float voltage_db_to_voltage(float db);
+float power_db_to_voltage(float db);
+float voltage_to_voltage_db(float linear);
+float voltage_to_power_db(float linear);
 
 typedef struct {
-    float *buffer;
-    int write_idx;  // Write position
-    int read_idx;   // Read position
-    int size;       // Total buffer size
-    int delay;      // Delay in samples
-} DelayLine;
+    float threshold;
+    float ratio;
+    float knee;
+    float makeup_gain;
+    float attack;
+    float release;
+    float sample_rate;
+    float gainReduction;
+    float rmsEnv;
+    float rmsTime;
+} Compressor;
+void init_compressor(Compressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate);
+float peak_compress(Compressor *compressor, float sample);
+float rms_compress(Compressor *compressor, float sample);
 
-void init_delay_line(DelayLine *delay_line, int max_delay);
-void set_delay_line(DelayLine *delay_line, int new_delay);
-float delay_line(DelayLine *delay_line, float in);
-void exit_delay_line(DelayLine *delay_line);
+typedef struct {
+    float threshold;
+    float ratio;
+    float knee;
+    float makeup_gain;
+    float attack;
+    float release;
+    float sample_rate;
+    float gainReduction;
+    float rmsEnv;
+    float rmsEnv2;
+    float rmsTime;
+} StereoCompressor;
+void init_compressor_stereo(StereoCompressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate);
+float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r);
+float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r);
