@@ -150,7 +150,7 @@ void init_compressor(Compressor *compressor, float threshold, float ratio, float
 }
 
 float peak_compress(Compressor *compressor, float sample) {
-    float input_level_db = linear_to_db(fabsf(sample));
+    float input_level_db = voltage_to_voltage_db(fabsf(sample));
     
     float desired_gain_reduction = compute_gain_reduction(input_level_db, 
                                                          compressor->threshold, 
@@ -164,7 +164,7 @@ float peak_compress(Compressor *compressor, float sample) {
     
     compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
     
-    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
     
     return sample * gain;
 }
@@ -175,7 +175,7 @@ float rms_compress(Compressor *compressor, float sample) {
     
     compressor->rmsEnv = squared_input + rms_coef * (compressor->rmsEnv - squared_input);
     
-    float input_level_db = linear_to_db(sqrtf(fmaxf(compressor->rmsEnv, 1e-9f)));
+    float input_level_db = voltage_to_voltage_db(sqrtf(fmaxf(compressor->rmsEnv, 1e-9f)));
     
     float desired_gain_reduction = compute_gain_reduction(input_level_db, 
                                                          compressor->threshold, 
@@ -189,7 +189,7 @@ float rms_compress(Compressor *compressor, float sample) {
     
     compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
     
-    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
     
     return sample * gain;
 }
@@ -213,7 +213,7 @@ void init_compressor_stereo(StereoCompressor *compressor, float threshold, float
 float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
     float max_level = fmaxf(fabsf(l), fabsf(r));
     
-    float input_level_db = linear_to_db(max_level);
+    float input_level_db = voltage_to_voltage_db(max_level);
     
     float desired_gain_reduction = compute_gain_reduction(input_level_db, 
                                                          compressor->threshold, 
@@ -227,7 +227,7 @@ float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float
     
     compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
     
-    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
     
     *output_r = r * gain;
     return l * gain;
@@ -243,7 +243,7 @@ float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float 
     
     float max_rms = fmaxf(compressor->rmsEnv, compressor->rmsEnv2);
     
-    float input_level_db = linear_to_db(sqrtf(fmaxf(max_rms, 1e-9f)));
+    float input_level_db = voltage_to_voltage_db(sqrtf(fmaxf(max_rms, 1e-9f)));
     
     float desired_gain_reduction = compute_gain_reduction(input_level_db, 
                                                          compressor->threshold, 
@@ -257,7 +257,7 @@ float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float 
     
     compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
     
-    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
     
     *output_r = r * gain;
     return l * gain;
