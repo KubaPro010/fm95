@@ -60,6 +60,32 @@ void init_hpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampl
     filter->a2 = -_a2/_a0;
 }
 
+void init_bpf(BiquadFilter* filter, float centerFreq, float qFactor, float sampleRate) {
+    float x = (centerFreq * M_2PI) / sampleRate;
+    float sinX = sin(x);
+    float cosX = cos(x);
+    
+    float alpha = sinX / (2.0f * qFactor);
+
+    float _a0 = 1.0f + alpha;
+    float _a1 = -2.0f * cosX;
+    float _a2 = 1.0f - alpha;
+    float _b0 = alpha;
+    float _b1 = 0.0f;
+    float _b2 = -alpha;
+
+    filter->y2 = 0;
+    filter->y1 = 0;
+    filter->x2 = 0;
+    filter->x1 = 0;
+    
+    filter->b0 = _b0 / _a0;
+    filter->b1 = _b1 / _a0;
+    filter->b2 = _b2 / _a0;
+    filter->a1 = -_a1 / _a0;
+    filter->a2 = -_a2 / _a0;
+}
+
 float apply_frequency_filter(BiquadFilter* filter, float input) {
     float out = input*filter->b0+filter->x1*filter->b1+filter->x2*filter->b2+filter->y1*filter->a1+filter->y2*filter->a2;
     filter->y2 = filter->y1;

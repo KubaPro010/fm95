@@ -40,6 +40,7 @@
 #define STEREO_VOLUME 0.45f // L-R signal, should be same as MONO
 #define SCA_VOLUME 0.1f // FM SCA signal, 10%
 #define MPX_VOLUME 1.0f // Passtrough
+#define MPX_CLIPPER_THRESHOLD 1.0f
 
 #define LPF_CUTOFF 15000 // Should't need to be changed
 
@@ -375,7 +376,7 @@ int main(int argc, char **argv) {
     init_lpf(&lpf_r, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
 
     StereoCompressor comp;
-    init_compressor_stereo(&comp, -2.5f, 20.0f, 8.0f, 3.0f, 0.02f, 0.4f, 0.015f, SAMPLE_RATE);
+    init_compressor_stereo(&comp, -2.0f, 24.0f, 2.0f, 0.0f, 0.025f, 0.4f, 0.04f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -439,7 +440,7 @@ int main(int argc, char **argv) {
                 }
                 advance_oscillator(&osc);
             }
-            if(strlen(audio_mpx_device) != 0) output[i] += hard_clip(current_mpx_in, 1.0f)*MPX_VOLUME;
+            if(strlen(audio_mpx_device) != 0) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
             if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
             output[i] *= master_volume;
         }
