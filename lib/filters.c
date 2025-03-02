@@ -130,7 +130,7 @@ void init_compressor(Compressor *compressor, float attack, float release) {
 float peak_compress(Compressor *compressor, float sample) {
     float sample_abs = fabsf(sample);
     if(sample_abs > compressor->max) {
-        compressor->max += (sample_abs - compressor->max) / * compressor->attack;
+        compressor->max += (sample_abs - compressor->max) * compressor->attack;
     } else {
         compressor->max *= compressor->release;
     }
