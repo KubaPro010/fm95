@@ -376,7 +376,8 @@ int main(int argc, char **argv) {
     init_lpf(&lpf_r, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
 
     StereoCompressor comp;
-    init_compressor_stereo(&comp, -2.0f, 8.0f, 2.0f, 4.0f, 0.025f, 0.4f, 0.04f, SAMPLE_RATE);
+    //                            THRESH RATIO  KNE  MAKE   ATT      REL  RMS
+    init_compressor_stereo(&comp, -2.0f, 8.0f, 2.0f, 12.0f, 0.025f, 0.4f, 0.04f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
