@@ -32,34 +32,10 @@ float voltage_to_voltage_db(float linear);
 float voltage_to_power_db(float linear);
 
 typedef struct {
-    float threshold;
-    float ratio;
-    float knee;
-    float makeup_gain;
     float attack;
     float release;
-    float sample_rate;
-    float gainReduction;
-    float rmsEnv;
-    float rmsTime;
+    float max;
 } Compressor;
-void init_compressor(Compressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate);
+void init_compressor(Compressor *compressor, float attack, float release);
 float peak_compress(Compressor *compressor, float sample);
-float rms_compress(Compressor *compressor, float sample);
-
-typedef struct {
-    float threshold;
-    float ratio;
-    float knee;
-    float makeup_gain;
-    float attack;
-    float release;
-    float sample_rate;
-    float gainReduction;
-    float rmsEnv;
-    float rmsEnv2;
-    float rmsTime;
-} StereoCompressor;
-void init_compressor_stereo(StereoCompressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate);
-float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r);
-float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r);
+float peak_compress_stereo(Compressor *compressor, float l, float r, float *output_r);

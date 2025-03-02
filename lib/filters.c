@@ -121,144 +121,31 @@ float voltage_to_power_db(float linear) {
     return 10.0f * log10f(fmaxf(linear, 1e-10f)); // Avoid log(0)
 }
 
-static float compute_gain_reduction(float input_db, float threshold, float ratio, float knee) {
-    float gain_reduction = 0.0f;
-    
-    if (knee > 0.0f && input_db > (threshold - knee / 2.0f) && input_db < (threshold + knee / 2.0f)) {
-        float knee_range = input_db - (threshold - knee / 2.0f);
-        float knee_factor = knee_range * knee_range / (2.0f * knee);
-        gain_reduction = (ratio - 1.0f) * knee_factor / ratio;
-    } else if (input_db > threshold) {
-        gain_reduction = (threshold - input_db) * (1.0f - 1.0f / ratio);
-    }
-    
-    return gain_reduction;
-}
-
-void init_compressor(Compressor *compressor, float threshold, float ratio, float knee, 
-                     float makeup_gain, float attack, float release, float rmsTime, float sample_rate) {
-    compressor->threshold = threshold;
-    compressor->ratio = ratio;
-    compressor->knee = knee;
-    compressor->makeup_gain = makeup_gain;
+void init_compressor(Compressor *compressor, float attack, float release) {
     compressor->attack = attack;
     compressor->release = release;
-    compressor->sample_rate = sample_rate;
-    compressor->gainReduction = 0.0f;
-    compressor->rmsEnv = 0.0f;
-    compressor->rmsTime = rmsTime;
+    compressor->max = 0.0f;
 }
 
 float peak_compress(Compressor *compressor, float sample) {
-    float input_level_db = voltage_to_voltage_db(fabsf(sample));
-    
-    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
-                                                         compressor->threshold, 
-                                                         compressor->ratio, 
-                                                         compressor->knee);
-    
-    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
-    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
-    
-    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
-    
-    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
-    
-    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
-    
-    return sample * gain;
+    float sample_abs = fabsf(sample);
+    if(sample_abs > compressor->max) {
+        compressor->max += (sample_abs - compressor->max) / * compressor->attack;
+    } else {
+        compressor->max *= compressor->release;
+    }
+    return sample/(compressor->max+0.01);
 }
 
-float rms_compress(Compressor *compressor, float sample) {
-    float rms_coef = expf(-1.0f / (compressor->sample_rate * compressor->rmsTime));
-    float squared_input = sample * sample;
-    
-    compressor->rmsEnv = squared_input + rms_coef * (compressor->rmsEnv - squared_input);
-    
-    float input_level_db = voltage_to_voltage_db(sqrtf(fmaxf(compressor->rmsEnv, 1e-9f)));
-    
-    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
-                                                         compressor->threshold, 
-                                                         compressor->ratio, 
-                                                         compressor->knee);
-    
-    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
-    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
-    
-    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
-    
-    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
-    
-    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
-    
-    return sample * gain;
-}
-
-void init_compressor_stereo(StereoCompressor *compressor, float threshold, float ratio, 
-                           float knee, float makeup_gain, float attack, float release, 
-                           float rmsTime, float sample_rate) {
-    compressor->threshold = threshold;
-    compressor->ratio = ratio;
-    compressor->knee = knee;
-    compressor->makeup_gain = makeup_gain;
-    compressor->attack = attack;
-    compressor->release = release;
-    compressor->sample_rate = sample_rate;
-    compressor->gainReduction = 0.0f;
-    compressor->rmsEnv = 0.0f;
-    compressor->rmsEnv2 = 0.0f;
-    compressor->rmsTime = rmsTime;
-}
-
-float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
-    float max_level = fmaxf(fabsf(l), fabsf(r));
-    
-    float input_level_db = voltage_to_voltage_db(max_level);
-    
-    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
-                                                         compressor->threshold, 
-                                                         compressor->ratio, 
-                                                         compressor->knee);
-    
-    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
-    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
-    
-    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
-    
-    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
-    
-    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
-    
-    *output_r = r * gain;
-    return l * gain;
-}
-
-float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
-    float rms_coef = expf(-1.0f / (compressor->sample_rate * compressor->rmsTime));
-    float squared_input1 = l * l;
-    float squared_input2 = r * r;
-    
-    compressor->rmsEnv = squared_input1 + rms_coef * (compressor->rmsEnv - squared_input1);
-    compressor->rmsEnv2 = squared_input2 + rms_coef * (compressor->rmsEnv2 - squared_input2);
-    
-    float max_rms = fmaxf(compressor->rmsEnv, compressor->rmsEnv2);
-    
-    float input_level_db = voltage_to_voltage_db(sqrtf(fmaxf(max_rms, 1e-9f)));
-    
-    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
-                                                         compressor->threshold, 
-                                                         compressor->ratio, 
-                                                         compressor->knee);
-    
-    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
-    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
-    
-    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
-    
-    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
-    
-    float gain = voltage_db_to_voltage(compressor->gainReduction + compressor->makeup_gain);
-    
-    *output_r = r * gain;
-    return l * gain;
+float peak_compress_stereo(Compressor *compressor, float l, float r, float *output_r) {
+    float l_abs = fabsf(l);
+    float r_abs = fabsf(r);
+    float max = (l_abs > r_abs) ? l_abs : r_abs;
+    if(max > compressor->max) {
+        compressor->max += (max - compressor->max) / compressor->attack;
+    } else {
+        compressor->max *= compressor->release;
+    }
+    *output_r = r/(compressor->max+0.01);
+    return l/(compressor->max+0.01);
 }

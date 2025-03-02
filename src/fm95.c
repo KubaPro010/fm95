@@ -375,9 +375,8 @@ int main(int argc, char **argv) {
     init_lpf(&lpf_l, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
     init_lpf(&lpf_r, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
 
-    StereoCompressor comp;
-    //                            THRESH RATIO  KNE  MAKE   ATT      REL  RMS
-    init_compressor_stereo(&comp, -24.0f, 4.0f, 2.0f, 24.0f, 0.025f, 0.4f, 0.04f, SAMPLE_RATE);
+    Compressor comp;
+    init_compressor(&comp, 0.9995f, 0.8f);
     // #endregion
 
     signal(SIGINT, stop);
@@ -419,7 +418,7 @@ int main(int argc, char **argv) {
             float current_sca_in = sca_in[i];
 
             float ready_r;
-            float ready_l = rms_compress_stereo(&comp, l_in, r_in, &ready_r);
+            float ready_l = peak_compress_stereo(&comp, l_in, r_in, &ready_r);
             ready_l = apply_frequency_filter(&lpf_l, l_in);
             ready_r = apply_frequency_filter(&lpf_r, r_in);
             ready_l = apply_preemphasis(&preemp_l, ready_l)*4;
