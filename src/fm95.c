@@ -377,7 +377,7 @@ int main(int argc, char **argv) {
 
     StereoCompressor comp;
     //                            THRESH RATIO  KNE  MAKE   ATT      REL  RMS
-    init_compressor_stereo(&comp, -2.0f, 8.0f, 2.0f, 12.0f, 0.025f, 0.4f, 0.04f, SAMPLE_RATE);
+    init_compressor_stereo(&comp, -2.0f, 8.0f, 2.0f, 3.0f, 0.025f, 0.4f, 0.04f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
