@@ -168,7 +168,7 @@ float rms_compress(Compressor *compressor, float sample) {
     compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * targetBoost;
 
     float gain = voltage_db_to_voltage(compressor->gainReduction);
-    return (sample * gain) / voltage_db_to_voltage(compressor->makeup_gain);
+    return (sample * gain);
 }
 
 float peak_compress(Compressor *compressor, float sample) {
@@ -201,7 +201,7 @@ float peak_compress(Compressor *compressor, float sample) {
     compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * targetBoost;
 
     float gain = voltage_db_to_voltage(compressor->gainReduction);
-    return (sample * gain) / voltage_db_to_voltage(compressor->makeup_gain);
+    return (sample * gain);
 }
 
 
@@ -276,8 +276,8 @@ float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float 
     compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * shared_target_boost;
 
     float gain = voltage_db_to_voltage(compressor->gainReduction);
-    *output_r = (r * gain) / voltage_db_to_voltage(compressor->makeup_gain);
-    return (l * gain) / voltage_db_to_voltage(compressor->makeup_gain);
+    *output_r = (r * gain);
+    return (l * gain);
 }
 
 float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
@@ -330,6 +330,6 @@ float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float
     compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * shared_target_boost;
 
     float gain = voltage_db_to_voltage(compressor->gainReduction);
-    *output_r = (r * gain) / voltage_db_to_voltage(compressor->makeup_gain);
-    return (l*gain) / voltage_db_to_voltage(compressor->makeup_gain);
+    *output_r = (r * gain);
+    return (l*gain);
 }
