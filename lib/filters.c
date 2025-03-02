@@ -121,7 +121,22 @@ float voltage_to_power_db(float linear) {
     return 10.0f * log10f(fmaxf(linear, 1e-10f)); // Avoid log(0)
 }
 
-void init_compressor(Compressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate) {
+static float compute_gain_reduction(float input_db, float threshold, float ratio, float knee) {
+    float gain_reduction = 0.0f;
+    
+    if (knee > 0.0f && input_db > (threshold - knee / 2.0f) && input_db < (threshold + knee / 2.0f)) {
+        float knee_range = input_db - (threshold - knee / 2.0f);
+        float knee_factor = knee_range * knee_range / (2.0f * knee);
+        gain_reduction = (ratio - 1.0f) * knee_factor / ratio;
+    } else if (input_db > threshold) {
+        gain_reduction = (threshold - input_db) * (1.0f - 1.0f / ratio);
+    }
+    
+    return gain_reduction;
+}
+
+void init_compressor(Compressor *compressor, float threshold, float ratio, float knee, 
+                     float makeup_gain, float attack, float release, float rmsTime, float sample_rate) {
     compressor->threshold = threshold;
     compressor->ratio = ratio;
     compressor->knee = knee;
@@ -134,78 +149,54 @@ void init_compressor(Compressor *compressor, float threshold, float ratio, float
     compressor->rmsTime = rmsTime;
 }
 
-float rms_compress(Compressor *compressor, float sample) {
-    sample *= voltage_db_to_voltage(compressor->makeup_gain);
-    float env;
-    float rmsAlpha = 1.0f - exp(-1.0f / (compressor->rmsTime * compressor->sample_rate));
-    compressor->rmsEnv = (1.0f - rmsAlpha) * compressor->rmsEnv + rmsAlpha * (sample * sample);
-    env = sqrtf(compressor->rmsEnv);
-
-    float input_db = voltage_to_voltage_db(env);
-
-    float targetBoost = 0.0f;
-    if(input_db < compressor->threshold) {
-        if(compressor->knee > 0.0f) {
-            float delta = compressor->threshold - input_db;
-            if(delta < compressor->knee / 2.0f) {
-                targetBoost = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
-            } else {
-                targetBoost = (1.0f - 1.0f / compressor->ratio) * delta;
-            }
-        } else {
-            targetBoost = (1.0f - 1.0f / compressor->ratio) * (compressor->threshold - input_db);
-        }
-    } else {
-        targetBoost = 0.0f;
-    }
-
-    float coeff;
-    if(targetBoost > compressor->gainReduction) {
-        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
-    } else {
-        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
-    }
-    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * targetBoost;
-
-    float gain = voltage_db_to_voltage(compressor->gainReduction);
-    return (sample * gain);
-}
-
 float peak_compress(Compressor *compressor, float sample) {
-    float env = fabsf(sample*voltage_db_to_voltage(compressor->makeup_gain));
-
-    float input_db = voltage_to_voltage_db(env);
-
-    float targetBoost = 0.0f;
-    if(input_db < compressor->threshold) {
-        if(compressor->knee > 0.0f) {
-            float delta = compressor->threshold - input_db;
-            if(delta < compressor->knee / 2.0f) {
-                targetBoost = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
-            } else {
-                targetBoost = (1.0f - 1.0f / compressor->ratio) * delta;
-            }
-        } else {
-            targetBoost = (1.0f - 1.0f / compressor->ratio) * (compressor->threshold - input_db);
-        }
-    } else {
-        targetBoost = 0.0f;
-    }
-
-    float coeff;
-    if(targetBoost > compressor->gainReduction) {
-        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
-    } else {
-        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
-    }
-    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * targetBoost;
-
-    float gain = voltage_db_to_voltage(compressor->gainReduction);
-    return (sample * gain);
+    float input_level_db = linear_to_db(fabsf(sample));
+    
+    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
+                                                         compressor->threshold, 
+                                                         compressor->ratio, 
+                                                         compressor->knee);
+    
+    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
+    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
+    
+    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
+    
+    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
+    
+    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    
+    return sample * gain;
 }
 
+float rms_compress(Compressor *compressor, float sample) {
+    float rms_coef = expf(-1.0f / (compressor->sample_rate * compressor->rmsTime));
+    float squared_input = sample * sample;
+    
+    compressor->rmsEnv = squared_input + rms_coef * (compressor->rmsEnv - squared_input);
+    
+    float input_level_db = linear_to_db(sqrtf(fmaxf(compressor->rmsEnv, 1e-9f)));
+    
+    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
+                                                         compressor->threshold, 
+                                                         compressor->ratio, 
+                                                         compressor->knee);
+    
+    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
+    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
+    
+    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
+    
+    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
+    
+    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    
+    return sample * gain;
+}
 
-void init_compressor_stereo(StereoCompressor *compressor, float threshold, float ratio, float knee, float makeup_gain, float attack, float release, float rmsTime, float sample_rate) {
+void init_compressor_stereo(StereoCompressor *compressor, float threshold, float ratio, 
+                           float knee, float makeup_gain, float attack, float release, 
+                           float rmsTime, float sample_rate) {
     compressor->threshold = threshold;
     compressor->ratio = ratio;
     compressor->knee = knee;
@@ -219,117 +210,55 @@ void init_compressor_stereo(StereoCompressor *compressor, float threshold, float
     compressor->rmsTime = rmsTime;
 }
 
-float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
-    l *= voltage_db_to_voltage(compressor->makeup_gain);
-    r *= voltage_db_to_voltage(compressor->makeup_gain);
-    float env_l;
-    float env_r;
-    float rmsAlpha = 1.0f - exp(-1.0f / (compressor->rmsTime * compressor->sample_rate));
-    compressor->rmsEnv  = (1.0f - rmsAlpha) * compressor->rmsEnv  + rmsAlpha * (l * l);
-    compressor->rmsEnv2 = (1.0f - rmsAlpha) * compressor->rmsEnv2 + rmsAlpha * (r * r);
-    env_l = sqrtf(compressor->rmsEnv);
-    env_r = sqrtf(compressor->rmsEnv2);
-
-    float input_db_l = voltage_to_voltage_db(env_l);
-    float input_db_r = voltage_to_voltage_db(env_r);
-
-    float targetBoost_l = 0.0f;
-    if(input_db_l < compressor->threshold) {
-        if(compressor->knee > 0.0f) {
-            float delta = compressor->threshold - input_db_l;
-            if(delta < compressor->knee / 2.0f) {
-                targetBoost_l = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
-            } else {
-                targetBoost_l = (1.0f - 1.0f / compressor->ratio) * delta;
-            }
-        } else {
-            targetBoost_l = (1.0f - 1.0f / compressor->ratio) * (compressor->threshold - input_db_l);
-        }
-    } else {
-        targetBoost_l = 0.0f;
-    }
-
-    float targetBoost_r = 0.0f;
-    if(input_db_r < compressor->threshold) {
-        if(compressor->knee > 0.0f) {
-            float delta = compressor->threshold - input_db_r;
-            if(delta < compressor->knee / 2.0f) {
-                targetBoost_r = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
-            } else {
-                targetBoost_r = (1.0f - 1.0f / compressor->ratio) * delta;
-            }
-        } else {
-            targetBoost_r = (1.0f - 1.0f / compressor->ratio) * (compressor->threshold - input_db_r);
-        }
-    } else {
-        targetBoost_r = 0.0f;
-    }
-
-    float shared_target_boost = (targetBoost_l > targetBoost_r) ? targetBoost_l : targetBoost_r;
-
-    float coeff;
-    if(shared_target_boost > compressor->gainReduction) {
-        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
-    } else {
-        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
-    }
-    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * shared_target_boost;
-
-    float gain = voltage_db_to_voltage(compressor->gainReduction);
-    *output_r = (r * gain);
-    return (l * gain);
+float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
+    float max_level = fmaxf(fabsf(l), fabsf(r));
+    
+    float input_level_db = linear_to_db(max_level);
+    
+    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
+                                                         compressor->threshold, 
+                                                         compressor->ratio, 
+                                                         compressor->knee);
+    
+    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
+    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
+    
+    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
+    
+    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
+    
+    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    
+    *output_r = r * gain;
+    return l * gain;
 }
 
-float peak_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
-    float env_l = fabsf(l*voltage_db_to_voltage(compressor->makeup_gain));
-    float env_r = fabsf(r*voltage_db_to_voltage(compressor->makeup_gain));
-
-    float input_db_l = voltage_to_voltage_db(env_l);
-    float input_db_r = voltage_to_voltage_db(env_r);
-
-    float targetBoost_l = 0.0f;
-    if(input_db_l < compressor->threshold) {
-        if(compressor->knee > 0.0f) {
-            float delta = compressor->threshold - input_db_l;
-            if(delta < compressor->knee / 2.0f) {
-                targetBoost_l = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
-            } else {
-                targetBoost_l = (1.0f - 1.0f / compressor->ratio) * delta;
-            }
-        } else {
-            targetBoost_l = (1.0f - 1.0f / compressor->ratio) * (compressor->threshold - input_db_l);
-        }
-    } else {
-        targetBoost_l = 0.0f;
-    }
-
-    float targetBoost_r = 0.0f;
-    if(input_db_r < compressor->threshold) {
-        if(compressor->knee > 0.0f) {
-            float delta = compressor->threshold - input_db_r;
-            if(delta < compressor->knee / 2.0f) {
-                targetBoost_r = (1.0f - 1.0f / compressor->ratio) * (delta * delta) / compressor->knee;
-            } else {
-                targetBoost_r = (1.0f - 1.0f / compressor->ratio) * delta;
-            }
-        } else {
-            targetBoost_r = (1.0f - 1.0f / compressor->ratio) * (compressor->threshold - input_db_r);
-        }
-    } else {
-        targetBoost_r = 0.0f;
-    }
-
-    float shared_target_boost = (targetBoost_l > targetBoost_r) ? targetBoost_l : targetBoost_r;
-
-    float coeff;
-    if(shared_target_boost > compressor->gainReduction) {
-        coeff = expf(-1.0f / (compressor->attack * compressor->sample_rate));
-    } else {
-        coeff = expf(-1.0f / (compressor->release * compressor->sample_rate));
-    }
-    compressor->gainReduction = coeff * compressor->gainReduction + (1.0f - coeff) * shared_target_boost;
-
-    float gain = voltage_db_to_voltage(compressor->gainReduction);
-    *output_r = (r * gain);
-    return (l*gain);
+float rms_compress_stereo(StereoCompressor *compressor, float l, float r, float *output_r) {
+    float rms_coef = expf(-1.0f / (compressor->sample_rate * compressor->rmsTime));
+    float squared_input1 = l * l;
+    float squared_input2 = r * r;
+    
+    compressor->rmsEnv = squared_input1 + rms_coef * (compressor->rmsEnv - squared_input1);
+    compressor->rmsEnv2 = squared_input2 + rms_coef * (compressor->rmsEnv2 - squared_input2);
+    
+    float max_rms = fmaxf(compressor->rmsEnv, compressor->rmsEnv2);
+    
+    float input_level_db = linear_to_db(sqrtf(fmaxf(max_rms, 1e-9f)));
+    
+    float desired_gain_reduction = compute_gain_reduction(input_level_db, 
+                                                         compressor->threshold, 
+                                                         compressor->ratio, 
+                                                         compressor->knee);
+    
+    float attack_coef = expf(-1.0f / (compressor->sample_rate * compressor->attack));
+    float release_coef = expf(-1.0f / (compressor->sample_rate * compressor->release));
+    
+    float coef = (fabsf(desired_gain_reduction) > fabsf(compressor->gainReduction)) ? attack_coef : release_coef;
+    
+    compressor->gainReduction = desired_gain_reduction + coef * (compressor->gainReduction - desired_gain_reduction);
+    
+    float gain = db_to_linear(compressor->gainReduction + compressor->makeup_gain);
+    
+    *output_r = r * gain;
+    return l * gain;
 }
