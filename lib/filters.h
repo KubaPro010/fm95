@@ -30,12 +30,3 @@ float voltage_db_to_voltage(float db);
 float power_db_to_voltage(float db);
 float voltage_to_voltage_db(float linear);
 float voltage_to_power_db(float linear);
-
-typedef struct {
-    float attack;
-    float release;
-    float max;
-} Compressor;
-void init_compressor(Compressor *compressor, float attack, float release);
-float peak_compress(Compressor *compressor, float sample);
-float peak_compress_stereo(Compressor *compressor, float l, float r, float *output_r);

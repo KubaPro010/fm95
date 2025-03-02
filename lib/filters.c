@@ -120,32 +120,3 @@ float voltage_to_voltage_db(float linear) {
 float voltage_to_power_db(float linear) {
     return 10.0f * log10f(fmaxf(linear, 1e-10f)); // Avoid log(0)
 }
-
-void init_compressor(Compressor *compressor, float attack, float release) {
-    compressor->attack = attack;
-    compressor->release = release;
-    compressor->max = 0.0f;
-}
-
-float peak_compress(Compressor *compressor, float sample) {
-    float sample_abs = fabsf(sample);
-    if(sample_abs > compressor->max) {
-        compressor->max += (sample_abs - compressor->max) * compressor->attack;
-    } else {
-        compressor->max *= compressor->release;
-    }
-    return sample/(compressor->max+0.01);
-}
-
-float peak_compress_stereo(Compressor *compressor, float l, float r, float *output_r) {
-    float l_abs = fabsf(l);
-    float r_abs = fabsf(r);
-    float max = (l_abs > r_abs) ? l_abs : r_abs;
-    if(max > compressor->max) {
-        compressor->max += (max - compressor->max) / compressor->attack;
-    } else {
-        compressor->max *= compressor->release;
-    }
-    *output_r = r/(compressor->max+0.01);
-    return l/(compressor->max+0.01);
-}
