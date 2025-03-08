@@ -14,8 +14,6 @@
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation, if you set this to 0.5 then you may as well set the deviation to 3.5k
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
 
-//#define USB
-
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
 #include "../lib/filters.h"
@@ -375,8 +373,8 @@ int main(int argc, char **argv) {
     BiquadFilter lpf_l1, lpf_r1, lpf_l2, lpf_r2;
     init_lpf(&lpf_l1, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
     init_lpf(&lpf_r1, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
-    init_lpf(&lpf_l2, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
-    init_lpf(&lpf_r2, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
+    init_lpf(&lpf_l2, LPF_CUTOFF, 0.70710678f/2.0f, SAMPLE_RATE);
+    init_lpf(&lpf_r2, LPF_CUTOFF, 0.70710678f/2.0f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
