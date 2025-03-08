@@ -414,10 +414,10 @@ int main(int argc, char **argv) {
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
-            float ready_l = apply_frequency_filter(&lpf_l, l_in);
-            float ready_r = apply_frequency_filter(&lpf_r, r_in);
-            ready_l = apply_preemphasis(&preemp_l, ready_l)*4;
-            ready_r = apply_preemphasis(&preemp_r, ready_r)*4;
+            float ready_l = apply_biquad(&lpf_l, l_in);
+            float ready_r = apply_biquad(&lpf_r, r_in);
+            ready_l = apply_preemphasis(&preemp_l, ready_l)*2;
+            ready_r = apply_preemphasis(&preemp_r, ready_r)*2;
             ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
             ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
