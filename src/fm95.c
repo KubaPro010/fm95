@@ -372,9 +372,11 @@ int main(int argc, char **argv) {
     init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
 
     // Use https://www.earlevel.com/main/2021/09/02/biquad-calculator-v3/
-    BiquadFilter lpf_l, lpf_r;
-    init_lpf(&lpf_l, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
-    init_lpf(&lpf_r, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
+    BiquadFilter lpf_l1, lpf_r1, lpf_l2, lpf_r2;
+    init_lpf(&lpf_l1, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
+    init_lpf(&lpf_r1, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
+    init_lpf(&lpf_l2, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
+    init_lpf(&lpf_r2, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -415,8 +417,10 @@ int main(int argc, char **argv) {
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
-            float ready_l = apply_biquad(&lpf_l, l_in);
-            float ready_r = apply_biquad(&lpf_r, r_in);
+            float ready_l = apply_biquad(&lpf_l1, l_in);
+            float ready_r = apply_biquad(&lpf_r1, r_in);
+            ready_l = apply_biquad(&lpf_l2, ready_l);
+            ready_r = apply_biquad(&lpf_r2, ready_r);
             ready_l = apply_preemphasis(&preemp_l, ready_l)*2;
             ready_r = apply_preemphasis(&preemp_r, ready_r)*2;
             ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
