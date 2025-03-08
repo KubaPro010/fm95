@@ -41,7 +41,7 @@ float upsample(Upsampler* up, float sample) {
     float output = 0.0f;
 
     if (up->i == 0) {
-        output = sample * up->ratio;
+        output = sample;
     } else {
         output = 0.0f;
     }
