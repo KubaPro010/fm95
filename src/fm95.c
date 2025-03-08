@@ -21,6 +21,7 @@
 #include "../lib/filters.h"
 #include "../lib/fm_modulator.h"
 
+#define INPUT_SAMPLE_RATE 32000 // make sure that the output is a multiple of this
 #define SAMPLE_RATE 192000
 
 #define INPUT_DEVICE "FM_Audio.monitor"
@@ -238,6 +239,12 @@ int main(int argc, char **argv) {
         .channels = 1,
         .rate = SAMPLE_RATE
     };
+    pa_sample_spec main_input_format = {
+        .format = PA_SAMPLE_FLOAT32NE,
+        .channels = 2,
+        .rate = INPUT_SAMPLE_RATE
+    };
+
 
     pa_buffer_attr input_buffer_atr = {
         .maxlength = buffer_maxlength,
@@ -259,7 +266,7 @@ int main(int argc, char **argv) {
         PA_STREAM_RECORD,
         audio_input_device,
         "Main Audio Input",
-        &stereo_format,
+        &main_input_format,
         NULL,
         &input_buffer_atr,
         &opentime_pulse_error
@@ -373,8 +380,12 @@ int main(int argc, char **argv) {
 
     // Use https://www.earlevel.com/main/2021/09/02/biquad-calculator-v3/
     BiquadFilter lpf_l, lpf_r;
-    init_lpf(&lpf_l, LPF_CUTOFF, 0.3535f, SAMPLE_RATE);
-    init_lpf(&lpf_r, LPF_CUTOFF, 0.3535f, SAMPLE_RATE);
+    init_lpf(&lpf_l, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
+    init_lpf(&lpf_r, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
+
+    Upsampler upsampler_l, upsampler_r;
+    init_upsampler(&upsampler_l, SAMPLE_RATE/INPUT_SAMPLE_RATE, SAMPLE_RATE);
+    init_upsampler(&upsampler_r, SAMPLE_RATE/INPUT_SAMPLE_RATE, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -410,8 +421,8 @@ int main(int argc, char **argv) {
         }
 
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            float l_in = left[i];
-            float r_in = right[i];
+            float l_in = upsample(&upsampler_l, left[i]);
+            float r_in = upsample(&upsampler_r, right[i]);
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
