@@ -34,7 +34,7 @@
 #include <pulse/error.h>
 
 #define MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
-#define AUDIO_VOLUME 1.5f // Audio volume, before clipper
+#define AUDIO_VOLUME 1.0f // Audio volume, before clipper
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
 #define STEREO_VOLUME 0.45f // L-R signal, should be same as MONO
@@ -42,7 +42,7 @@
 #define MPX_VOLUME 1.0f // Passtrough
 #define MPX_CLIPPER_THRESHOLD 1.0f
 
-#define LPF_CUTOFF 15000 // Should't need to be changed
+#define LPF_CUTOFF 10000 // Should't need to be changed
 
 volatile sig_atomic_t to_run = 1;
 
@@ -372,8 +372,8 @@ int main(int argc, char **argv) {
     init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
 
     BiquadFilter lpf_l, lpf_r;
-    init_lpf(&lpf_l, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
-    init_lpf(&lpf_r, LPF_CUTOFF, 1.25f, SAMPLE_RATE);
+    init_lpf(&lpf_l, LPF_CUTOFF, 0.707f, SAMPLE_RATE);
+    init_lpf(&lpf_r, LPF_CUTOFF, 0.707f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
