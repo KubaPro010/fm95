@@ -12,7 +12,7 @@
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
 
-#define FREQ 1000
+#define FREQ 1000.0f
 #define SAMPLE_RATE 4000
 
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
@@ -47,12 +47,12 @@ void show_help(char *name) {
     printf(
         "Usage: %s\n"
         "   -i,--input      Override input device [default: %s]\n"
-        "   -F,--frequency  GTS Frequency [default: %.2f]\n"
+        "   -F,--frequency  GTS Frequency [default: %.1f]\n"
         "   -s,--samplerate Output Samplerate [default: %d]\n"
         ,name
         ,OUTPUT_DEVICE
         ,FREQ
-        ,(int)FREQ
+        ,(int)SAMPLE_RATE
     );
 }
 
