@@ -5,8 +5,8 @@
 #include <signal.h>
 #include <string.h>
 
-#define buffer_maxlength 12288
-#define buffer_tlength_fragsize 12288
+#define buffer_maxlength 2048
+#define buffer_tlength_fragsize 2048
 #define buffer_prebuf 32
 
 #include "../lib/constants.h"
@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
             total_sequence_samples = samples_59_55;
             sequence_completed = 0;
             last_sequence_time = now;
-        } else if (test_mode && second == 59 && minute != last_minute && !playing_sequence && difftime(now, last_sequence_time) >= 1.0) {
+        } else if (test_mode && second == (55+offset) && minute != last_minute && !playing_sequence && difftime(now, last_sequence_time) >= 1.0) {
             // In test mode, play full hour signal at the end of every minute
             printf("TEST MODE: Playing full hour signal at end of minute %d\n", minute);
             playing_sequence = 1;
