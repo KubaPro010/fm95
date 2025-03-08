@@ -373,8 +373,8 @@ int main(int argc, char **argv) {
 
     // Use https://www.earlevel.com/main/2021/09/02/biquad-calculator-v3/
     BiquadFilter lpf_l, lpf_r;
-    init_lpf(&lpf_l, LPF_CUTOFF, 0.17675f, SAMPLE_RATE);
-    init_lpf(&lpf_r, LPF_CUTOFF, 0.17675f, SAMPLE_RATE);
+    init_lpf(&lpf_l, LPF_CUTOFF, 0.3535f, SAMPLE_RATE);
+    init_lpf(&lpf_r, LPF_CUTOFF, 0.3535f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
