@@ -22,7 +22,8 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
-#define MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
+#define MASTER_VOLUME 0.5f // Volume
+#define OFFSET 0 // Offset in seconds
 
 // Define pip and beep durations in milliseconds
 #define PIP_DURATION 100 // 100ms pip
@@ -49,10 +50,14 @@ void show_help(char *name) {
         "   -o,--output     Override output device [default: %s]\n"
         "   -F,--frequency  GTS Frequency [default: %.1f]\n"
         "   -s,--samplerate Output Samplerate [default: %d]\n"
+        "   -v,--volume     Output volume [default: %.2f]\n"
+        "   -o,--offset     GTS Offset [default: %d]\n"
         ,name
         ,OUTPUT_DEVICE
         ,FREQ
         ,(int)SAMPLE_RATE
+        ,MASTER_VOLUME,
+        ,OFFSET
     );
 }
 
@@ -64,15 +69,18 @@ int main(int argc, char **argv) {
     float master_volume = MASTER_VOLUME;
     float freq = FREQ;
     int sample_rate = (int)SAMPLE_RATE;
+    int offset = OFFSET;
 
     // #region Parse Arguments
     int opt;
-    const char	*short_opt = "o:F:s:h";
+    const char	*short_opt = "o:F:s:v:o:h";
     struct option	long_opt[] =
 	{
         {"output",       required_argument, NULL, 'o'},
         {"frequency",       required_argument, NULL, 'F'},
         {"samplerate",       required_argument, NULL, 's'},
+        {"volume",       required_argument, NULL, 'v'},
+        {"offset",       required_argument, NULL, 'o'},
         
         {"help",        no_argument,       NULL, 'h'},
         {0,             0,                 0,    0}
@@ -88,6 +96,12 @@ int main(int argc, char **argv) {
                 break;
             case 's': //Sample rate
                 sample_rate = strtol(optarg, NULL, 10);
+                break;
+            case 'v': // Volume
+                master_volume = strtof(optarg, NULL);
+                break;
+            case 'o': // Offset
+                offset = strtol(optarg, NULL, 10);
                 break;
             case 'h':
                 show_help(argv[0]);
@@ -176,13 +190,13 @@ int main(int argc, char **argv) {
         int second = utc_time->tm_sec;
         
         // Check if we need to start a time signal sequence
-        if (minute == 29 && second == 56 && !playing_sequence) {
+        if (minute == 29 && second == 56+offset && !playing_sequence) {
             printf("Starting 29:56 time signal sequence\n");
             playing_sequence = 1;
             sequence_type = 1; // 29:56 pattern
             elapsed_samples = 0;
             total_sequence_samples = samples_29_56;
-        } else if (minute == 59 && second == 55 && !playing_sequence) {
+        } else if (minute == 59 && second == 55+offset && !playing_sequence) {
             printf("Starting 59:55 time signal sequence\n");
             playing_sequence = 1;
             sequence_type = 2; // 59:55 pattern
