@@ -11,92 +11,51 @@ float apply_preemphasis(ResistorCapacitor *filter, float sample) {
 }
 
 void init_lpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate) {
-    // Calculate intermediate values
-    float omega = 2.0f * M_PI * cutoffFreq / sampleRate;
-    float sn = sinf(omega);
-    float cs = cosf(omega);
-    float alpha = sn / (2.0f * qFactor);
-    
-    // Calculate coefficients
-    float b0 = (1.0f - cs) * 0.5f;
-    float b1 = 1.0f - cs;
-    float b2 = (1.0f - cs) * 0.5f;
-    float a0 = 1.0f + alpha;
-    float a1 = -2.0f * cs;
-    float a2 = 1.0f - alpha;
-    
-    // Normalize by a0
-    filter->b0 = b0 / a0;
-    filter->b1 = b1 / a0;
-    filter->b2 = b2 / a0;
-    filter->a1 = a1 / a0;
-    filter->a2 = a2 / a0;
-    
-    // Initialize state variables
-    filter->x1 = 0.0f;
-    filter->x2 = 0.0f;
-    filter->y1 = 0.0f;
-    filter->y2 = 0.0f;
+    float cutoffNorm = cutoffFreq / sampleRate;
+    float K = tanf(M_PI * cutoffNorm);
+    float norm = 1.0f/(1.0f+K/qFactor+K*K);
+    filter->a0 = K*K*norm;
+    filter->a1 = 2.0f*K*K*norm;
+    filter->a2 = K*K*norm;
+    filter->b1 = 2.0f*(K*K-1.0f)*norm;
+    filter->b2 = (1.0f-K/qFactor+K*K)*norm;
+
+    filter->z1 = 0.0f;
+    filter->z2 = 0.0f;
 }
 
 void init_hpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate) {
-    float omega = 2.0f * M_PI * cutoffFreq / sampleRate;
-    float alpha = sinf(omega) / (2.0f * qFactor);
-    float cosw = cosf(omega);
-    
-    float b0 = (1.0f + cosw) / 2.0f;
-    float b1 = -(1.0f + cosw);
-    float b2 = (1.0f + cosw) / 2.0f;
-    float a0 = 1.0f + alpha;
-    float a1 = -2.0f * cosw;
-    float a2 = 1.0f - alpha;
-    
-    // Normalize by a0
-    filter->b0 = b0 / a0;
-    filter->b1 = b1 / a0;
-    filter->b2 = b2 / a0;
-    filter->a1 = a1 / a0;
-    filter->a2 = a2 / a0;
-    
-    // Initialize state variables
-    filter->x1 = 0.0f;
-    filter->x2 = 0.0f;
-    filter->y1 = 0.0f;
-    filter->y2 = 0.0f;
+    float cutoffNorm = cutoffFreq / sampleRate;
+    float K = tanf(M_PI * cutoffNorm);
+    float norm = 1.0f/(1.0f+K/qFactor+K*K);
+    filter->a0 = 1.0f*norm;
+    filter->a1 = -2.0f*norm;
+    filter->a2 = 1.0f*norm;
+    filter->b1 = 2.0f*(K*K-1.0f)*norm;
+    filter->b2 = (1.0f-K/qFactor+K*K)*norm;
+
+    filter->z1 = 0.0f;
+    filter->z2 = 0.0f;
 }
 
 void init_bpf(BiquadFilter* filter, float centerFreq, float qFactor, float sampleRate) {
-    float omega = 2.0f * M_PI * centerFreq / sampleRate;
-    float alpha = sinf(omega) / (2.0f * qFactor);
-    float cosw = cosf(omega);
-    
-    float b0 = alpha;
-    float b1 = 0.0f;
-    float b2 = -alpha;
-    float a0 = 1.0f + alpha;
-    float a1 = -2.0f * cosw;
-    float a2 = 1.0f - alpha;
-    
-    // Normalize by a0
-    filter->b0 = b0 / a0;
-    filter->b1 = b1 / a0;
-    filter->b2 = b2 / a0;
-    filter->a1 = a1 / a0;
-    filter->a2 = a2 / a0;
-    
-    // Initialize state variables
-    filter->x1 = 0.0f;
-    filter->x2 = 0.0f;
-    filter->y1 = 0.0f;
-    filter->y2 = 0.0f;
+    float cutoffNorm = centerFreq / sampleRate;
+    float K = tanf(M_PI * cutoffNorm);
+    float norm = 1.0f/(1.0f+K/qFactor+K*K);
+    filter->a0 = K/qFactor*norm;
+    filter->a1 = 0.0f;
+    filter->a2 = -K/qFactor*norm;
+    filter->b1 = 2.0f*(K*K-1.0f)*norm;
+    filter->b2 = (1.0f-K/qFactor+K*K)*norm;
+
+    filter->z1 = 0.0f;
+    filter->z2 = 0.0f;
 }
 
 float apply_frequency_filter(BiquadFilter* filter, float input) {
-    float out = input*filter->b0+filter->x1*filter->b1+filter->x2*filter->b2+filter->y1*filter->a1+filter->y2*filter->a2;
-    filter->y2 = filter->y1;
-    filter->y1 = out;
-    filter->x2 = filter->x1;
-    filter->x1 = input;
+    float out = input*filter->a0+filter->z1;
+    filter->z1 = input*filter->a1+filter->z2-filter->b1*out;
+    filter->z2 = input*filter->a2-filter->b2*out;
     return out;
 }
 

@@ -42,7 +42,7 @@
 #define MPX_VOLUME 1.0f // Passtrough
 #define MPX_CLIPPER_THRESHOLD 1.0f
 
-#define LPF_CUTOFF 10000 // Should't need to be changed
+#define LPF_CUTOFF 15000 // Should't need to be changed
 
 volatile sig_atomic_t to_run = 1;
 
