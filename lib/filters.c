@@ -42,13 +42,12 @@ float upsample(Upsampler* up, float sample) {
 
     if (up->i == 0) {
         output = sample;
-    } else {
-        output = 0.0f;
     }
     
     output = apply_biquad(&up->lpf, output);
     
-    up->i = (up->i + 1) % up->ratio;
+    up->i++;
+    if(up->i >= up->ratio) up->i = 0;
     
     return output;
 }
