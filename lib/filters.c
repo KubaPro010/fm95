@@ -31,26 +31,6 @@ float apply_biquad(BiquadFilter* filter, float input) {
     return out;
 }
 
-void init_upsampler(Upsampler* up, int ratio, float sample_rate) {
-    up->i = 0;
-    up->ratio = ratio;
-    init_lpf(&up->lpf, sample_rate*ratio, 0.70710678f, sample_rate);
-}
-
-float upsample(Upsampler* up, float sample) {
-    float output = 0.0f;
-
-    if (up->i == 0) {
-        output = sample;
-    }
-    
-    output = apply_biquad(&up->lpf, output);
-    
-    up->i++;
-    if(up->i >= up->ratio) up->i = 0;
-    
-    return output;
-}
 
 float hard_clip(float sample, float threshold) {
     if (sample > threshold) {

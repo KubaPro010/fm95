@@ -23,15 +23,6 @@ typedef struct {
 void init_lpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate);
 float apply_biquad(BiquadFilter* filter, float input);
 
-typedef struct
-{
-    int i;
-    int ratio;
-    BiquadFilter lpf;
-} Upsampler;
-void init_upsampler(Upsampler* up, int ratio, float sample_rate);
-float upsample(Upsampler *up, float sample);
-
 float hard_clip(float sample, float threshold);
 float voltage_db_to_voltage(float db);
 float power_db_to_voltage(float db);
