@@ -33,7 +33,7 @@
 volatile sig_atomic_t to_run = 1;
 volatile sig_atomic_t playing_sequence = 0;
 volatile int sequence_position = 0;
-volatile int sequence_type = 0; // 0 = none, 1 = 29:56, 2 = 59:55
+volatile int sequence_type = 0; // 0 = none, 1 = 29:56, 2 = 59:55, 3 = test mode full hour
 volatile time_t last_sequence_time = 0; // Track when we last played a sequence
 
 static void stop(int signum) {
@@ -54,6 +54,7 @@ void show_help(char *name) {
         "   -s,--samplerate Output Samplerate [default: %d]\n"
         "   -v,--volume     Output volume [default: %.2f]\n"
         "   -t,--offset     GTS Offset [default: %d s]\n"
+        "   -T,--test       Enable test mode (plays full hour signal at end of every minute)\n"
         ,name
         ,OUTPUT_DEVICE
         ,FREQ
@@ -72,10 +73,11 @@ int main(int argc, char **argv) {
     float freq = FREQ;
     int sample_rate = SAMPLE_RATE;
     int offset = OFFSET;
+    int test_mode = 0; // Test mode flag
 
     // #region Parse Arguments
     int opt;
-    const char *short_opt = "o:F:s:v:t:h";
+    const char *short_opt = "o:F:s:v:t:Th";
     struct option long_opt[] =
     {
         {"output",     required_argument, NULL, 'o'},
@@ -83,6 +85,7 @@ int main(int argc, char **argv) {
         {"samplerate", required_argument, NULL, 's'},
         {"volume",     required_argument, NULL, 'v'},
         {"offset",     required_argument, NULL, 't'}, // Changed from 'o' to 't' to avoid duplicate
+        {"test",       no_argument,       NULL, 'T'}, // Test mode flag
         
         {"help",       no_argument,       NULL, 'h'},
         {0,            0,                 0,    0}
@@ -106,6 +109,9 @@ int main(int argc, char **argv) {
             case 't': // Offset (changed from 'o' to 't')
                 offset = strtol(optarg, NULL, 10);
                 break;
+            case 'T': // Test mode
+                test_mode = 1;
+                break;
             case 'h':
                 show_help(argv[0]);
                 return 0; // Return 0 for help, not 1
@@ -119,6 +125,7 @@ int main(int argc, char **argv) {
     printf("  Sample rate: %d Hz\n", sample_rate);
     printf("  Volume: %.2f\n", master_volume);
     printf("  Time offset: %d seconds\n", offset);
+    printf("  Test mode: %s\n", test_mode ? "Enabled" : "Disabled");
 
     // #region Setup devices
 
@@ -185,6 +192,9 @@ int main(int argc, char **argv) {
     // This adds one more pip and pause to the start
     // Total: 5 pips + 5 pauses + 1 beep = 0.1*5 + 0.9*5 + 0.5 = 5.5 seconds
     int samples_59_55 = (int)(5.5 * sample_rate);
+    
+    // Full hour signal is same as 59:55 signal
+    int samples_full_hour = samples_59_55;
 
     // Calculate number of samples for each element
     int pip_samples = (int)((PIP_DURATION / 1000.0) * sample_rate);
@@ -193,6 +203,11 @@ int main(int argc, char **argv) {
     
     printf("Ready to play time signals.\n");
     printf("Will trigger at XX:29:%02d and XX:59:%02d\n", 56+offset, 55+offset);
+    if (test_mode) {
+        printf("TEST MODE: Will also play full hour signal at the end of every minute\n");
+    }
+    
+    int last_minute = -1; // Track the last minute for test mode
     
     while (to_run) {
         // Clear the output buffer
@@ -222,6 +237,16 @@ int main(int argc, char **argv) {
             total_sequence_samples = samples_59_55;
             sequence_completed = 0;
             last_sequence_time = now;
+        } else if (test_mode && second == 59 && minute != last_minute && !playing_sequence && difftime(now, last_sequence_time) >= 1.0) {
+            // In test mode, play full hour signal at the end of every minute
+            printf("TEST MODE: Playing full hour signal at end of minute %d\n", minute);
+            playing_sequence = 1;
+            sequence_type = 3; // Test mode full hour pattern
+            elapsed_samples = 0;
+            total_sequence_samples = samples_full_hour;
+            sequence_completed = 0;
+            last_sequence_time = now;
+            last_minute = minute; // Update last minute to prevent repeated triggers
         }
         
         // If we're playing a sequence, generate the appropriate sounds
@@ -257,7 +282,7 @@ int main(int argc, char **argv) {
                             // Silent after sequence
                             output[i] = 0;
                         }
-                    } else if (sequence_type == 2) { // 59:55 pattern: pip ... pip ... pip ... pip ... pip ... beep
+                    } else if (sequence_type == 2 || sequence_type == 3) { // 59:55 pattern or full hour: pip ... pip ... pip ... pip ... pip ... beep
                         int cycle_position = elapsed_samples;
                         int pip_cycle = pip_samples + pause_samples;
                         
