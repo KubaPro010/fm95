@@ -46,7 +46,7 @@ void show_version() {
 void show_help(char *name) {
     printf(
         "Usage: %s\n"
-        "   -i,--input      Override input device [default: %s]\n"
+        "   -o,--output     Override output device [default: %s]\n"
         "   -F,--frequency  GTS Frequency [default: %.1f]\n"
         "   -s,--samplerate Output Samplerate [default: %d]\n"
         ,name
@@ -67,10 +67,10 @@ int main(int argc, char **argv) {
 
     // #region Parse Arguments
     int opt;
-    const char	*short_opt = "i:F:s:h";
+    const char	*short_opt = "o:F:s:h";
     struct option	long_opt[] =
 	{
-        {"input",       required_argument, NULL, 'i'},
+        {"output",       required_argument, NULL, 'o'},
         {"frequency",       required_argument, NULL, 'F'},
         {"samplerate",       required_argument, NULL, 's'},
         
