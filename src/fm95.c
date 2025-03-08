@@ -8,7 +8,7 @@
 
 #define DEFAULT_STEREO 1
 #define DEFAULT_STEREO_POLAR 0
-#define DEFAULT_CLIPPER_THRESHOLD 2.0f
+#define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation, if you set this to 0.5 then you may as well set the deviation to 3.5k
@@ -28,7 +28,7 @@
 #define MPX_DEVICE "FM_MPX.monitor"
 // #define SCA_DEVICE ""
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 2048
 
 #include <pulse/simple.h>
 #include <pulse/error.h>
@@ -61,7 +61,7 @@ static void stop(int signum) {
 }
 
 void show_version() {
-    printf("fm95 (an FM Processor by radio95) version 1.2\n");
+    printf("fm95 (an FM Processor by radio95) version 1.3\n");
 }
 void show_help(char *name) {
     printf(
@@ -371,9 +371,10 @@ int main(int argc, char **argv) {
     init_preemphasis(&preemp_l, preemphasis_tau, SAMPLE_RATE);
     init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
 
+    // Use https://www.earlevel.com/main/2021/09/02/biquad-calculator-v3/
     BiquadFilter lpf_l, lpf_r;
-    init_lpf(&lpf_l, LPF_CUTOFF, 0.707f, SAMPLE_RATE);
-    init_lpf(&lpf_r, LPF_CUTOFF, 0.707f, SAMPLE_RATE);
+    init_lpf(&lpf_l, LPF_CUTOFF, 0.17675f, SAMPLE_RATE);
+    init_lpf(&lpf_r, LPF_CUTOFF, 0.17675f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
