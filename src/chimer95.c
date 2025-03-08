@@ -5,8 +5,8 @@
 #include <signal.h>
 #include <string.h>
 
-#define buffer_maxlength 12288
-#define buffer_tlength_fragsize 12288
+#define buffer_maxlength 2048
+#define buffer_tlength_fragsize 2048
 #define buffer_prebuf 32
 
 #include "../lib/constants.h"
