@@ -522,7 +522,7 @@ int main(int argc, char **argv) {
             
             // Get carrier signal with phase offset if needed
             float t = osc.phase + phase_offset;
-            float carrier = sin(t);
+            float carrier = sinf(t);
             advance_oscillator(&osc);
             
             if (transmitting) {
