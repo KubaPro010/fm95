@@ -1,7 +1,6 @@
 # fm95
 FM95 is a audio processor for FM, it does:
 - Pre-Emphasis
-- Low Pass Filter
 - Stereo
 - Polar Stereo
 - SCA
@@ -25,4 +24,13 @@ make
 Done!
 
 # CPU Usage?
-Should run completly fine on a pi 5, right now with the preemp, lpf, compressor on a pi 3b, its 35-40% cpu usage, get rid of compressor and it goes to 20%
+Should run completly fine on a pi 5, right now with the preemp, on a pi 3b, its 20%
+
+# Recommendations
+use a lpf, for example swh-plugins's lowpass_iir, for example:
+
+```
+pactl load-module module-null-sink sink_name=FM_Audio rate=48000 # this goes to fm95
+pactl load-module module-ladspa-sink sink_name=FM_Audio_lpf sink_master=FM_Audio plugin=lowpass_iir_1891 label=lowpass_iir control=15000,6 rate=48000 # use 4 poles minimum
+pactl load-module module-loopback source=radio_audio.monitor sink=FM_Audio_lpf rate=48000 # from the apps to the filter
+```
