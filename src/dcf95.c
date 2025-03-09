@@ -326,7 +326,7 @@ int main(int argc, char **argv) {
         
         // Get current time
         time_t now = time(NULL) + offset;
-        struct tm *t = gmtime(&now);
+        struct tm *t = localtime(&now);
         int second = t->tm_sec;
         
         // Check if we're at the start of a new minute
