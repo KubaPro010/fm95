@@ -430,21 +430,7 @@ int main(int argc, char **argv) {
             // Get base carrier signal
             float carrier = get_oscillator_sin_sample(&osc);
             
-            // Process in test mode or normal mode
-            if (test_mode) {
-                // In test mode, generate a repeating pattern regardless of time
-                int cycle_position = elapsed_samples % bit_samples;
-                int test_bit = (elapsed_samples / bit_samples) % 2; // Alternate 0 and 1
-                
-                if ((test_bit == 0 && cycle_position < pulse_0_samples) || 
-                    (test_bit == 1 && cycle_position < pulse_1_samples)) {
-                    // Reduced amplitude during pulse
-                    output[i] = carrier * master_volume * REDUCED_AMPLITUDE;
-                } else {
-                    // Full amplitude otherwise
-                    output[i] = carrier * master_volume;
-                }
-            } else if (transmitting) {
+            if (transmitting) {
                 // Calculate milliseconds within the current second
                 ms_within_second = (int)((elapsed_samples * 1000.0) / sample_rate);
                 
