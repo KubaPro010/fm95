@@ -27,6 +27,7 @@ foreach(SRC_FILE ${SRC_FILES})
 
     # Create the executable from each source file
     add_executable(${EXEC_NAME} ${SRC_FILE})
+    target_compile_options(${EXEC_NAME} PRIVATE -O1)
 
     # Link the necessary libraries and object files from lib/
     target_link_libraries(${EXEC_NAME} PRIVATE libfm ${LINK_LIBS})

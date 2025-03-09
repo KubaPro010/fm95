@@ -10,15 +10,9 @@ float apply_preemphasis(ResistorCapacitor *filter, float sample) {
     return out;
 }
 
-
-float hard_clip(float sample, float threshold) {
-    if (sample > threshold) {
-        return threshold;  // Clip to the upper threshold
-    } else if (sample < -threshold) {
-        return -threshold;  // Clip to the lower threshold
-    } else {
-        return sample;  // No clipping
-    }
+float hard_clip_fast(float sample, float threshold) {
+    // Branchless clipping
+    return fmaxf(-threshold, fminf(threshold, sample));
 }
 
 float voltage_db_to_voltage(float db) {

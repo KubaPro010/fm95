@@ -238,6 +238,10 @@ int main(int argc, char **argv) {
     }
     // #endregion
 
+    int mpx_on = (strlen(audio_mpx_device) != 0);
+    int rds_on = (strlen(audio_rds_device) != 0);
+    int sca_on = (strlen(audio_sca_device) != 0);
+
     // #region Setup devices
 
     // Define formats and buffer atributes
@@ -282,7 +286,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if(strlen(audio_mpx_device) != 0) {
+    if(mpx_on) {
         printf("Connecting to MPX device... (%s)\n", audio_mpx_device);
 
         mpx_device = pa_simple_new(
@@ -302,7 +306,7 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
-    if(strlen(audio_rds_device) != 0) {
+    if(rds_on) {
         printf("Connecting to RDS device... (%s)\n", audio_rds_device);
 
         rds_device = pa_simple_new(
@@ -323,7 +327,7 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
-    if(strlen(audio_sca_device) != 0) {
+    if(sca_on) {
         printf("Connecting to SCA device... (%s)\n", audio_sca_device);
 
         sca_device = pa_simple_new(
@@ -340,8 +344,8 @@ int main(int argc, char **argv) {
         if (!sca_device) {
             fprintf(stderr, "Error: cannot open SCA device: %s\n", pa_strerror(opentime_pulse_error));
             pa_simple_free(input_device);
-            if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-            if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
+            if(mpx_on) pa_simple_free(mpx_device);
+            if(rds_on) pa_simple_free(rds_device);
             return 1;
         }
     }
@@ -362,9 +366,9 @@ int main(int argc, char **argv) {
     if (!output_device) {
         fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
         pa_simple_free(input_device);
-        if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-        if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
-        if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+        if(mpx_on) pa_simple_free(mpx_device);
+        if(rds_on) pa_simple_free(rds_device);
+        if(sca_on) pa_simple_free(sca_device);
         return 1;
     }
     // #endregion
@@ -390,9 +394,9 @@ int main(int argc, char **argv) {
         }
         printf("Cleaning up...\n");
         pa_simple_free(input_device);
-        if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-        if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
-        if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+        if(mpx_on) pa_simple_free(mpx_device);
+        if(rds_on) pa_simple_free(rds_device);
+        if(sca_on) pa_simple_free(sca_device);
         pa_simple_free(output_device);
         return 0;
     }
@@ -418,7 +422,7 @@ int main(int argc, char **argv) {
     float mpx_in[BUFFER_SIZE] = {0}; // Input from MPX device
     float rds_in[BUFFER_SIZE] = {0}; // Input from RDS device
     float sca_in[BUFFER_SIZE] = {0}; // Input from SCA device
-    float left[BUFFER_SIZE+64], right[BUFFER_SIZE+64]; // Audio, same thing as in input but uninterleaved, ai told be there could be a buffer overflow here
+    float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio, same thing as in input but uninterleaved
     float output[BUFFER_SIZE]; // MPX, this goes to the output
     while (to_run) {
         if (pa_simple_read(input_device, audio_stereo_input, sizeof(audio_stereo_input), &pulse_error) < 0) {
@@ -427,21 +431,21 @@ int main(int argc, char **argv) {
             break;
         }
         uninterleave(audio_stereo_input, left, right, BUFFER_SIZE*2);
-        if(strlen(audio_mpx_device) != 0) {
+        if(mpx_on) {
             if (pa_simple_read(mpx_device, mpx_in, sizeof(mpx_in), &pulse_error) < 0) {
                 fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
                 to_run = 0;
                 break;
             }
         }
-        if(strlen(audio_rds_device) != 0) {
+        if(rds_on) {
             if (pa_simple_read(rds_device, rds_in, sizeof(rds_in), &pulse_error) < 0) {
                 fprintf(stderr, "Error reading from RDS device: %s\n", pa_strerror(pulse_error));
                 to_run = 0;
                 break;
             }
         }
-        if(strlen(audio_sca_device) != 0) {
+        if(sca_on) {
             if (pa_simple_read(sca_device, sca_in, sizeof(sca_in), &pulse_error) < 0) {
                 fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
                 to_run = 0;
@@ -466,7 +470,7 @@ int main(int argc, char **argv) {
             if(stereo == 1) {
                 float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent    
                 float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 2);   
-                if((strlen(audio_rds_device) != 0) && polar_stereo == 0) {
+                if(rds_on && polar_stereo == 0) {
                     float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
                     output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
                 }         
@@ -479,8 +483,8 @@ int main(int argc, char **argv) {
                 }
                 advance_oscillator(&osc);
             }
-            if(strlen(audio_mpx_device) != 0) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
-            if(strlen(audio_sca_device) != 0) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+            if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
+            if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
             output[i] *= master_volume;
         }
 
@@ -492,9 +496,9 @@ int main(int argc, char **argv) {
     }
     printf("Cleaning up...\n");
     pa_simple_free(input_device);
-    if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
-    if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
-    if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
+    if(mpx_on) pa_simple_free(mpx_device);
+    if(rds_on) pa_simple_free(rds_device);
+    if(sca_on) pa_simple_free(sca_device);
     pa_simple_free(output_device);
     return 0;
 }
