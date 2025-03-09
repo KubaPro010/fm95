@@ -10,27 +10,6 @@ float apply_preemphasis(ResistorCapacitor *filter, float sample) {
     return out;
 }
 
-void init_lpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate) {
-    float cutoffNorm = cutoffFreq / sampleRate;
-    float K = tanf(M_PI * cutoffNorm);
-    float norm = 1.0f/(1.0f+K/qFactor+K*K);
-    filter->a0 = K*K*norm;
-    filter->a1 = 2.0f*K*K*norm;
-    filter->a2 = K*K*norm;
-    filter->b1 = 2.0f*(K*K-1.0f)*norm;
-    filter->b2 = (1.0f-K/qFactor+K*K)*norm;
-
-    filter->z1 = 0.0f;
-    filter->z2 = 0.0f;
-}
-
-float apply_biquad(BiquadFilter* filter, float input) {
-    float out = input*filter->a0+filter->z1;
-    filter->z1 = input*filter->a1+filter->z2-filter->b1*out;
-    filter->z2 = input*filter->a2-filter->b2*out;
-    return out;
-}
-
 
 float hard_clip(float sample, float threshold) {
     if (sample > threshold) {

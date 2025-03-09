@@ -14,15 +14,6 @@ typedef struct
 void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate);
 float apply_preemphasis(ResistorCapacitor *filter, float sample);
 
-typedef struct {
-    // https://www.earlevel.com/main/2012/11/26/biquad-c-source-code/
-    float a0, a1, a2;
-    float b1, b2;
-    float z1, z2;
-} BiquadFilter;
-void init_lpf(BiquadFilter* filter, float cutoffFreq, float qFactor, float sampleRate);
-float apply_biquad(BiquadFilter* filter, float input);
-
 float hard_clip(float sample, float threshold);
 float voltage_db_to_voltage(float db);
 float power_db_to_voltage(float db);

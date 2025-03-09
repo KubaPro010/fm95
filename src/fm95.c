@@ -40,8 +40,6 @@
 #define MPX_VOLUME 1.0f // Passtrough
 #define MPX_CLIPPER_THRESHOLD 1.0f
 
-#define LPF_CUTOFF 15000 // Should't need to be changed
-
 volatile sig_atomic_t to_run = 1;
 
 void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
@@ -368,13 +366,6 @@ int main(int argc, char **argv) {
     ResistorCapacitor preemp_l, preemp_r;
     init_preemphasis(&preemp_l, preemphasis_tau, SAMPLE_RATE);
     init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
-
-    // Use https://www.earlevel.com/main/2021/09/02/biquad-calculator-v3/
-    BiquadFilter lpf_l1, lpf_r1, lpf_l2, lpf_r2;
-    init_lpf(&lpf_l1, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
-    init_lpf(&lpf_r1, LPF_CUTOFF, 0.70710678f, SAMPLE_RATE);
-    init_lpf(&lpf_l2, LPF_CUTOFF, 0.70710678f/2.0f, SAMPLE_RATE);
-    init_lpf(&lpf_r2, LPF_CUTOFF, 0.70710678f/2.0f, SAMPLE_RATE);
     // #endregion
 
     signal(SIGINT, stop);
@@ -415,12 +406,8 @@ int main(int argc, char **argv) {
             float current_mpx_in = mpx_in[i];
             float current_sca_in = sca_in[i];
 
-            float ready_l = apply_biquad(&lpf_l1, l_in);
-            float ready_r = apply_biquad(&lpf_r1, r_in);
-            ready_l = apply_biquad(&lpf_l2, ready_l);
-            ready_r = apply_biquad(&lpf_r2, ready_r);
-            ready_l = apply_preemphasis(&preemp_l, ready_l)*2;
-            ready_r = apply_preemphasis(&preemp_r, ready_r)*2;
+            float ready_l = apply_preemphasis(&preemp_l, l_in)*2;
+            float ready_r = apply_preemphasis(&preemp_r, r_in)*2;
             ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
             ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
