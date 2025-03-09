@@ -468,7 +468,7 @@ int main(int argc, char **argv) {
                 float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 2);   
                 if((strlen(audio_rds_device) != 0) && polar_stereo == 0) {
                     float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
-                    output[i] += (rds_in*rds_carrier)*RDS_VOLUME;
+                    output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
                 }         
                 if(polar_stereo) {
                     output[i] += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
