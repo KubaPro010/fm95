@@ -30,11 +30,17 @@
 #define PIP_PAUSE 900    // 900ms pause between pips
 #define BEEP_DURATION 500 // 500ms beep
 
+// Sequence types
+#define SEQ_NONE 0
+#define SEQ_29_56 1  
+#define SEQ_59_55 2  
+#define SEQ_TEST_HOUR 3
+
 volatile sig_atomic_t to_run = 1;
 volatile sig_atomic_t playing_sequence = 0;
 volatile int sequence_position = 0;
-volatile int sequence_type = 0; // 0 = none, 1 = 29:56, 2 = 59:55, 3 = test mode full hour
-volatile time_t last_sequence_time = 0; // Track when we last played a sequence
+volatile int sequence_type = SEQ_NONE;
+volatile time_t last_sequence_time = 0;
 
 static void stop(int signum) {
     (void)signum;
@@ -64,6 +70,86 @@ void show_help(char *name) {
     );
 }
 
+// Function to fill the buffer with generated signal
+void generate_signal(float *output, int buffer_size, Oscillator *osc, float volume,
+                    int *elapsed_samples, int total_samples, int pip_samples, 
+                    int pause_samples, int beep_samples, int num_pips) {
+    
+    for (int i = 0; i < buffer_size; i++) {
+        if (*elapsed_samples >= total_samples) {
+            // End of sequence
+            output[i] = 0;
+            playing_sequence = 0;
+        } else {
+            int cycle_position = *elapsed_samples;
+            int pip_cycle = pip_samples + pause_samples;
+            
+            if (cycle_position < num_pips * pip_cycle) {
+                // Pips with pauses
+                int within_cycle = cycle_position % pip_cycle;
+                if (within_cycle < pip_samples) {
+                    // Playing a pip
+                    output[i] = get_oscillator_sin_sample(osc) * volume;
+                } else {
+                    // Silent pause
+                    output[i] = 0;
+                }
+            } else if (cycle_position < num_pips * pip_cycle + beep_samples) {
+                // Final beep
+                output[i] = get_oscillator_sin_sample(osc) * volume;
+            } else {
+                // Silent after sequence
+                output[i] = 0;
+            }
+            
+            (*elapsed_samples)++;
+        }
+    }
+}
+
+// Check if it's time to start a sequence and which one
+int check_time_for_sequence(int test_mode, int offset) {
+    static time_t last_check = 0;
+    static int last_minute = -1;
+    
+    // Only check time every 100ms to reduce system calls
+    time_t now = time(NULL);
+    if (now == last_check) {
+        return SEQ_NONE;
+    }
+    
+    last_check = now;
+    struct tm *utc_time = gmtime(&now);
+    int minute = utc_time->tm_min;
+    int second = utc_time->tm_sec;
+    
+    // Check if we already played a sequence recently (within 1 second)
+    if (difftime(now, last_sequence_time) < 1.0) {
+        return SEQ_NONE;
+    }
+    
+    // Check for 29:56 sequence
+    if (minute == 29 && second == (56 + offset)) {
+        last_sequence_time = now;
+        return SEQ_29_56;
+    }
+    
+    // Check for 59:55 sequence
+    if (minute == 59 && second == (55 + offset)) {
+        last_sequence_time = now;
+        return SEQ_59_55;
+    }
+    
+    // Check for test mode sequence (but don't repeat for the same minute)
+    if (test_mode && second == (55 + offset) && minute != last_minute) {
+        last_minute = minute;
+        last_sequence_time = now;
+        return SEQ_TEST_HOUR;
+    }
+    
+    return SEQ_NONE;
+}
+
 int main(int argc, char **argv) {
     show_version();
 
@@ -73,51 +159,48 @@ int main(int argc, char **argv) {
     float freq = FREQ;
     int sample_rate = SAMPLE_RATE;
     int offset = OFFSET;
-    int test_mode = 0; // Test mode flag
+    int test_mode = 0;
 
-    // #region Parse Arguments
+    // Parse command line arguments
     int opt;
     const char *short_opt = "o:F:s:v:t:Th";
-    struct option long_opt[] =
-    {
+    struct option long_opt[] = {
         {"output",     required_argument, NULL, 'o'},
         {"frequency",  required_argument, NULL, 'F'},
         {"samplerate", required_argument, NULL, 's'},
         {"volume",     required_argument, NULL, 'v'},
-        {"offset",     required_argument, NULL, 't'}, // Changed from 'o' to 't' to avoid duplicate
-        {"test",       no_argument,       NULL, 'T'}, // Test mode flag
-        
+        {"offset",     required_argument, NULL, 't'},
+        {"test",       no_argument,       NULL, 'T'},
         {"help",       no_argument,       NULL, 'h'},
         {0,            0,                 0,    0}
     };
 
     while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
         switch(opt) {
-            case 'o': // Output Device
-                memcpy(audio_output_device, optarg, 63);
-                audio_output_device[63] = '\0'; // Ensure null-termination
+            case 'o': 
+                strncpy(audio_output_device, optarg, sizeof(audio_output_device) - 1);
+                audio_output_device[sizeof(audio_output_device) - 1] = '\0';
                 break;
-            case 'F': // Frequency
+            case 'F': 
                 freq = strtof(optarg, NULL);
                 break;
-            case 's': // Sample rate
+            case 's': 
                 sample_rate = strtol(optarg, NULL, 10);
                 break;
-            case 'v': // Volume
+            case 'v': 
                 master_volume = strtof(optarg, NULL);
                 break;
-            case 't': // Offset (changed from 'o' to 't')
+            case 't': 
                 offset = strtol(optarg, NULL, 10);
                 break;
-            case 'T': // Test mode
+            case 'T': 
                 test_mode = 1;
                 break;
             case 'h':
                 show_help(argv[0]);
-                return 0; // Return 0 for help, not 1
+                return 0;
         }
     }
-    // #endregion
 
     printf("Configuration:\n");
     printf("  Output device: %s\n", audio_output_device);
@@ -127,26 +210,20 @@ int main(int argc, char **argv) {
     printf("  Time offset: %d seconds\n", offset);
     printf("  Test mode: %s\n", test_mode ? "Enabled" : "Disabled");
 
-    // #region Setup devices
-
-    // Define formats and buffer atributes
+    // Setup PulseAudio
     pa_sample_spec mono_format = {
         .format = PA_SAMPLE_FLOAT32NE,
         .channels = 1,
         .rate = sample_rate
     };
 
-    pa_buffer_attr input_buffer_atr = {
-        .maxlength = buffer_maxlength,
-        .fragsize = buffer_tlength_fragsize
-    };
     pa_buffer_attr output_buffer_atr = {
         .maxlength = buffer_maxlength,
         .tlength = buffer_tlength_fragsize,
         .prebuf = buffer_prebuf
     };
 
-    int opentime_pulse_error;
+    int pulse_error;
 
     printf("Connecting to output device... (%s)\n", audio_output_device);
 
@@ -159,47 +236,31 @@ int main(int argc, char **argv) {
         &mono_format,
         NULL,
         &output_buffer_atr,
-        &opentime_pulse_error
+        &pulse_error
     );
+    
     if (!output_device) {
-        fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
+        fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(pulse_error));
         return 1;
     }
-    // #endregion
 
-    // #region Setup Filters/Modulaltors/Oscillators
+    // Setup oscillator
     Oscillator osc;
     init_oscillator(&osc, freq, sample_rate);
-    // #endregion
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
     
-    int pulse_error;
-    float output[BUFFER_SIZE]; // MPX, this goes to the output
+    float output[BUFFER_SIZE];
     
-    // Parameters for the time signals
-    int elapsed_samples = 0;
-    int total_sequence_samples = 0;
-    int sequence_completed = 0; // Flag to track if we've already reported completion
-
-    // For 29:56 - Play pip ... pip ... pip ... pip ... beep (4.5 seconds total)
-    // Each pip is 0.1s with 0.9s pause, and beep is 0.5s
-    // Total: 4 pips + 4 pauses + 1 beep = 0.1*4 + 0.9*4 + 0.5 = 4.5 seconds
-    int samples_29_56 = (int)(4.5 * sample_rate);
-    
-    // For 59:55 - Play pip ... at start and same pattern (5.5 seconds total)
-    // This adds one more pip and pause to the start
-    // Total: 5 pips + 5 pauses + 1 beep = 0.1*5 + 0.9*5 + 0.5 = 5.5 seconds
-    int samples_59_55 = (int)(5.5 * sample_rate);
-    
-    // Full hour signal is same as 59:55 signal
-    int samples_full_hour = samples_59_55;
-
-    // Calculate number of samples for each element
+    // Pre-calculate samples for each sound component
     int pip_samples = (int)((PIP_DURATION / 1000.0) * sample_rate);
     int pause_samples = (int)((PIP_PAUSE / 1000.0) * sample_rate);
     int beep_samples = (int)((BEEP_DURATION / 1000.0) * sample_rate);
+    
+    // Pre-calculate total sample lengths for each sequence type
+    int samples_29_56 = 4 * (pip_samples + pause_samples) + beep_samples;
+    int samples_59_55 = 5 * (pip_samples + pause_samples) + beep_samples;
     
     printf("Ready to play time signals.\n");
     printf("Will trigger at XX:29:%02d and XX:59:%02d\n", 56+offset, 55+offset);
@@ -207,118 +268,63 @@ int main(int argc, char **argv) {
         printf("TEST MODE: Will also play full hour signal at the end of every minute\n");
     }
     
-    int last_minute = -1; // Track the last minute for test mode
+    int elapsed_samples = 0;
+    int total_sequence_samples = 0;
+    int sequence_completed = 0;
     
     while (to_run) {
-        // Clear the output buffer
-        memset(output, 0, sizeof(output));
-        
-        time_t now = time(NULL);
-        struct tm *utc_time = gmtime(&now);
-        int minute = utc_time->tm_min;
-        int second = utc_time->tm_sec;
-        
-        // Check if we need to start a time signal sequence
-        // Only start a new sequence if we're not already playing one and 
-        // if we haven't played this exact sequence already (using the timestamp check)
-        if (minute == 29 && second == (56+offset) && !playing_sequence && difftime(now, last_sequence_time) >= 1.0) {
-            printf("Starting 29:56 time signal sequence\n");
-            playing_sequence = 1;
-            sequence_type = 1; // 29:56 pattern
-            elapsed_samples = 0;
-            total_sequence_samples = samples_29_56;
-            sequence_completed = 0;
-            last_sequence_time = now;
-        } else if (minute == 59 && second == (55+offset) && !playing_sequence && difftime(now, last_sequence_time) >= 1.0) {
-            printf("Starting 59:55 time signal sequence\n");
-            playing_sequence = 1;
-            sequence_type = 2; // 59:55 pattern
-            elapsed_samples = 0;
-            total_sequence_samples = samples_59_55;
-            sequence_completed = 0;
-            last_sequence_time = now;
-        } else if (test_mode && second == (55+offset) && minute != last_minute && !playing_sequence && difftime(now, last_sequence_time) >= 1.0) {
-            // In test mode, play full hour signal at the end of every minute
-            printf("TEST MODE: Playing full hour signal at end of minute %d\n", minute);
-            playing_sequence = 1;
-            sequence_type = 3; // Test mode full hour pattern
-            elapsed_samples = 0;
-            total_sequence_samples = samples_full_hour;
-            sequence_completed = 0;
-            last_sequence_time = now;
-            last_minute = minute; // Update last minute to prevent repeated triggers
-        }
-        
-        // If we're playing a sequence, generate the appropriate sounds
-        if (playing_sequence) {
-            for (int i = 0; i < BUFFER_SIZE; i++) {
-                if (elapsed_samples >= total_sequence_samples) {
-                    // End of sequence
-                    if (!sequence_completed) {
-                        printf("Time signal sequence completed\n");
-                        sequence_completed = 1;
-                    }
-                    playing_sequence = 0;
-                    output[i] = 0;
-                } else {
-                    // Determine if we should be playing a pip, beep, or silence
-                    if (sequence_type == 1) { // 29:56 pattern: pip ... pip ... pip ... pip ... beep
-                        int cycle_position = elapsed_samples;
-                        int pip_cycle = pip_samples + pause_samples;
-                        
-                        if (cycle_position < 4 * pip_cycle) { // Four pips with pauses
-                            int within_cycle = cycle_position % pip_cycle;
-                            if (within_cycle < pip_samples) {
-                                // Playing a pip
-                                output[i] = get_oscillator_sin_sample(&osc) * master_volume;
-                            } else {
-                                // Silent pause
-                                output[i] = 0;
-                            }
-                        } else if (cycle_position < 4 * pip_cycle + beep_samples) {
-                            // Final beep
-                            output[i] = get_oscillator_sin_sample(&osc) * master_volume;
-                        } else {
-                            // Silent after sequence
-                            output[i] = 0;
-                        }
-                    } else if (sequence_type == 2 || sequence_type == 3) { // 59:55 pattern or full hour: pip ... pip ... pip ... pip ... pip ... beep
-                        int cycle_position = elapsed_samples;
-                        int pip_cycle = pip_samples + pause_samples;
-                        
-                        if (cycle_position < 5 * pip_cycle) { // Five pips with pauses
-                            int within_cycle = cycle_position % pip_cycle;
-                            if (within_cycle < pip_samples) {
-                                // Playing a pip
-                                output[i] = get_oscillator_sin_sample(&osc) * master_volume;
-                            } else {
-                                // Silent pause
-                                output[i] = 0;
-                            }
-                        } else if (cycle_position < 5 * pip_cycle + beep_samples) {
-                            // Final beep
-                            output[i] = get_oscillator_sin_sample(&osc) * master_volume;
-                        } else {
-                            // Silent after sequence
-                            output[i] = 0;
-                        }
-                    }
-                    
-                    elapsed_samples++;
+        // Only check for new sequence if we're not already playing one
+        if (!playing_sequence) {
+            int new_sequence = check_time_for_sequence(test_mode, offset);
+            
+            if (new_sequence != SEQ_NONE) {
+                printf("Starting sequence type %d\n", new_sequence);
+                playing_sequence = 1;
+                sequence_type = new_sequence;
+                elapsed_samples = 0;
+                sequence_completed = 0;
+                
+                // Set total samples based on sequence type
+                if (new_sequence == SEQ_29_56) {
+                    total_sequence_samples = samples_29_56;
+                } else {  // SEQ_59_55 or SEQ_TEST_HOUR
+                    total_sequence_samples = samples_59_55;
                 }
+                
+                // Clear the buffer when starting a new sequence
+                memset(output, 0, sizeof(output));
+            } else {
+                // Idle state - send silence and sleep to save CPU
+                // Only send silence occasionally to keep the stream open
+                static int idle_counter = 0;
+                if (idle_counter++ % 10 == 0) {
+                    memset(output, 0, sizeof(output));
+                    pa_simple_write(output_device, output, sizeof(output), &pulse_error);
+                }
+                
+                struct timespec ts = {0, 10000000}; // 10ms sleep
+                nanosleep(&ts, NULL);
+                continue;
             }
         }
         
+        // Generate signal for the current sequence
+        int num_pips = (sequence_type == SEQ_29_56) ? 4 : 5;
+        generate_signal(output, BUFFER_SIZE, &osc, master_volume, 
+                       &elapsed_samples, total_sequence_samples,
+                       pip_samples, pause_samples, beep_samples, num_pips);
+        
+        // Check if sequence just completed
+        if (!playing_sequence && !sequence_completed) {
+            printf("Time signal sequence completed\n");
+            sequence_completed = 1;
+        }
+        
+        // Write to audio device
         if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
             fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
             to_run = 0;
             break;
-        }
-        
-        // Small delay to prevent CPU hogging when idle
-        if (!playing_sequence) {
-            struct timespec ts = {0, 10000000}; // 10ms pause when not playing
-            nanosleep(&ts, NULL);
         }
     }
     
