@@ -212,8 +212,8 @@ void calculate_dcf77_bits(time_t now, int *bits) {
     }
     bits[58] = parity;
     
-    // Bit 59: Always 0 (no pulse during minute marker)
-    bits[59] = 0; 
+    // Bit 59: Set to 2, as a full wave
+    bits[59] = 2; 
 }
 
 // Print the current DCF77 bit pattern (for debugging)
@@ -415,7 +415,6 @@ int main(int argc, char **argv) {
                     printf("Bit %2d: %d\n", bit_position, dcf77_bits[bit_position]);
                     bit_position++;
                 } else {
-                    // End of minute (59 bits + 1 second pause)
                     bit_position = 0;
                     printf("End of minute, restarting bit sequence.\n");
                 }
@@ -439,7 +438,8 @@ int main(int argc, char **argv) {
                 
                 // Determine if we should output reduced amplitude
                 if ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) || 
-                    (dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION)) {
+                    (dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION) ||
+                    (dcf77_bits[current_bit] == 2 && ms_within_second < BIT_LENGTH)) {
                     // Reduced amplitude during pulse
                     output[i] = carrier * master_volume * REDUCED_AMPLITUDE;
                 } else {
