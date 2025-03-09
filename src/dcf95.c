@@ -45,6 +45,37 @@ static void stop(int signum) {
     to_run = 0;
 }
 
+// Helper function to determine if a given time is in DST for CET
+int is_cet_dst(struct tm *tm_time) {
+    // CET DST rules: starts last Sunday of March at 2:00, ends last Sunday of October at 3:00
+    int month = tm_time->tm_mon + 1; // tm_mon is 0-based
+    int day = tm_time->tm_mday;
+    int wday = tm_time->tm_wday; // 0 = Sunday, 6 = Saturday
+    int hour = tm_time->tm_hour;
+    
+    // March - check if we're in the last Sunday or after
+    if (month == 3) {
+        // Calculate the date of the last Sunday in March
+        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
+        if ((day > last_sunday) || (day == last_sunday && hour >= 2)) {
+            return 1; // DST has started
+        }
+    }
+    // April through September - definitely DST
+    else if (month > 3 && month < 10) {
+        return 1;
+    }
+    // October - check if we're before the last Sunday
+    else if (month == 10) {
+        // Calculate the date of the last Sunday in October
+        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
+        if ((day < last_sunday) || (day == last_sunday && hour < 3)) {
+            return 1; // Still in DST
+        }
+    }
+    
+    return 0; // Not in DST
+}
 int is_timezone_change_soon() {
     time_t now, in_an_hour;
     struct tm cet_now, cet_later;
@@ -86,38 +117,6 @@ int is_timezone_change_soon() {
     
     // Return 1 if a time zone change is about to happen, otherwise 0
     return is_dst_now != is_dst_later;
-}
-
-// Helper function to determine if a given time is in DST for CET
-int is_cet_dst(struct tm *tm_time) {
-    // CET DST rules: starts last Sunday of March at 2:00, ends last Sunday of October at 3:00
-    int month = tm_time->tm_mon + 1; // tm_mon is 0-based
-    int day = tm_time->tm_mday;
-    int wday = tm_time->tm_wday; // 0 = Sunday, 6 = Saturday
-    int hour = tm_time->tm_hour;
-    
-    // March - check if we're in the last Sunday or after
-    if (month == 3) {
-        // Calculate the date of the last Sunday in March
-        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
-        if ((day > last_sunday) || (day == last_sunday && hour >= 2)) {
-            return 1; // DST has started
-        }
-    }
-    // April through September - definitely DST
-    else if (month > 3 && month < 10) {
-        return 1;
-    }
-    // October - check if we're before the last Sunday
-    else if (month == 10) {
-        // Calculate the date of the last Sunday in October
-        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
-        if ((day < last_sunday) || (day == last_sunday && hour < 3)) {
-            return 1; // Still in DST
-        }
-    }
-    
-    return 0; // Not in DST
 }
 
 // Function to calculate DCF77 bits based on current time
