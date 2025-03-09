@@ -9,6 +9,8 @@
 #define buffer_tlength_fragsize 2048
 #define buffer_prebuf 32
 
+#define DEBUG
+
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
 
@@ -412,11 +414,15 @@ int main(int argc, char **argv) {
             // Update the bit position at the start of each second
             if (transmitting) {
                 if (bit_position < 59) {
+                    #ifdef DEBUG
                     printf("Bit %2d: %d\n", bit_position, dcf77_bits[bit_position]);
+                    #endif
                     bit_position++;
                 } else {
                     bit_position = 0;
+                    #ifdef DEBUG
                     printf("End of minute, restarting bit sequence.\n");
+                    #endif DEBUG
                 }
             }
             
@@ -438,8 +444,7 @@ int main(int argc, char **argv) {
                 
                 // Determine if we should output reduced amplitude
                 if ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) || 
-                    (dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION) ||
-                    (dcf77_bits[current_bit] == 2 && ms_within_second < BIT_LENGTH)) {
+                    (dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION)) {
                     // Reduced amplitude during pulse
                     output[i] = carrier * master_volume * REDUCED_AMPLITUDE;
                 } else {
