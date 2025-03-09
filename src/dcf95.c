@@ -4,6 +4,7 @@
 #include <time.h>
 #include <signal.h>
 #include <string.h>
+#include <math.h>
 
 #define buffer_maxlength 2048
 #define buffer_tlength_fragsize 2048
@@ -33,6 +34,13 @@
 #define REDUCED_AMPLITUDE 0.15f // Reduced to 15% of normal amplitude during pulses
 #define BIT_LENGTH 1000         // 1 second per bit
 
+// DSSS Parameters
+#define DSSS_START_MS 200       // DSSS starts at 200ms into the second
+#define DSSS_DURATION_MS 793    // DSSS duration is 793ms
+#define PHASE_SHIFT 15.6        // Phase shift in degrees (±15.6°)
+#define CHIPS_PER_BIT 512       // Number of chips per bit
+#define CHIP_CYCLES 120         // Each chip spans 120 cycles
+
 volatile sig_atomic_t to_run = 1;
 volatile sig_atomic_t transmitting = 0;
 volatile int bit_position = 0;
@@ -41,10 +49,29 @@ volatile int test_mode = 0;     // 0 = normal, 1 = test mode
 // DCF77 bits array (59 bits, indexed 0-58)
 volatile int dcf77_bits[60];    // 60th position is for the 1-second pause
 
+// LFSR state for DSSS
+unsigned int lfsr = 0;
+
 static void stop(int signum) {
     (void)signum;
     printf("\nReceived stop signal.\n");
     to_run = 0;
+}
+
+// Generate next chip from LFSR
+unsigned int generate_chip() {
+    unsigned int chip = lfsr & 1;
+    
+    lfsr >>= 1;
+    if (chip || !lfsr)
+        lfsr ^= 0x110;
+    
+    return chip;
+}
+
+// Reset LFSR state at the beginning of each second
+void reset_lfsr() {
+    lfsr = 0;
 }
 
 // Helper function to determine if a given time is in DST for CET
@@ -78,6 +105,7 @@ int is_cet_dst(struct tm *tm_time) {
     
     return 0; // Not in DST
 }
+
 int is_timezone_change_soon() {
     time_t now, in_an_hour;
     struct tm cet_now, cet_later;
@@ -306,7 +334,7 @@ int main(int argc, char **argv) {
     // #endregion
 
     if(test_mode) {
-        time_t now = time(NULL) + offset;
+        time_t now = time(NULL) + offset + 60;
         calculate_dcf77_bits(now, (int *)dcf77_bits);
         print_dcf77_bits((int *)dcf77_bits);
         return 0;
@@ -318,6 +346,7 @@ int main(int argc, char **argv) {
     printf("  Sample rate: %d Hz\n", sample_rate);
     printf("  Volume: %.2f\n", master_volume);
     printf("  Time offset: %d seconds\n", offset);
+    printf("  Phase modulation: +/- %.1f degrees\n", PHASE_SHIFT);
 
     // #region Setup devices
     pa_sample_spec mono_format = {
@@ -379,6 +408,17 @@ int main(int argc, char **argv) {
     int pulse_0_samples = (int)((PULSE_0_DURATION / 1000.0) * sample_rate);
     int pulse_1_samples = (int)((PULSE_1_DURATION / 1000.0) * sample_rate);
     
+    // DSSS parameters
+    int dsss_start_samples = (int)((DSSS_START_MS / 1000.0) * sample_rate);
+    int dsss_duration_samples = (int)((DSSS_DURATION_MS / 1000.0) * sample_rate);
+    int dsss_end_samples = dsss_start_samples + dsss_duration_samples;
+    float phase_shift_rad = (PHASE_SHIFT * M_PI) / 180.0; // Convert degrees to radians
+    
+    // For tracking chip generation
+    int current_chip_count = 0;
+    int current_cycle_count = 0;
+    int in_dsss_period = 0;
+    
     printf("DCF77 encoder ready.\n");
     printf("Will transmit time signal continuously.\n");
     
@@ -388,7 +428,7 @@ int main(int argc, char **argv) {
         memset(output, 0, sizeof(output));
         
         // Get current time
-        time_t now = time(NULL) + offset;
+        time_t now = time(NULL) + offset + 60; // Next minute
         struct tm *t = gmtime(&now);
         int second = t->tm_sec;
         
@@ -415,6 +455,11 @@ int main(int argc, char **argv) {
         if (second != current_second) {
             current_second = second;
             
+            // Reset the LFSR at the start of each second for DSSS
+            reset_lfsr();
+            current_chip_count = 0;
+            current_cycle_count = 0;
+            
             // Update the bit position at the start of each second
             if (transmitting) {
                 if (bit_position < 59) {
@@ -436,17 +481,52 @@ int main(int argc, char **argv) {
         
         // Generate the DCF77 signal
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            // Get base carrier signal
-            float carrier = get_oscillator_sin_sample(&osc);
+            // Calculate milliseconds within the current second
+            ms_within_second = (int)((elapsed_samples * 1000.0) / sample_rate);
+            
+            // Get the current bit (between 0-58)
+            int current_bit = bit_position > 0 ? bit_position - 1 : 59;
+            
+            // Determine if we're in the DSSS period (between 200ms and 993ms)
+            in_dsss_period = (elapsed_samples >= dsss_start_samples && 
+                              elapsed_samples < dsss_end_samples);
+            
+            // Base carrier signal (will be phase-shifted if in DSSS period)
+            float phase_offset = 0.0;
+            
+            // Apply DSSS if in the appropriate time window
+            if (in_dsss_period && transmitting) {
+                // Generate a chip every CHIP_CYCLES carrier cycles
+                if (current_cycle_count == 0) {
+                    if (current_chip_count < CHIPS_PER_BIT) {
+                        // Generate the next chip
+                        unsigned int chip = generate_chip();
+                        
+                        // XOR the chip with the current bit value
+                        unsigned int modulated_chip = chip ^ dcf77_bits[current_bit];
+                        
+                        // Set phase shift based on the modulated chip
+                        if (modulated_chip == 0) {
+                            phase_offset = phase_shift_rad; // +15.6 degrees
+                        } else {
+                            phase_offset = -phase_shift_rad; // -15.6 degrees
+                        }
+                        
+                        current_chip_count++;
+                    }
+                }
+                
+                // Update cycle counter within each chip
+                current_cycle_count = (current_cycle_count + 1) % CHIP_CYCLES;
+            }
+            
+            // Get carrier signal with phase offset if needed
+            float t = osc.phase + phase_offset;
+            float carrier = sin(t);
+            advance_oscillator(&osc);
             
             if (transmitting) {
-                // Calculate milliseconds within the current second
-                ms_within_second = (int)((elapsed_samples * 1000.0) / sample_rate);
-                
-                // Get the current bit (between 0-58)
-                int current_bit = bit_position > 0 ? bit_position - 1 : 59;
-                
-                // Determine if we should output reduced amplitude
+                // Determine amplitude based on AM modulation pattern
                 if ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) || 
                     (dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION)) {
                     // Reduced amplitude during pulse
