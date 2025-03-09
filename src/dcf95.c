@@ -47,30 +47,90 @@ static void stop(int signum) {
 
 int is_timezone_change_soon() {
     time_t now, in_an_hour;
-    struct tm local_now, local_later;
+    struct tm cet_now, cet_later;
 
     // Get current time
     time(&now);
-    local_now = *localtime(&now);
-
-    // Get time an hour from now
     in_an_hour = now + 3600; // 3600 seconds = 1 hour
-    local_later = *localtime(&in_an_hour);
-
+    
+    // Initialize the tm structures
+    memset(&cet_now, 0, sizeof(struct tm));
+    memset(&cet_later, 0, sizeof(struct tm));
+    
+    // Convert to CET timezone explicitly
+    // We need to use the gmtime to get UTC and then manually adjust to CET
+    struct tm *gm_now = gmtime(&now);
+    struct tm *gm_later = gmtime(&in_an_hour);
+    
+    // Copy the GMT times
+    cet_now = *gm_now;
+    cet_later = *gm_later;
+    
+    // Adjust for CET (UTC+1 normal, UTC+2 during DST)
+    // First, set the base offset for CET (UTC+1)
+    cet_now.tm_hour += 1;
+    cet_later.tm_hour += 1;
+    
+    // Check if it's DST in CET
+    // CET DST starts on last Sunday of March at 2:00 and ends on last Sunday of October at 3:00
+    int is_dst_now = is_cet_dst(&cet_now);
+    int is_dst_later = is_cet_dst(&cet_later);
+    
+    // Adjust hour for DST if needed
+    if (is_dst_now) cet_now.tm_hour += 1;
+    if (is_dst_later) cet_later.tm_hour += 1;
+    
+    // Normalize the time values after modification
+    mktime(&cet_now);
+    mktime(&cet_later);
+    
     // Return 1 if a time zone change is about to happen, otherwise 0
-    return local_now.tm_isdst != local_later.tm_isdst;
+    return is_dst_now != is_dst_later;
+}
+
+// Helper function to determine if a given time is in DST for CET
+int is_cet_dst(struct tm *tm_time) {
+    // CET DST rules: starts last Sunday of March at 2:00, ends last Sunday of October at 3:00
+    int month = tm_time->tm_mon + 1; // tm_mon is 0-based
+    int day = tm_time->tm_mday;
+    int wday = tm_time->tm_wday; // 0 = Sunday, 6 = Saturday
+    int hour = tm_time->tm_hour;
+    
+    // March - check if we're in the last Sunday or after
+    if (month == 3) {
+        // Calculate the date of the last Sunday in March
+        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
+        if ((day > last_sunday) || (day == last_sunday && hour >= 2)) {
+            return 1; // DST has started
+        }
+    }
+    // April through September - definitely DST
+    else if (month > 3 && month < 10) {
+        return 1;
+    }
+    // October - check if we're before the last Sunday
+    else if (month == 10) {
+        // Calculate the date of the last Sunday in October
+        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
+        if ((day < last_sunday) || (day == last_sunday && hour < 3)) {
+            return 1; // Still in DST
+        }
+    }
+    
+    return 0; // Not in DST
 }
 
 // Function to calculate DCF77 bits based on current time
 void calculate_dcf77_bits(time_t now, int *bits) {
-    struct tm *t = localtime(&now); // Use local time instead of UTC
+    struct tm *t = gmtime(&now); // Use local time instead of UTC
+    int cest = is_cet_dst(t);
     
     // Initialize all bits to 0
     memset(bits, 0, 60 * sizeof(int));
     
     //bit[15] = 0; // Helper antenna
     bits[16] = is_timezone_change_soon();
-    if(t->tm_isdst) {
+    if(cest) {
         bits[17] = 1;
     } else {
         bits[18] = 1;
@@ -96,6 +156,8 @@ void calculate_dcf77_bits(time_t now, int *bits) {
     
     // Bits 29-34: Hours (BCD encoded)
     int hours = t->tm_hour;
+    hours += 1; // UTC to CET
+    if(cest) hours += 1; // CET to CEST
     bits[29] = (hours % 10) & 0x01;
     bits[30] = ((hours % 10) >> 1) & 0x01;
     bits[31] = ((hours % 10) >> 2) & 0x01;
@@ -177,7 +239,7 @@ void show_help(char *name) {
         "   -s,--samplerate Output Samplerate [default: %d]\n"
         "   -v,--volume     Output volume [default: %.2f]\n"
         "   -t,--offset     Time Offset [default: %d s]\n"
-        "   -T,--test       Enable test mode (continuously generates signal)\n"
+        "   -T,--test       Enable test mode \n"
         ,name
         ,OUTPUT_DEVICE
         ,FREQ
@@ -326,7 +388,7 @@ int main(int argc, char **argv) {
         
         // Get current time
         time_t now = time(NULL) + offset;
-        struct tm *t = localtime(&now);
+        struct tm *t = gmtime(&now);
         int second = t->tm_sec;
         
         // Check if we're at the start of a new minute
