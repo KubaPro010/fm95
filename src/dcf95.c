@@ -9,7 +9,7 @@
 #define buffer_tlength_fragsize 2048
 #define buffer_prebuf 32
 
-#define DEBUG
+// #define DEBUG
 
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
@@ -396,15 +396,19 @@ int main(int argc, char **argv) {
         if (second == 0 && current_second != 0) {
             // Calculate the DCF77 bits for the new minute
             calculate_dcf77_bits(now, (int *)dcf77_bits);
+            #ifdef DEBUG
             print_dcf77_bits((int *)dcf77_bits);
+            #endif
             
             // Reset counters for the new minute
             bit_position = 0;
             elapsed_samples = 0;
             transmitting = 1;
             
+            #ifdef DEBUG
             printf("Starting new DCF77 transmission for %02d:%02d:%02d UTC\n", 
                    t->tm_hour, t->tm_min, t->tm_sec);
+            #endif
         }
         
         // Update the current second if it has changed
@@ -422,7 +426,7 @@ int main(int argc, char **argv) {
                     bit_position = 0;
                     #ifdef DEBUG
                     printf("End of minute, restarting bit sequence.\n");
-                    #endif DEBUG
+                    #endif
                 }
             }
             
