@@ -269,6 +269,7 @@ void show_help(char *name) {
         "   -v,--volume     Output volume [default: %.2f]\n"
         "   -t,--offset     Time Offset [default: %d s]\n"
         "   -T,--test       Enable test mode \n"
+        "   -n,--no-phase   Disable phase modulation \n"
         ,name
         ,OUTPUT_DEVICE
         ,FREQ
@@ -288,10 +289,11 @@ int main(int argc, char **argv) {
     int sample_rate = SAMPLE_RATE;
     int offset = OFFSET;
     int test_mode = 0; // Test mode flag
+    int no_phase = 0;  // Phase modulation disabled flag
 
     // #region Parse Arguments
     int opt;
-    const char *short_opt = "o:F:s:v:t:Th";
+    const char *short_opt = "o:F:s:v:t:Tnh";
     struct option long_opt[] =
     {
         {"output",     required_argument, NULL, 'o'},
@@ -300,6 +302,7 @@ int main(int argc, char **argv) {
         {"volume",     required_argument, NULL, 'v'},
         {"offset",     required_argument, NULL, 't'},
         {"test",       no_argument,       NULL, 'T'},
+        {"no-phase",   no_argument,       NULL, 'n'},
         
         {"help",       no_argument,       NULL, 'h'},
         {0,            0,                 0,    0}
@@ -326,6 +329,9 @@ int main(int argc, char **argv) {
             case 'T': // Test mode
                 test_mode = 1;
                 break;
+            case 'n': // Disable phase modulation
+                no_phase = 1;
+                break;
             case 'h':
                 show_help(argv[0]);
                 return 0;
@@ -346,7 +352,11 @@ int main(int argc, char **argv) {
     printf("  Sample rate: %d Hz\n", sample_rate);
     printf("  Volume: %.2f\n", master_volume);
     printf("  Time offset: %d seconds\n", offset);
-    printf("  Phase modulation: +/- %.1f degrees\n", PHASE_SHIFT);
+    if (no_phase) {
+        printf("  Phase modulation: Disabled\n");
+    } else {
+        printf("  Phase modulation: +/- %.1f degrees\n", PHASE_SHIFT);
+    }
 
     // #region Setup devices
     pa_sample_spec mono_format = {
@@ -494,8 +504,8 @@ int main(int argc, char **argv) {
             // Base carrier signal (will be phase-shifted if in DSSS period)
             float phase_offset = 0.0;
             
-            // Apply DSSS if in the appropriate time window
-            if (in_dsss_period && transmitting) {
+            // Apply DSSS if in the appropriate time window and phase modulation is enabled
+            if (in_dsss_period && transmitting && !no_phase) {
                 // Generate a chip every CHIP_CYCLES carrier cycles
                 if (current_cycle_count == 0) {
                     if (current_chip_count < CHIPS_PER_BIT) {
