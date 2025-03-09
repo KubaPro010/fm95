@@ -154,7 +154,7 @@ void calculate_dcf77_bits(time_t now, int *bits) {
     bits[28] = parity;
     
     // Bits 29-34: Hours (BCD encoded)
-    int hours = t->tm_hour;
+    int hours = t->tm_hour-1; // Not sure why
     hours += 1; // UTC to CET
     if(cest) hours += 1; // CET to CEST
     bits[29] = (hours % 10) & 0x01;
