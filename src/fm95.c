@@ -23,6 +23,7 @@
 
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
+#define RDS_DEVICE "RDS.monitor"
 #define MPX_DEVICE "FM_MPX.monitor"
 // #define SCA_DEVICE ""
 
@@ -36,6 +37,7 @@
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
 #define STEREO_VOLUME 0.45f // L-R signal, should be same as MONO
+#define RDS_VOLUME 0.075f // RDS Volume
 #define SCA_VOLUME 0.1f // FM SCA signal, 10%
 #define MPX_VOLUME 1.0f // Passtrough
 #define MPX_CLIPPER_THRESHOLD 1.0f
@@ -57,7 +59,7 @@ static void stop(int signum) {
 }
 
 void show_version() {
-    printf("fm95 (an FM Processor by radio95) version 1.3\n");
+    printf("fm95 (an FM Processor by radio95) version 1.4\n");
 }
 void show_help(char *name) {
     printf(
@@ -67,6 +69,7 @@ void show_help(char *name) {
         "   -i,--input      Override input device [default: %s]\n"
         "   -o,--output     Override output device [default: %s]\n"
         "   -M,--mpx        Override MPX input device [default: %s]\n"
+        "   -r,--rds        Override RDS input device [default: %s]\n"
         "   -C,--sca        Override the SCA input device [default: %s]\n"
         "   -f,--sca_freq   Override the SCA frequency [default: %.1f]\n"
         "   -F,--sca_dev    Override the SCA deviation [default: %.2f]\n"
@@ -85,6 +88,11 @@ void show_help(char *name) {
         ,OUTPUT_DEVICE
         #ifdef MPX_DEVICE
         ,MPX_DEVICE
+        #else
+        ,"not set"
+        #endif
+        #ifdef RDS_DEVICE
+        ,RDS_DEVICE
         #else
         ,"not set"
         #endif
@@ -109,6 +117,7 @@ int main(int argc, char **argv) {
     show_version();
 
     pa_simple *mpx_device;
+    pa_simple *rds_device;
     pa_simple *sca_device;
     pa_simple *output_device;
 
@@ -122,10 +131,15 @@ int main(int argc, char **argv) {
 
     char audio_input_device[64] = INPUT_DEVICE;
     char audio_output_device[64] = OUTPUT_DEVICE;
-    #ifndef MPX_DEVICE
+#ifndef MPX_DEVICE
     char audio_mpx_device[64] = "\0";
 #else
     char audio_mpx_device[64] = MPX_DEVICE;
+#endif
+#ifndef RDS_DEVICE
+    char audio_rds_device[64] = "\0";
+#else
+    char audio_rds_device[64] = RDS_DEVICE;
 #endif
 #ifndef SCA_DEVICE
     char audio_sca_device[64] = "\0";
@@ -180,6 +194,9 @@ int main(int argc, char **argv) {
                 break;;
             case 'M': //MPX in
                 memcpy(audio_mpx_device, optarg, 63);
+                break;
+            case 'r': // RDS in
+                memcpy(audio_rds_device, optarg, 63);
                 break;
             case 'C': //SCA in
                 memcpy(audio_sca_device, optarg, 63);
@@ -285,6 +302,27 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
+    if(strlen(audio_rds_device) != 0) {
+        printf("Connecting to RDS device... (%s)\n", audio_rds_device);
+
+        rds_device = pa_simple_new(
+            NULL,
+            "fm95",
+            PA_STREAM_RECORD,
+            audio_rds_device,
+            "RDS Input",
+            &mono_format,
+            NULL,
+            &input_buffer_atr,
+            &opentime_pulse_error
+        );
+        if (!rds_device) {
+            fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
+            pa_simple_free(input_device);
+            pa_simple_free(mpx_device);
+            return 1;
+        }
+    }
     if(strlen(audio_sca_device) != 0) {
         printf("Connecting to SCA device... (%s)\n", audio_sca_device);
 
@@ -303,6 +341,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Error: cannot open SCA device: %s\n", pa_strerror(opentime_pulse_error));
             pa_simple_free(input_device);
             if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+            if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
             return 1;
         }
     }
@@ -324,6 +363,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
         pa_simple_free(input_device);
         if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+        if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
         if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
         return 1;
     }
@@ -351,6 +391,7 @@ int main(int argc, char **argv) {
         printf("Cleaning up...\n");
         pa_simple_free(input_device);
         if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+        if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
         if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
         pa_simple_free(output_device);
         return 0;
@@ -375,6 +416,7 @@ int main(int argc, char **argv) {
 
     float audio_stereo_input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
     float mpx_in[BUFFER_SIZE] = {0}; // Input from MPX device
+    float rds_in[BUFFER_SIZE] = {0}; // Input from RDS device
     float sca_in[BUFFER_SIZE] = {0}; // Input from SCA device
     float left[BUFFER_SIZE+64], right[BUFFER_SIZE+64]; // Audio, same thing as in input but uninterleaved, ai told be there could be a buffer overflow here
     float output[BUFFER_SIZE]; // MPX, this goes to the output
@@ -392,6 +434,13 @@ int main(int argc, char **argv) {
                 break;
             }
         }
+        if(strlen(audio_rds_device) != 0) {
+            if (pa_simple_read(rds_device, rds_in, sizeof(rds_in), &pulse_error) < 0) {
+                fprintf(stderr, "Error reading from RDS device: %s\n", pa_strerror(pulse_error));
+                to_run = 0;
+                break;
+            }
+        }
         if(strlen(audio_sca_device) != 0) {
             if (pa_simple_read(sca_device, sca_in, sizeof(sca_in), &pulse_error) < 0) {
                 fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
@@ -404,6 +453,7 @@ int main(int argc, char **argv) {
             float l_in = left[i];
             float r_in = right[i];
             float current_mpx_in = mpx_in[i];
+            float current_rds_in = rds_in[i];
             float current_sca_in = sca_in[i];
 
             float ready_l = apply_preemphasis(&preemp_l, l_in)*2;
@@ -415,7 +465,11 @@ int main(int argc, char **argv) {
             output[i] = mono*MONO_VOLUME;
             if(stereo == 1) {
                 float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent    
-                float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 2);            
+                float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 2);   
+                if((strlen(audio_rds_device) != 0) && polar_stereo == 0) {
+                    float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
+                    output[i] += (rds_in*rds_carrier)*RDS_VOLUME;
+                }         
                 if(polar_stereo) {
                     output[i] += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
                 } else {
@@ -439,6 +493,7 @@ int main(int argc, char **argv) {
     printf("Cleaning up...\n");
     pa_simple_free(input_device);
     if(strlen(audio_mpx_device) != 0) pa_simple_free(mpx_device);
+    if(strlen(audio_rds_device) != 0) pa_simple_free(rds_device);
     if(strlen(audio_sca_device) != 0) pa_simple_free(sca_device);
     pa_simple_free(output_device);
     return 0;

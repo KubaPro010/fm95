@@ -8,6 +8,7 @@ FM95 is a audio processor for FM, it does:
 Supports 2 inputs:
 - Audio (via Pulse)
 - MPX (via Pulse)
+- RDS (via Pulse, expects unmodulated RDS)
 - SCA (via Pulse)
 
 and one output:
