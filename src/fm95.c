@@ -471,7 +471,7 @@ int main(int argc, char **argv) {
                 float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent    
                 float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 2);   
                 if(rds_on && polar_stereo == 0) {
-                    float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
+                    float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 3);
                     output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
                 }         
                 if(polar_stereo) {
