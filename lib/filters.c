@@ -10,7 +10,7 @@ float apply_preemphasis(ResistorCapacitor *filter, float sample) {
     return out;
 }
 
-float hard_clip_fast(float sample, float threshold) {
+float hard_clip(float sample, float threshold) {
     // Branchless clipping
     return fmaxf(-threshold, fminf(threshold, sample));
 }
