@@ -11,6 +11,6 @@ float modulate_fm(FMModulator *fm, float sample) {
     float inst_freq = fm->frequency+(sample*fm->deviation);
     if (inst_freq < 0.0f) inst_freq = 0.0f;
     float out = sinf(fm->osc_phase);
-    fm->osc_phase += fmodf(fm->osc_phase + ((M_2PI * inst_freq) / fm->sample_rate), M_2PI);
+    fm->osc_phase = fmodf(fm->osc_phase + ((M_2PI * inst_freq) / fm->sample_rate), M_2PI);
     return out;
 }
