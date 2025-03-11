@@ -20,6 +20,10 @@
 #include "../lib/fm_modulator.h"
 
 #define SAMPLE_RATE 192000
+#if SAMPLE_RATE*2 < 60000
+#warning Sample rate too low for RDS
+#define DISABLE_RDS
+#endif
 
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
@@ -173,7 +177,7 @@ int main(int argc, char **argv) {
         {"calibrate",     no_argument,       NULL, 'V'},
         {"master_vol",     required_argument,       NULL, 'A'},
         {"audio_vol",     required_argument,       NULL, 'v'},
-        
+
         {"help",        no_argument,       NULL, 'h'},
         {0,             0,                 0,    0}
 	};
@@ -415,7 +419,7 @@ int main(int argc, char **argv) {
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
-    
+
     int pulse_error;
 
     float audio_stereo_input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
@@ -467,13 +471,10 @@ int main(int argc, char **argv) {
 
             float mono = (ready_l + ready_r) / 2.0f; // Stereo to Mono
             output[i] = mono*MONO_VOLUME;
-            if(stereo == 1) {
-                float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent    
-                float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 2);   
-                if(rds_on && polar_stereo == 0) {
-                    float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 3);
-                    output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
-                }         
+            if(stereo) {
+                float stereo = (ready_l - ready_r) / 2.0f; // Also Stereo to Mono but a bit diffrent
+                float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 2);
+
                 if(polar_stereo) {
                     output[i] += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
                 } else {
@@ -481,8 +482,18 @@ int main(int argc, char **argv) {
                     output[i] += pilot*PILOT_VOLUME +
                         (stereo*stereo_carrier)*STEREO_VOLUME;
                 }
-                advance_oscillator(&osc);
             }
+#ifndef DISABLE_RDS
+            if(rds_on && polar_stereo == 0) {
+                float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 3);
+                output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
+            }
+#endif
+            #ifndef DISABLE_RDS
+            if(rds_on || stereo) advance_oscillator(&osc);
+            #else
+            if(stereo) advance_oscillator(&osc);
+            #endif
             if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
             if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
             output[i] *= master_volume;
