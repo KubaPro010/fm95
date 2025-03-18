@@ -20,14 +20,11 @@
 #include "../lib/fm_modulator.h"
 
 #define SAMPLE_RATE 192000
-#if SAMPLE_RATE*2 < 60000
-#warning Sample rate too low for RDS
-#define DISABLE_RDS
-#endif
 
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define RDS_DEVICE "RDS.monitor"
+// #define RDS2_DEVICE "RDS2.monitor"
 #define MPX_DEVICE "FM_MPX.monitor"
 // #define SCA_DEVICE ""
 
@@ -41,7 +38,8 @@
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
 #define STEREO_VOLUME 0.45f // L-R signal, should be same as MONO
-#define RDS_VOLUME 0.075f // RDS Volume
+#define RDS_VOLUME 0.075f // RDS Volume, after dsb-sc
+#define RDS2_VOLUME 0.05f // RDS2 Volume
 #define SCA_VOLUME 0.1f // FM SCA signal, 10%
 #define MPX_VOLUME 1.0f // Passtrough
 #define MPX_CLIPPER_THRESHOLD 1.0f
@@ -74,6 +72,7 @@ void show_help(char *name) {
         "   -o,--output     Override output device [default: %s]\n"
         "   -M,--mpx        Override MPX input device [default: %s]\n"
         "   -r,--rds        Override RDS input device [default: %s]\n"
+        "   -T,--rds2       Override RDS2 input device [default: %s]\n"
         "   -C,--sca        Override the SCA input device [default: %s]\n"
         "   -f,--sca_freq   Override the SCA frequency [default: %.1f]\n"
         "   -F,--sca_dev    Override the SCA deviation [default: %.2f]\n"
@@ -100,6 +99,11 @@ void show_help(char *name) {
         #else
         ,"not set"
         #endif
+        #ifdef RDS2_DEVICE
+        ,RDS2_DEVICE
+        #else
+        ,"not set"
+        #endif
         #ifdef SCA_DEVICE
         ,SCA_DEVICE
         #else
@@ -122,6 +126,7 @@ int main(int argc, char **argv) {
 
     pa_simple *mpx_device;
     pa_simple *rds_device;
+    pa_simple *rds2_device;
     pa_simple *sca_device;
     pa_simple *output_device;
 
@@ -145,6 +150,11 @@ int main(int argc, char **argv) {
 #else
     char audio_rds_device[64] = RDS_DEVICE;
 #endif
+#ifndef RDS2_DEVICE
+    char audio_rds2_device[64] = "\0";
+#else
+    char audio_rds2_device[64] = RDS2_DEVICE;
+#endif
 #ifndef SCA_DEVICE
     char audio_sca_device[64] = "\0";
 #else
@@ -158,7 +168,7 @@ int main(int argc, char **argv) {
 
     // #region Parse Arguments
     int opt;
-    const char	*short_opt = "msi:o:apM:C:f:F:L:c:l:PgSDR:VA:v:h";
+    const char	*short_opt = "msi:o:apM:r:T:C:f:F:L:c:l:PgSDR:VA:v:h";
     struct option	long_opt[] =
 	{
         {"mono",        no_argument,       NULL, 'm'},
@@ -166,6 +176,8 @@ int main(int argc, char **argv) {
         {"input",       required_argument, NULL, 'i'},
         {"output",      required_argument, NULL, 'o'},
         {"mpx",         required_argument, NULL, 'M'},
+        {"rds",         required_argument, NULL, 'r'},
+        {"rds2",        required_argument, NULL, 'T'},
         {"sca",         required_argument, NULL, 'C'},
         {"sca_freq",    required_argument, NULL, 'f'},
         {"sca_dev",     required_argument, NULL, 'F'},
@@ -201,6 +213,9 @@ int main(int argc, char **argv) {
                 break;
             case 'r': // RDS in
                 memcpy(audio_rds_device, optarg, 63);
+                break;
+            case 'T': // RDS2 in
+                memcpy(audio_rds2_device, optarg, 63);
                 break;
             case 'C': //SCA in
                 memcpy(audio_sca_device, optarg, 63);
@@ -244,6 +259,7 @@ int main(int argc, char **argv) {
 
     int mpx_on = (strlen(audio_mpx_device) != 0);
     int rds_on = (strlen(audio_rds_device) != 0);
+    int rds2_on = (rds_on && strlen(audio_rds2_device) != 0);
     int sca_on = (strlen(audio_sca_device) != 0);
 
     // #region Setup devices
@@ -327,7 +343,29 @@ int main(int argc, char **argv) {
         if (!rds_device) {
             fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
             pa_simple_free(input_device);
-            pa_simple_free(mpx_device);
+            if(mpx_on) pa_simple_free(mpx_device);
+            return 1;
+        }
+    }
+    if(rds2_on) {
+        printf("Connecting to RDS2 device... (%s)\n", audio_rds2_device);
+
+        rds2_device = pa_simple_new(
+            NULL,
+            "fm95",
+            PA_STREAM_RECORD,
+            audio_rds2_device,
+            "RDS2 Input",
+            &mono_format,
+            NULL,
+            &input_buffer_atr,
+            &opentime_pulse_error
+        );
+        if (!rds2_device) {
+            fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
+            pa_simple_free(input_device);
+            if(mpx_on) pa_simple_free(mpx_device);
+            if(rds_on) pa_simple_free(rds_device);
             return 1;
         }
     }
@@ -350,6 +388,7 @@ int main(int argc, char **argv) {
             pa_simple_free(input_device);
             if(mpx_on) pa_simple_free(mpx_device);
             if(rds_on) pa_simple_free(rds_device);
+            if(rds2_on) pa_simple_free(rds2_device);
             return 1;
         }
     }
@@ -372,6 +411,7 @@ int main(int argc, char **argv) {
         pa_simple_free(input_device);
         if(mpx_on) pa_simple_free(mpx_device);
         if(rds_on) pa_simple_free(rds_device);
+        if(rds2_on) pa_simple_free(rds2_device);
         if(sca_on) pa_simple_free(sca_device);
         return 1;
     }
@@ -400,6 +440,7 @@ int main(int argc, char **argv) {
         pa_simple_free(input_device);
         if(mpx_on) pa_simple_free(mpx_device);
         if(rds_on) pa_simple_free(rds_device);
+        if(rds2_on) pa_simple_free(rds2_device);
         if(sca_on) pa_simple_free(sca_device);
         pa_simple_free(output_device);
         return 0;
@@ -422,12 +463,13 @@ int main(int argc, char **argv) {
 
     int pulse_error;
 
-    float audio_stereo_input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
-    float mpx_in[BUFFER_SIZE] = {0}; // Input from MPX device
-    float rds_in[BUFFER_SIZE] = {0}; // Input from RDS device
-    float sca_in[BUFFER_SIZE] = {0}; // Input from SCA device
-    float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio, same thing as in input but uninterleaved
-    float output[BUFFER_SIZE]; // MPX, this goes to the output
+    static float audio_stereo_input[BUFFER_SIZE*2]; // Input from device, interleaved stereo
+    static float mpx_in[BUFFER_SIZE] = {0}; // Input from MPX device
+    static float rds_in[BUFFER_SIZE] = {0}; // Input from RDS device
+    static float rds2_in[BUFFER_SIZE] = {0}; // Input from RDS2 device
+    static float sca_in[BUFFER_SIZE] = {0}; // Input from SCA device
+    static float left[BUFFER_SIZE], right[BUFFER_SIZE]; // Audio, same thing as in input but uninterleaved
+    static float output[BUFFER_SIZE]; // MPX, this goes to the output
     while (to_run) {
         if (pa_simple_read(input_device, audio_stereo_input, sizeof(audio_stereo_input), &pulse_error) < 0) {
             fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
@@ -449,6 +491,13 @@ int main(int argc, char **argv) {
                 break;
             }
         }
+        if(rds2_on) {
+            if (pa_simple_read(rds2_device, rds2_in, sizeof(rds2_in), &pulse_error) < 0) {
+                fprintf(stderr, "Error reading from RDS2 device: %s\n", pa_strerror(pulse_error));
+                to_run = 0;
+                break;
+            }
+        }
         if(sca_on) {
             if (pa_simple_read(sca_device, sca_in, sizeof(sca_in), &pulse_error) < 0) {
                 fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
@@ -462,6 +511,7 @@ int main(int argc, char **argv) {
             float r_in = right[i];
             float current_mpx_in = mpx_in[i];
             float current_rds_in = rds_in[i];
+            float current_rds2_in = rds2_in[i];
             float current_sca_in = sca_in[i];
 
             float ready_l = apply_preemphasis(&preemp_l, l_in)*2;
@@ -483,17 +533,15 @@ int main(int argc, char **argv) {
                         (stereo*stereo_carrier)*STEREO_VOLUME;
                 }
             }
-#ifndef DISABLE_RDS
             if(rds_on && polar_stereo == 0) {
                 float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 3);
                 output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
+                if(rds2_on && !sca_on) {
+                    float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 3.5f); // 66.5 KHz
+                    output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
+                }
             }
-#endif
-            #ifndef DISABLE_RDS
             if(rds_on || stereo) advance_oscillator(&osc);
-            #else
-            if(stereo) advance_oscillator(&osc);
-            #endif
             if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
             if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
             output[i] *= master_volume;
