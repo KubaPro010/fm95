@@ -326,10 +326,6 @@ int main(int argc, char **argv) {
         .rate = sample_rate
     };
 
-    pa_buffer_attr input_buffer_atr = {
-        .maxlength = buffer_maxlength,
-        .fragsize = buffer_tlength_fragsize
-    };
     pa_buffer_attr output_buffer_atr = {
         .maxlength = buffer_maxlength,
         .tlength = buffer_tlength_fragsize,
@@ -368,11 +364,6 @@ int main(int argc, char **argv) {
 
     int current_second = -1;
     int ms_within_second = 0;
-    int last_bit = -1;
-
-    int bit_samples = (int)((BIT_LENGTH / 1000.0) * sample_rate);
-    int pulse_0_samples = (int)((PULSE_0_DURATION / 1000.0) * sample_rate);
-    int pulse_1_samples = (int)((PULSE_1_DURATION / 1000.0) * sample_rate);
 
     int dsss_start_samples = (int)((DSSS_START_MS / 1000.0) * sample_rate);
     int dsss_duration_samples = (int)((DSSS_DURATION_MS / 1000.0) * sample_rate);
@@ -382,6 +373,8 @@ int main(int argc, char **argv) {
     int current_chip_count = 0;
     int current_cycle_count = 0;
     int in_dsss_period = 0;
+
+    int elapsed_samples = 0;
 
     printf("DCF77 encoder ready.\n");
 
