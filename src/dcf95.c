@@ -71,7 +71,6 @@ void reset_lfsr() {
 int is_cet_dst(struct tm *tm_time) {
     int month = tm_time->tm_mon + 1;
     int day = tm_time->tm_mday;
-    int wday = tm_time->tm_wday;
     int hour = tm_time->tm_hour;
 
     if (month == 3) {
