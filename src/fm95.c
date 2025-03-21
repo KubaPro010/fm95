@@ -120,10 +120,12 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
     show_version();
 
-    pa_simple *mpx_device;
-    pa_simple *rds_device;
-    pa_simple *rds2_device;
-    pa_simple *sca_device;
+    pa_simple *mpx_device = NULL
+    pa_simple *rds_device = NULL
+    pa_simple *rds2_device = NULL;
+    pa_simple *sca_device = NULL;
+
+    pa_simple *input_device;
     pa_simple *output_device;
 
     float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
@@ -288,7 +290,7 @@ int main(int argc, char **argv) {
 
     printf("Connecting to input device... (%s)\n", audio_input_device);
 
-    pa_simple *input_device = pa_simple_new(
+    input_device = pa_simple_new(
         NULL,
         "fm95",
         PA_STREAM_RECORD,
