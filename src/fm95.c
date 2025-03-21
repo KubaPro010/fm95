@@ -120,8 +120,8 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
     show_version();
 
-    pa_simple *mpx_device = NULL
-    pa_simple *rds_device = NULL
+    pa_simple *mpx_device = NULL;
+    pa_simple *rds_device = NULL;
     pa_simple *rds2_device = NULL;
     pa_simple *sca_device = NULL;
 
