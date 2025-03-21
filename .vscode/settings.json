@@ -18,7 +18,8 @@
         "ios": "c",
         "stdint.h": "c",
         "asoundlib.h": "c",
-        "hilbert.h": "c"
+        "hilbert.h": "c",
+        "fm_modulator.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

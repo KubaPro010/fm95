@@ -15,8 +15,8 @@
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
 
-#define FREQ 77500.0f          // DCF77 frequency is 77.5 kHz
-#define SAMPLE_RATE 192000     // Higher sample rate for the carrier
+#define DEFAULT_FREQ 77500.0f
+#define DEFAULT_SAMPLE_RATE 192000
 
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 
@@ -25,31 +25,27 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
-#define MASTER_VOLUME 0.5f      // Volume
-#define OFFSET 0                // Offset in seconds
+#define DEFAULT_MASTER_VOLUME 0.5f
+#define DEFAULT_OFFSET 0
 
-// DCF77 specific parameters
-#define PULSE_0_DURATION 100    // 100ms for binary 0
-#define PULSE_1_DURATION 200    // 200ms for binary 1
-#define REDUCED_AMPLITUDE 0.15f // Reduced to 15% of normal amplitude during pulses
-#define BIT_LENGTH 1000         // 1 second per bit
+#define PULSE_0_DURATION 100
+#define PULSE_1_DURATION 200
+#define REDUCED_AMPLITUDE 0.15f
+#define BIT_LENGTH 1000 // this is ms
 
-// DSSS Parameters
-#define DSSS_START_MS 200       // DSSS starts at 200ms into the second
-#define DSSS_DURATION_MS 793    // DSSS duration is 793ms
-#define PHASE_SHIFT 15.6        // Phase shift in degrees (±15.6°)
-#define CHIPS_PER_BIT 512       // Number of chips per bit
-#define CHIP_CYCLES 120         // Each chip spans 120 cycles
+#define DSSS_START_MS 200
+#define DSSS_DURATION_MS 793
+#define PHASE_SHIFT 15.6
+#define CHIPS_PER_BIT 512
+#define CHIP_CYCLES 120
 
 volatile sig_atomic_t to_run = 1;
 volatile sig_atomic_t transmitting = 0;
 volatile int bit_position = 0;
-volatile int test_mode = 0;     // 0 = normal, 1 = test mode
+volatile int test_mode = 0;
 
-// DCF77 bits array (59 bits, indexed 0-58)
-volatile int dcf77_bits[60];    // 60th position is for the 1-second pause
+volatile int dcf77_bits[60];
 
-// LFSR state for DSSS
 unsigned int lfsr = 0;
 
 static void stop(int signum) {
@@ -58,106 +54,80 @@ static void stop(int signum) {
     to_run = 0;
 }
 
-// Generate next chip from LFSR
 unsigned int generate_chip() {
     unsigned int chip = lfsr & 1;
-    
+
     lfsr >>= 1;
     if (chip || !lfsr)
         lfsr ^= 0x110;
-    
+
     return chip;
 }
 
-// Reset LFSR state at the beginning of each second
 void reset_lfsr() {
     lfsr = 0;
 }
 
-// Helper function to determine if a given time is in DST for CET
 int is_cet_dst(struct tm *tm_time) {
-    // CET DST rules: starts last Sunday of March at 2:00, ends last Sunday of October at 3:00
-    int month = tm_time->tm_mon + 1; // tm_mon is 0-based
+    int month = tm_time->tm_mon + 1;
     int day = tm_time->tm_mday;
-    int wday = tm_time->tm_wday; // 0 = Sunday, 6 = Saturday
+    int wday = tm_time->tm_wday;
     int hour = tm_time->tm_hour;
-    
-    // March - check if we're in the last Sunday or after
+
     if (month == 3) {
-        // Calculate the date of the last Sunday in March
-        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
+        int last_sunday = 31 - ((5 + 31) % 7);
         if ((day > last_sunday) || (day == last_sunday && hour >= 2)) {
-            return 1; // DST has started
+            return 1;
         }
-    }
-    // April through September - definitely DST
-    else if (month > 3 && month < 10) {
+    } else if (month > 3 && month < 10) {
         return 1;
-    }
-    // October - check if we're before the last Sunday
-    else if (month == 10) {
-        // Calculate the date of the last Sunday in October
-        int last_sunday = 31 - ((5 + 31) % 7); // Calculate last Sunday
+    } else if (month == 10) {
+        int last_sunday = 31 - ((5 + 31) % 7);
         if ((day < last_sunday) || (day == last_sunday && hour < 3)) {
-            return 1; // Still in DST
+            return 1;
         }
     }
-    
-    return 0; // Not in DST
+
+    return 0;
 }
 
 int is_timezone_change_soon() {
     time_t now, in_an_hour;
     struct tm cet_now, cet_later;
 
-    // Get current time
     time(&now);
-    in_an_hour = now + 3600; // 3600 seconds = 1 hour
-    
-    // Initialize the tm structures
+    in_an_hour = now + 3600;
+
     memset(&cet_now, 0, sizeof(struct tm));
     memset(&cet_later, 0, sizeof(struct tm));
-    
-    // Convert to CET timezone explicitly
-    // We need to use the gmtime to get UTC and then manually adjust to CET
+
     struct tm *gm_now = gmtime(&now);
     struct tm *gm_later = gmtime(&in_an_hour);
-    
-    // Copy the GMT times
+
     cet_now = *gm_now;
     cet_later = *gm_later;
-    
-    // Adjust for CET (UTC+1 normal, UTC+2 during DST)
-    // First, set the base offset for CET (UTC+1)
+
     cet_now.tm_hour += 1;
     cet_later.tm_hour += 1;
-    
-    // Check if it's DST in CET
-    // CET DST starts on last Sunday of March at 2:00 and ends on last Sunday of October at 3:00
+
     int is_dst_now = is_cet_dst(&cet_now);
     int is_dst_later = is_cet_dst(&cet_later);
-    
-    // Adjust hour for DST if needed
+
     if (is_dst_now) cet_now.tm_hour += 1;
     if (is_dst_later) cet_later.tm_hour += 1;
-    
-    // Normalize the time values after modification
+
     mktime(&cet_now);
     mktime(&cet_later);
-    
-    // Return 1 if a time zone change is about to happen, otherwise 0
+
     return is_dst_now != is_dst_later;
 }
 
-// Function to calculate DCF77 bits based on current time
 void calculate_dcf77_bits(time_t now, int *bits) {
-    struct tm *t = gmtime(&now); // Use local time instead of UTC
+    struct tm *t = gmtime(&now);
     int cest = is_cet_dst(t);
-    
-    // Initialize all bits to 0
+
     memset(bits, 0, 60 * sizeof(int));
-    
-    //bit[15] = 0; // Helper antenna
+
     bits[16] = is_timezone_change_soon();
     if(cest) {
         bits[17] = 1;
@@ -165,8 +135,7 @@ void calculate_dcf77_bits(time_t now, int *bits) {
         bits[18] = 1;
     }
     bits[20] = 1;
-    
-    // Bits 20-27: Minutes (BCD encoded)
+
     int minutes = t->tm_min;
     bits[21] = (minutes % 10) & 0x01;
     bits[22] = ((minutes % 10) >> 1) & 0x01;
@@ -175,33 +144,29 @@ void calculate_dcf77_bits(time_t now, int *bits) {
     bits[25] = ((minutes / 10) & 0x01);
     bits[26] = ((minutes / 10) >> 1) & 0x01;
     bits[27] = ((minutes / 10) >> 2) & 0x01;
-    
-    // Bit 28: Even parity for minutes
+
     int parity = 0;
     for (int i = 21; i <= 27; i++) {
         parity ^= bits[i];
     }
     bits[28] = parity;
-    
-    // Bits 29-34: Hours (BCD encoded)
-    int hours = t->tm_hour-1; // Not sure why
-    hours += 1; // UTC to CET
-    if(cest) hours += 1; // CET to CEST
+
+    int hours = t->tm_hour-1;
+    hours += 1;
+    if(cest) hours += 1;
     bits[29] = (hours % 10) & 0x01;
     bits[30] = ((hours % 10) >> 1) & 0x01;
     bits[31] = ((hours % 10) >> 2) & 0x01;
     bits[32] = ((hours % 10) >> 3) & 0x01;
     bits[33] = ((hours / 10) & 0x01);
     bits[34] = ((hours / 10) >> 1) & 0x01;
-    
-    // Bit 35: Even parity for hours
+
     parity = 0;
     for (int i = 29; i <= 34; i++) {
         parity ^= bits[i];
     }
     bits[35] = parity;
-    
-    // Bits 36-41: Day of month (1-31, BCD encoded)
+
     int day = t->tm_mday;
     bits[36] = (day % 10) & 0x01;
     bits[37] = ((day % 10) >> 1) & 0x01;
@@ -209,23 +174,20 @@ void calculate_dcf77_bits(time_t now, int *bits) {
     bits[39] = ((day % 10) >> 3) & 0x01;
     bits[40] = ((day / 10) & 0x01);
     bits[41] = ((day / 10) >> 1) & 0x01;
-    
-    // Bits 42-44: Day of week (1=Monday, 7=Sunday)
-    int dow = t->tm_wday == 0 ? 7 : t->tm_wday; // Convert Sunday from 0 to 7
+
+    int dow = t->tm_wday == 0 ? 7 : t->tm_wday;
     bits[42] = dow & 0x01;
     bits[43] = (dow >> 1) & 0x01;
     bits[44] = (dow >> 2) & 0x01;
-    
-    // Bits 45-49: Month (1-12, BCD encoded)
-    int month = t->tm_mon + 1; // tm_mon is 0-11
+
+    int month = t->tm_mon + 1;
     bits[45] = (month % 10) & 0x01;
     bits[46] = ((month % 10) >> 1) & 0x01;
     bits[47] = ((month % 10) >> 2) & 0x01;
     bits[48] = ((month % 10) >> 3) & 0x01;
     bits[49] = (month / 10) & 0x01;
-    
-    // Bits 50-57: Year within century (0-99, BCD encoded)
-    int year = t->tm_year % 100; // Get last two digits of year
+
+    int year = t->tm_year % 100;
     bits[50] = (year % 10) & 0x01;
     bits[51] = ((year % 10) >> 1) & 0x01;
     bits[52] = ((year % 10) >> 2) & 0x01;
@@ -234,30 +196,27 @@ void calculate_dcf77_bits(time_t now, int *bits) {
     bits[55] = ((year / 10) >> 1) & 0x01;
     bits[56] = ((year / 10) >> 2) & 0x01;
     bits[57] = ((year / 10) >> 3) & 0x01;
-    
-    // Bit 58: Even parity for date bits
+
     parity = 0;
     for (int i = 36; i <= 57; i++) {
         parity ^= bits[i];
     }
     bits[58] = parity;
-    
-    // Bit 59: Set to 2, as a full wave
-    bits[59] = 2; 
+
+    bits[59] = 2;
 }
 
-// Print the current DCF77 bit pattern (for debugging)
 void print_dcf77_bits(const int *bits) {
     printf("DCF77 Bit Pattern: ");
     for (int i = 0; i < 60; i++) {
         printf("%d", bits[i]);
-        if ((i+1) % 10 == 0) printf(" "); // Space every 10 bits
+        if ((i+1) % 10 == 0) printf(" ");
     }
     printf("\n");
 }
 
 void show_version() {
-    printf("dcf95 (DCF77 time signal encoder by radio95) version 1.0\n");
+    printf("dcf95 (DCF77 time signal encoder by radio95) version 1.1\n");
 }
 
 void show_help(char *name) {
@@ -267,15 +226,15 @@ void show_help(char *name) {
         "   -F,--frequency  DCF77 Frequency [default: %.1f Hz]\n"
         "   -s,--samplerate Output Samplerate [default: %d]\n"
         "   -v,--volume     Output volume [default: %.2f]\n"
-        "   -t,--offset     Time Offset [default: %d s]\n"
-        "   -T,--test       Enable test mode \n"
-        "   -n,--no-phase   Disable phase modulation \n"
+        "   -t,--offset     Time Offset [default: %ds]\n"
+        "   -T,--test       Enable test mode\n"
+        "   -n,--no-phase   Disable phase modulation\n"
         ,name
         ,OUTPUT_DEVICE
-        ,FREQ
-        ,SAMPLE_RATE
-        ,MASTER_VOLUME
-        ,OFFSET
+        ,DEFAULT_FREQ
+        ,DEFAULT_SAMPLE_RATE
+        ,DEFAULT_MASTER_VOLUME
+        ,DEFAULT_OFFSET
     );
 }
 
@@ -283,13 +242,15 @@ int main(int argc, char **argv) {
     show_version();
 
     pa_simple *output_device;
+
     char audio_output_device[64] = OUTPUT_DEVICE;
-    float master_volume = MASTER_VOLUME;
-    float freq = FREQ;
-    int sample_rate = SAMPLE_RATE;
-    int offset = OFFSET;
-    int test_mode = 0; // Test mode flag
-    int no_phase = 0;  // Phase modulation disabled flag
+
+    float master_volume = DEFAULT_MASTER_VOLUME;
+    float freq = DEFAULT_FREQ;
+    int sample_rate = DEFAULT_SAMPLE_RATE;
+    int offset = DEFAULT_OFFSET;
+    int test_mode = 0;
+    int no_phase = 0;
 
     // #region Parse Arguments
     int opt;
@@ -303,7 +264,7 @@ int main(int argc, char **argv) {
         {"offset",     required_argument, NULL, 't'},
         {"test",       no_argument,       NULL, 'T'},
         {"no-phase",   no_argument,       NULL, 'n'},
-        
+
         {"help",       no_argument,       NULL, 'h'},
         {0,            0,                 0,    0}
     };
@@ -396,81 +357,64 @@ int main(int argc, char **argv) {
     }
     // #endregion
 
-    // #region Setup Oscillator
     Oscillator osc;
     init_oscillator(&osc, freq, sample_rate);
-    // #endregion
 
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
-    
+
     int pulse_error;
-    float output[BUFFER_SIZE]; // Output buffer
-    
-    // DCF77 parameters
-    int elapsed_samples = 0;
+    float output[BUFFER_SIZE];
+
     int current_second = -1;
     int ms_within_second = 0;
     int last_bit = -1;
-    
-    // Pre-calculate samples for different durations
+
     int bit_samples = (int)((BIT_LENGTH / 1000.0) * sample_rate);
     int pulse_0_samples = (int)((PULSE_0_DURATION / 1000.0) * sample_rate);
     int pulse_1_samples = (int)((PULSE_1_DURATION / 1000.0) * sample_rate);
-    
-    // DSSS parameters
+
     int dsss_start_samples = (int)((DSSS_START_MS / 1000.0) * sample_rate);
     int dsss_duration_samples = (int)((DSSS_DURATION_MS / 1000.0) * sample_rate);
     int dsss_end_samples = dsss_start_samples + dsss_duration_samples;
-    float phase_shift_rad = (PHASE_SHIFT * M_PI) / 180.0; // Convert degrees to radians
-    
-    // For tracking chip generation
+    float phase_shift_rad = (PHASE_SHIFT * M_PI) / 180.0;
+
     int current_chip_count = 0;
     int current_cycle_count = 0;
     int in_dsss_period = 0;
-    
+
     printf("DCF77 encoder ready.\n");
-    printf("Will transmit time signal continuously.\n");
-    
-    // Main loop
+
     while (to_run) {
-        // Clear the output buffer
         memset(output, 0, sizeof(output));
-        
-        // Get current time
-        time_t now = time(NULL) + offset + 60; // Next minute
+
+        time_t now = time(NULL) + offset + 60;
         struct tm *t = gmtime(&now);
         int second = t->tm_sec;
-        
-        // Check if we're at the start of a new minute
+
         if (second == 0 && current_second != 0) {
-            // Calculate the DCF77 bits for the new minute
             calculate_dcf77_bits(now, (int *)dcf77_bits);
             #ifdef DEBUG
             print_dcf77_bits((int *)dcf77_bits);
             #endif
-            
-            // Reset counters for the new minute
+
             bit_position = 0;
             elapsed_samples = 0;
             transmitting = 1;
-            
+
             #ifdef DEBUG
-            printf("Starting new DCF77 transmission for %02d:%02d:%02d UTC\n", 
+            printf("Starting new DCF77 transmission for %02d:%02d:%02d UTC\n",
                    t->tm_hour, t->tm_min, t->tm_sec);
             #endif
         }
-        
-        // Update the current second if it has changed
+
         if (second != current_second) {
             current_second = second;
-            
-            // Reset the LFSR at the start of each second for DSSS
+
             reset_lfsr();
             current_chip_count = 0;
             current_cycle_count = 0;
-            
-            // Update the bit position at the start of each second
+
             if (transmitting) {
                 if (bit_position < 59) {
                     #ifdef DEBUG
@@ -484,83 +428,65 @@ int main(int argc, char **argv) {
                     #endif
                 }
             }
-            
-            // Reset sample counter at the start of each second
+
             elapsed_samples = 0;
         }
-        
-        // Generate the DCF77 signal
+
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            // Calculate milliseconds within the current second
             ms_within_second = (int)((elapsed_samples * 1000.0) / sample_rate);
-            
-            // Get the current bit (between 0-58)
+
             int current_bit = bit_position > 0 ? bit_position - 1 : 59;
-            
-            // Determine if we're in the DSSS period (between 200ms and 993ms)
-            in_dsss_period = (elapsed_samples >= dsss_start_samples && 
+
+            in_dsss_period = (elapsed_samples >= dsss_start_samples &&
                               elapsed_samples < dsss_end_samples);
-            
-            // Base carrier signal (will be phase-shifted if in DSSS period)
+
             float phase_offset = 0.0;
-            
-            // Apply DSSS if in the appropriate time window and phase modulation is enabled
+
             if (in_dsss_period && transmitting && !no_phase) {
-                // Generate a chip every CHIP_CYCLES carrier cycles
                 if (current_cycle_count == 0) {
                     if (current_chip_count < CHIPS_PER_BIT) {
-                        // Generate the next chip
                         unsigned int chip = generate_chip();
-                        
-                        // XOR the chip with the current bit value
+
                         unsigned int modulated_chip = chip ^ dcf77_bits[current_bit];
-                        
-                        // Set phase shift based on the modulated chip
+
                         if (modulated_chip == 0) {
-                            phase_offset = phase_shift_rad; // +15.6 degrees
+                            phase_offset = phase_shift_rad;
                         } else {
-                            phase_offset = -phase_shift_rad; // -15.6 degrees
+                            phase_offset = -phase_shift_rad;
                         }
-                        
+
                         current_chip_count++;
                     }
                 }
-                
-                // Update cycle counter within each chip
+
                 current_cycle_count = (current_cycle_count + 1) % CHIP_CYCLES;
             }
-            
-            // Get carrier signal with phase offset if needed
+
             float t = osc.phase + phase_offset;
             float carrier = sinf(t);
             advance_oscillator(&osc);
-            
+
             if (transmitting) {
-                // Determine amplitude based on AM modulation pattern
-                if ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) || 
+                if ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) ||
                     (dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION)) {
-                    // Reduced amplitude during pulse
                     output[i] = carrier * master_volume * REDUCED_AMPLITUDE;
                 } else {
-                    // Full amplitude otherwise
                     output[i] = carrier * master_volume;
                 }
             } else {
-                // Not transmitting (should not happen in normal operation)
                 output[i] = carrier * master_volume;
             }
-            
+
             elapsed_samples++;
         }
-        
-        // Output the audio buffer
+
         if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
             fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
             to_run = 0;
             break;
         }
     }
-    
+
     printf("Cleaning up...\n");
     pa_simple_free(output_device);
     return 0;

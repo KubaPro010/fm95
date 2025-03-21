@@ -4,7 +4,7 @@
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
-#define buffer_prebuf 32
+#define buffer_prebuf 8
 
 #define DEFAULT_STEREO 1
 #define DEFAULT_STEREO_POLAR 0
@@ -19,7 +19,7 @@
 #include "../lib/filters.h"
 #include "../lib/fm_modulator.h"
 
-#define SAMPLE_RATE 192000
+#define DEFAULT_SAMPLE_RATE 192000
 
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
@@ -33,8 +33,9 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
-#define MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
-#define AUDIO_VOLUME 1.0f // Audio volume, before clipper
+#define DEFAULT_MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
+#define DEFAULT_AUDIO_VOLUME 1.0f // Audio volume, before clipper
+
 #define MONO_VOLUME 0.45f // L+R Signal
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
 #define STEREO_VOLUME 0.45f // L-R signal, should be same as MONO
@@ -44,10 +45,9 @@
 #define MPX_VOLUME 1.0f // Passtrough
 #define MPX_CLIPPER_THRESHOLD 1.0f
 
-volatile sig_atomic_t to_run = 1;
+static volatile sig_atomic_t to_run = 1;
 
 void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
-    // For stereo, usually it is like this: LEFT RIGHT LEFT RIGHT LEFT RIGHT so this is used to get LEFT LEFT LEFT and RIGHT RIGHT RIGHT
     for (size_t i = 0; i < num_samples/2; i++) {
         left[i] = input[i * 2];
         right[i] = input[i * 2 + 1];
@@ -61,12 +61,11 @@ static void stop(int signum) {
 }
 
 void show_version() {
-    printf("fm95 (an FM Processor by radio95) version 1.4\n");
+    printf("fm95 (an FM Processor by radio95) version 1.5\n");
 }
 void show_help(char *name) {
     printf(
         "Usage: %s\n"
-        "   -m,--mono       Force Mono [default: %d]\n"
         "   -s,--stereo     Force Stereo [default: %d]\n"
         "   -i,--input      Override input device [default: %s]\n"
         "   -o,--output     Override output device [default: %s]\n"
@@ -79,13 +78,11 @@ void show_help(char *name) {
         "   -L,--sca_clip   Override the SCA clipper threshold [default: %.2f]\n"
         "   -c,--clipper    Override the clipper threshold [default: %.2f]\n"
         "   -P,--polar      Force Polar Stereo (does not take effect with -m%s)\n"
-        "   -g,--ge         Force Zenith/GE stereo (does not take effect with -m%s)\n"
         "   -R,--preemp     Override preemphasis [default: %.2f µs]\n"
         "   -V,--calibrate  Enable Calibration mode [default: off]\n"
         "   -A,--master_vol Set master volume [default: %.3f]\n"
         "   -v,--audio_vol  Set audio volume [default: %.3f]\n"
         ,name
-        ,DEFAULT_STEREO^1
         ,DEFAULT_STEREO
         ,INPUT_DEVICE
         ,OUTPUT_DEVICE
@@ -114,10 +111,9 @@ void show_help(char *name) {
         ,DEFAULT_SCA_CLIPPER_THRESHOLD
         ,DEFAULT_CLIPPER_THRESHOLD
         ,(DEFAULT_STEREO_POLAR == 1) ? ", default" : ""
-        ,(DEFAULT_STEREO_POLAR == 1) ? "" : ", default"
         ,DEFAULT_PREEMPHASIS_TAU/0.000001
-        ,MASTER_VOLUME
-        ,AUDIO_VOLUME
+        ,DEFAULT_MASTER_VOLUME
+        ,DEFAULT_AUDIO_VOLUME
     );
 }
 
@@ -163,16 +159,17 @@ int main(int argc, char **argv) {
     float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
     int calibration_mode = 0;
-    float master_volume = MASTER_VOLUME;
-    float audio_volume = AUDIO_VOLUME;
+    float master_volume = DEFAULT_MASTER_VOLUME;
+    float audio_volume = DEFAULT_AUDIO_VOLUME;
+
+    int sample_rate = DEFAULT_SAMPLE_RATE;
 
     // #region Parse Arguments
     int opt;
-    const char	*short_opt = "msi:o:apM:r:T:C:f:F:L:c:l:PgSDR:VA:v:h";
+    const char	*short_opt = "s::i:o:M:r:T:C:f:F:L:c:P::R:VA:v:h";
     struct option	long_opt[] =
 	{
-        {"mono",        no_argument,       NULL, 'm'},
-        {"stereo",      no_argument,       NULL, 's'},
+        {"stereo",      optional_argument, NULL, 's'},
         {"input",       required_argument, NULL, 'i'},
         {"output",      required_argument, NULL, 'o'},
         {"mpx",         required_argument, NULL, 'M'},
@@ -183,8 +180,7 @@ int main(int argc, char **argv) {
         {"sca_dev",     required_argument, NULL, 'F'},
         {"sca_clip",    required_argument, NULL, 'L'},
         {"clipper",     required_argument, NULL, 'c'},
-        {"polar",       no_argument,       NULL, 'P'},
-        {"ge",          no_argument,       NULL, 'g'},
+        {"polar",       optional_argument,       NULL, 'P'},
         {"preemp",      required_argument,       NULL, 'R'},
         {"calibrate",     no_argument,       NULL, 'V'},
         {"master_vol",     required_argument,       NULL, 'A'},
@@ -196,11 +192,12 @@ int main(int argc, char **argv) {
 
     while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
         switch(opt) {
-            case 'm': // Mono
-                stereo = 0;
-                break;
             case 's': // Stereo
-                stereo = 1;
+                if(optarg) {
+                    stereo = atoi(optarg);
+                } else {
+                    stereo = 1;
+                }
                 break;
             case 'i': // Input Device
                 memcpy(audio_input_device, optarg, 63);
@@ -233,10 +230,11 @@ int main(int argc, char **argv) {
                 clipper_threshold = strtof(optarg, NULL);
                 break;
             case 'P': //Polar
-                polar_stereo = 1;
-                break;
-            case 'g': //GE
-                polar_stereo = 0;
+                if(optarg) {
+                    polar_stereo = atoi(optarg);
+                } else {
+                    polar_stereo = 1;
+                }
                 break;
             case 'R': // Preemp
                 preemphasis_tau = strtof(optarg, NULL)*0.000001;
@@ -266,14 +264,14 @@ int main(int argc, char **argv) {
 
     // Define formats and buffer atributes
     pa_sample_spec stereo_format = {
-        .format = PA_SAMPLE_FLOAT32NE, //Float32 NE, or Float32 Native Endian, the float in c uses the endianess of your pc, or native endian, and float is float32, and double is float64
+        .format = PA_SAMPLE_FLOAT32NE,
         .channels = 2,
-        .rate = SAMPLE_RATE // Same sample rate makes it easy, leave the resampling to pipewire, it should know better
+        .rate = sample_rate
     };
     pa_sample_spec mono_format = {
         .format = PA_SAMPLE_FLOAT32NE,
         .channels = 1,
-        .rate = SAMPLE_RATE
+        .rate = sample_rate
     };
 
     pa_buffer_attr input_buffer_atr = {
@@ -419,12 +417,12 @@ int main(int argc, char **argv) {
 
     if(calibration_mode) {
         Oscillator osc;
-        init_oscillator(&osc, 400, SAMPLE_RATE);
+        init_oscillator(&osc, 400, sample_rate);
 
         signal(SIGINT, stop);
         signal(SIGTERM, stop);
         int pulse_error;
-        float output[BUFFER_SIZE]; // MPX, this goes to the output
+        float output[BUFFER_SIZE];
 
         while(to_run) {
             for (int i = 0; i < BUFFER_SIZE; i++) {
@@ -448,14 +446,14 @@ int main(int argc, char **argv) {
 
     // #region Setup Filters/Modulaltors/Oscillators
     Oscillator osc;
-    init_oscillator(&osc, polar_stereo ? 31250.0 : 19000, SAMPLE_RATE); // Pilot, it's there to indicate stereo and as a refrence signal with the stereo carrier
+    init_oscillator(&osc, polar_stereo ? 31250.0 : 19000, sample_rate);
 
     FMModulator sca_mod;
-    init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, SAMPLE_RATE);
+    init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
     ResistorCapacitor preemp_l, preemp_r;
-    init_preemphasis(&preemp_l, preemphasis_tau, SAMPLE_RATE);
-    init_preemphasis(&preemp_r, preemphasis_tau, SAMPLE_RATE);
+    init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
+    init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
     // #endregion
 
     signal(SIGINT, stop);
