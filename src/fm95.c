@@ -24,7 +24,6 @@
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define RDS_DEVICE "RDS.monitor"
-// #define RDS2_DEVICE "RDS2.monitor"
 #define MPX_DEVICE "FM_MPX.monitor"
 // #define SCA_DEVICE ""
 
@@ -92,11 +91,6 @@ void show_help(char *name) {
         #endif
         #ifdef RDS_DEVICE
         ,RDS_DEVICE
-        #else
-        ,"not set"
-        #endif
-        #ifdef RDS2_DEVICE
-        ,RDS2_DEVICE
         #else
         ,"not set"
         #endif
