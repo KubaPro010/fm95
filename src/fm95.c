@@ -414,6 +414,9 @@ int main(int argc, char **argv) {
     ResistorCapacitor preemp_l, preemp_r;
     init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
     init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
+
+    PLL rds2_pll;
+    init_pll(&rds2_pll, 19000, 66500, sample_rate);
     // #endregion
 
     signal(SIGINT, stop);
@@ -491,7 +494,7 @@ int main(int argc, char **argv) {
                 float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
                 output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
                 if(!sca_on) {
-                    float rds2_carrier_66 = get_oscillator_sin_multiplier_ni(&osc, 3.5f); // 66.5 KHz
+                    float rds2_carrier_66 = update_pll(&rds2_pll, get_oscillator_sin_multiplier_ni(&osc, 1));
                     output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
                 }
             }
