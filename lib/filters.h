@@ -22,8 +22,9 @@ typedef struct {
 	float loop_filter_state;
 	float kp;
 	float ki;
+	float last_output;
 	int sample_rate;
 	int quadrature_mode;
 } PLL;
 void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, int quadrature_mode, int sample_rate);
-float apply_pll(PLL *pll, float ref_sample, float input_sample);
+float apply_pll(PLL *pll, float ref_sample);
