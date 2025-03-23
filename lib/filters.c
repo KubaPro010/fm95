@@ -26,23 +26,23 @@ void init_pll(PLL *pll, float output_freq, float reference_freq, float loop_filt
 }
 
 float apply_pll(PLL *pll, float ref_sample, float input_sample) {
-    float pll_output = sin(pll->phase);
-    
     float phase_error;
+    
+    float output = sinf(pll->phase);
+    
     if (pll->quadrature_mode) {
-        float quadrature_output = sin(pll->phase + M_PI/2.0f);
-        phase_error = input_sample * quadrature_output;
-    } else {
-        phase_error = input_sample * pll_output;
+        output = sinf(pll->phase + (M_PI / 2.0f));
     }
     
+    phase_error = ref_sample * input_sample;
+    
     pll->loop_filter_state += pll->ki * phase_error / pll->sample_rate;
-    float loop_filter_output = pll->loop_filter_state + pll->kp * phase_error;
+    float loop_output = pll->loop_filter_state + pll->kp * phase_error;
     
-    float phase_adjustment = loop_filter_output;
-    pll->phase += phase_adjustment;
+    float freq_adjustment = loop_output / (2.0f * M_PI);
+    float instantaneous_freq = pll->freq + freq_adjustment;
     
-    pll->phase += 2.0f * M_PI * pll->freq / pll->sample_rate;
+    pll->phase += 2.0f * M_PI * instantaneous_freq / pll->sample_rate;
     
     while (pll->phase >= 2.0f * M_PI) {
         pll->phase -= 2.0f * M_PI;
@@ -51,5 +51,5 @@ float apply_pll(PLL *pll, float ref_sample, float input_sample) {
         pll->phase += 2.0f * M_PI;
     }
     
-    return pll_output;
+    return output;
 }
