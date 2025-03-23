@@ -408,6 +408,9 @@ int main(int argc, char **argv) {
     Oscillator osc;
     init_oscillator(&osc, polar_stereo ? 31250.0 : 19000, sample_rate);
 
+    Oscillator rds2_osc;
+    init_oscillator(&rds2_osc, 66500, sample_rate);
+
     FMModulator sca_mod;
     init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
@@ -492,7 +495,7 @@ int main(int argc, char **argv) {
                 float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
                 output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
                 if(!sca_on) {
-                    float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 3.5f);
+                    float rds2_carrier_66 = get_oscillator_cos_sample(&rds2_osc);
                     output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
                 }
             }
