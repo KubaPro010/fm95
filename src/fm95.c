@@ -405,8 +405,9 @@ int main(int argc, char **argv) {
 	}
 
 	// #region Setup Filters/Modulaltors/Oscillators
-	Oscillator osc;
+	Oscillator osc, rds2_osc;
 	init_oscillator(&osc, polar_stereo ? 31250.0 : 19000, sample_rate);
+	init_oscillator(&rds2_osc, 66500, sample_rate);
 
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
@@ -416,7 +417,7 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
 	PLL rds2_pll;
-	init_pll(&rds2_pll, 7, 2, 19000, 100, 1, sample_rate);
+	init_pll(&rds2_pll, 66500, 1, 1, sample_rate);
 	// #endregion
 
 	signal(SIGINT, stop);
