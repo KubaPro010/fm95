@@ -416,7 +416,7 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
 	PLL rds2_pll;
-	init_pll(&rds2_pll, 66500, 1, 10000, sample_rate);
+	init_pll(&rds2_pll, 66500, 4000, 2, 1, sample_rate);
 	// #endregion
 
 	signal(SIGINT, stop);

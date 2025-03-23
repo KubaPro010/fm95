@@ -26,5 +26,5 @@ typedef struct {
 	int sample_rate;
 	int quadrature_mode;
 } PLL;
-void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, int quadrature_mode, int sample_rate);
+void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, float damping, int quadrature_mode, int sample_rate);
 float apply_pll(PLL *pll, float ref_sample);

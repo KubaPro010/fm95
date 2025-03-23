@@ -25,7 +25,7 @@ make
 Done!
 
 # CPU Usage?
-Should run completly fine on a pi 5, right now with the preemp, on a pi 3b, its 20%
+Should run completly fine on a pi 5, right now with the preemp, on a pi 3b, its 32%
 
 # Recommendations
 use a lpf, for example swh-plugins's lowpass_iir, for example:
