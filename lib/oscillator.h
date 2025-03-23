@@ -4,9 +4,9 @@
 #include "math.h"
 
 typedef struct {
-    float phase;
-    float phase_increment;
-    float sample_rate;
+	float phase;
+	float phase_increment;
+	float sample_rate;
 } Oscillator;
 
 void init_oscillator(Oscillator *osc, float frequency, float sample_rate);
