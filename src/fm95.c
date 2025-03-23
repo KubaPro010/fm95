@@ -11,7 +11,7 @@
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
-#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f // Full deviation, if you set this to 0.5 then you may as well set the deviation to 3.5k
+#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
 
 #include "../lib/constants.h"
@@ -39,7 +39,7 @@
 #define PILOT_VOLUME 0.09f // 19 KHz Pilot
 #define STEREO_VOLUME 0.45f // L-R signal, should be same as MONO
 #define RDS_VOLUME 0.075f // RDS Volume, after dsb-sc
-#define RDS2_VOLUME 0.05f // RDS2 Volume
+#define RDS2_VOLUME 0.075f // RDS2 Volume
 #define SCA_VOLUME 0.1f // FM SCA signal, 10%
 #define MPX_VOLUME 1.0f // Passtrough
 #define MPX_CLIPPER_THRESHOLD 1.0f
@@ -414,9 +414,6 @@ int main(int argc, char **argv) {
     ResistorCapacitor preemp_l, preemp_r;
     init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
     init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
-
-    Oscillator rds2_osc;
-    init_oscillator(&rds2_osc, 66500, sample_rate);
     // #endregion
 
     signal(SIGINT, stop);
@@ -425,6 +422,7 @@ int main(int argc, char **argv) {
     int pulse_error;
 
     float audio_stereo_input[BUFFER_SIZE*2];
+
     float rds1_rds2_in[BUFFER_SIZE*2] = {0};
     float rds1_in[BUFFER_SIZE] = {0};
     float rds2_in[BUFFER_SIZE] = {0};
@@ -494,7 +492,7 @@ int main(int argc, char **argv) {
                 float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
                 output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
                 if(!sca_on) {
-                    float rds2_carrier_66 = get_oscillator_sin_sample(&rds2_osc);
+                    float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 3.5f);
                     output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
                 }
             }
