@@ -30,7 +30,7 @@ float apply_pll(PLL *pll, float ref_sample) {
 	float vco_output = sinf(pll->phase);
 	if (pll->quadrature_mode) vco_output = sinf(pll->phase + (M_PI / 2.0f));
 
-	phase_error = ref_sample * vco_output;
+	phase_error = atan2f(ref_sample, vco_output);;
 
 	pll->loop_filter_state += pll->ki * phase_error / pll->sample_rate;
 	float loop_output = pll->loop_filter_state + pll->kp * phase_error;
