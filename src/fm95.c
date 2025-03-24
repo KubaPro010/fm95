@@ -492,7 +492,7 @@ int main(int argc, char **argv) {
 				}
 			}
 			if(rds_on && polar_stereo == 0) {
-				float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
+				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 3);
 				output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
 				if(!sca_on) {
 					float rds2_carrier_66 = apply_pll(&rds2_pll, get_oscillator_sin_multiplier_ni(&osc, 1));
