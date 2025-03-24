@@ -20,7 +20,6 @@ void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, float damping, 
 	pll->loop_filter_state = 0.0f;
 	pll->kp = M_2PI * loop_filter_bandwidth;
 	pll->ki = (4.0f*damping*damping) * pll->kp * pll->kp;
-	pll->last_output = 0.0f;
 	pll->sample_rate = sample_rate;
 	pll->quadrature_mode = quadrature_mode;
 }
@@ -31,7 +30,7 @@ float apply_pll(PLL *pll, float ref_sample) {
 	float vco_output = sinf(pll->phase);
 	if (pll->quadrature_mode) vco_output = sinf(pll->phase + (M_PI / 2.0f));
 
-	phase_error = ref_sample * pll->last_output;
+	phase_error = ref_sample * vco_output;
 
 	pll->loop_filter_state += pll->ki * phase_error / pll->sample_rate;
 	float loop_output = pll->loop_filter_state + pll->kp * phase_error;
@@ -47,8 +46,6 @@ float apply_pll(PLL *pll, float ref_sample) {
 	while (pll->phase < 0.0f) {
 		pll->phase += M_2PI;
 	}
-
-	pll->last_output = vco_output;
 
 	return vco_output;
 }

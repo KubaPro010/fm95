@@ -22,7 +22,6 @@ typedef struct {
 	float loop_filter_state;
 	float kp;
 	float ki;
-	float last_output;
 	int sample_rate;
 	int quadrature_mode;
 } PLL;
