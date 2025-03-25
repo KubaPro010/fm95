@@ -415,8 +415,7 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
-	FIRFilter rds2_bpf, lpf_l, lpf_r;
-	init_bpf(&rds2_bpf, 66000, 67000);
+	FIRFilter lpf_l, lpf_r;
 	init_lpf(&lpf_l, 15000);
 	init_lpf(&lpf_r, 15000);
 	// #endregion
