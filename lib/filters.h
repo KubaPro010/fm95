@@ -23,6 +23,5 @@ typedef struct filters
 	float filter[FILTER_LEN];
 	int filter_idx;
 } FIRFilter;
-void init_bpf(FIRFilter *bpf, float start, float end);
 void init_lpf(FIRFilter *lpf, float freq);
 float fir_filter(FIRFilter *fir, float sample);

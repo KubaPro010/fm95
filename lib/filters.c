@@ -18,22 +18,6 @@ float sincf(float x) {
     return (x == 0.0f) ? 1.0f : sinf(M_PI * x) / (M_PI * x);
 }
 
-void init_bpf(FIRFilter *bpf, float start, float end) {
-	int m = FILTER_LEN - 1;
-	float sum = 0.0f;
-
-	for(int n = 0; n < FILTER_LEN; n++) {
-		float x = n-m/2.0f;
-		float h1 = sincf(2.0f*start*x) * (0.54 - 0.46 * cosf(M_2PI * n / m));
-		float h2 = sincf(2.0f*end*x) * (0.54 - 0.46 * cosf(M_2PI * n / m));
-		bpf->filter[n] = h1-h2;
-		sum += bpf->filter[n];
-	}
-
-	for(int n = 0; n < FILTER_LEN; n++) {
-		bpf->filter[n] /= sum;
-	}
-}
 void init_lpf(FIRFilter *lpf, float freq) {
 	int m = FILTER_LEN - 1;
 	float sum = 0.0f;
