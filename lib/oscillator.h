@@ -1,7 +1,6 @@
 #pragma once
 
 #include "constants.h"
-#include "math.h"
 
 typedef struct {
 	float phase;

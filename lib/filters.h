@@ -1,5 +1,4 @@
 #pragma once
-#include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include "constants.h"
