@@ -14,21 +14,19 @@ float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
-void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, float damping, int quadrature_mode, int sample_rate) {
+void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, float damping, int sample_rate) {
 	pll->phase = 0.0f;
 	pll->freq = freq;
 	pll->loop_filter_state = 0.0f;
 	pll->kp = M_2PI * loop_filter_bandwidth;
 	pll->ki = (4.0f*damping*damping) * pll->kp * pll->kp;
 	pll->sample_rate = sample_rate;
-	pll->quadrature_mode = quadrature_mode;
 }
 
 float apply_pll(PLL *pll, float ref_sample) {
 	float phase_error;
 
 	float vco_output = sinf(pll->phase);
-	if (pll->quadrature_mode) vco_output = sinf(pll->phase + (M_PI / 2.0f));
 
 	phase_error = atan2f(ref_sample, vco_output);;
 
