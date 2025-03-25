@@ -5,6 +5,8 @@
 #include "constants.h"
 #include "oscillator.h"
 
+#define FILTER_LEN 51
+
 typedef struct
 {
 	float alpha;
@@ -16,13 +18,11 @@ float apply_preemphasis(ResistorCapacitor *filter, float sample);
 
 float hard_clip(float sample, float threshold);
 
-typedef struct {
-	float phase;
-	float freq;
-	float loop_filter_state;
-	float kp;
-	float ki;
-	int sample_rate;
-} PLL;
-void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, float damping, int sample_rate);
-float apply_pll(PLL *pll, float ref_sample);
+typedef struct filters
+{
+	float filter[FILTER_LEN];
+	int filter_idx;
+} FIRFilter;
+void init_bpf(FIRFilter *bpf, float start, float end);
+void init_lpf(FIRFilter *lpf, float freq);
+float fir_filter(FIRFilter *fir, float sample);

@@ -415,8 +415,10 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
-	PLL rds2_pll;
-	init_pll(&rds2_pll, 66500, 5, 0.5f, sample_rate);
+	FIRFilter rds2_bpf, lpf_l, lpf_r;
+	init_bpf(&rds2_bpf, 66000, 67000);
+	init_lpf(&lpf_l, 15000);
+	init_lpf(&lpf_r, 15000);
 	// #endregion
 
 	signal(SIGINT, stop);
@@ -474,6 +476,8 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in)*2;
 			float ready_r = apply_preemphasis(&preemp_r, r_in)*2;
+			ready_l = fir_filter(&lpf_l, ready_l);
+			ready_r = fir_filter(&lpf_l, ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
@@ -495,7 +499,7 @@ int main(int argc, char **argv) {
 				float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 3);
 				output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
 				if(!sca_on) {
-					float rds2_carrier_66 = apply_pll(&rds2_pll, rds_carrier);
+					float rds2_carrier_66 = fir_filter(&rds2_bpf, get_oscillator_sin_multiplier_ni(&osc, 3.5f));
 					output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
 				}
 			}

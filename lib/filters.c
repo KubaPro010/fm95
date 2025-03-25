@@ -14,36 +14,43 @@ float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
-void init_pll(PLL *pll, float freq, float loop_filter_bandwidth, float damping, int sample_rate) {
-	pll->phase = 0.0f;
-	pll->freq = freq;
-	pll->loop_filter_state = 0.0f;
-	pll->kp = M_2PI * loop_filter_bandwidth;
-	pll->ki = (4.0f*damping*damping) * pll->kp * pll->kp;
-	pll->sample_rate = sample_rate;
+void init_bpf(FIRFilter *bpf, float start, float end) {
+	int m = FILTER_LEN - 1;
+	float sum = 0.0f;
+
+	for(int n = 0; n < FILTER_LEN; n++) {
+		float x = n-m/2.0f;
+		float h1 = sincf(2.0f*start*x) * (0.54 - 0.46 * cosf(M_2PI * n / m));
+		float h2 = sincf(2.0f*end*x) * (0.54 - 0.46 * cosf(M_2PI * n / m));
+		bpf->filter[n] = h1-h2;
+		sum += bpf->filter[n];
+	}
+
+	for(int n = 0; n < FILTER_LEN; n++) {
+		bpf->filter[n] /= sum;
+	}
+}
+void init_lpf(FIRFilter *lpf, float freq) {
+	int m = FILTER_LEN - 1;
+	float sum = 0.0f;
+
+	for(int n = 0; n < FILTER_LEN; n++) {
+		float x = n-m/2.0f;
+		lpf->filter[n] = sincf(2.0f*freq*x) * (0.54 - 0.46 * cosf(M_2PI * n / m));
+		sum += lpf->filter[n];
+	}
+
+	for(int n = 0; n < FILTER_LEN; n++) {
+		lpf->filter[n] /= sum;
+	}
 }
 
-float apply_pll(PLL *pll, float ref_sample) {
-	float phase_error;
-
-	float vco_output = sinf(pll->phase);
-
-	phase_error = atan2f(ref_sample, vco_output);;
-
-	pll->loop_filter_state += pll->ki * phase_error / pll->sample_rate;
-	float loop_output = pll->loop_filter_state + pll->kp * phase_error;
-
-	float freq_adjustment = loop_output / M_2PI;
-	float instantaneous_freq = pll->freq + freq_adjustment;
-
-	pll->phase += M_2PI * instantaneous_freq / pll->sample_rate;
-
-	while (pll->phase >= M_2PI) {
-		pll->phase -= M_2PI;
-	}
-	while (pll->phase < 0.0f) {
-		pll->phase += M_2PI;
-	}
-
-	return vco_output;
+float fir_filter(FIRFilter *fir, float sample) {
+    float out = 0.0f;
+    for(int i = 0; i < FILTER_LEN; i++) {
+        out += fir->filter[i] * sample;
+    }
+    fir->filter_idx++;
+    if(fir->filter_idx == FILTER_LEN) fir->filter_idx = 0;
+    return out;
 }
