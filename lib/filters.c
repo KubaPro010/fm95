@@ -14,6 +14,10 @@ float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
+float sincf(float x) {
+    return (x == 0.0f) ? 1.0f : sinf(M_PI * x) / (M_PI * x);
+}
+
 void init_bpf(FIRFilter *bpf, float start, float end) {
 	int m = FILTER_LEN - 1;
 	float sum = 0.0f;
