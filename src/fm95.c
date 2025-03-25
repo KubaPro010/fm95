@@ -414,10 +414,6 @@ int main(int argc, char **argv) {
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
-
-	FIRFilter lpf_l, lpf_r;
-	init_lpf(&lpf_l, 15000);
-	init_lpf(&lpf_r, 15000);
 	// #endregion
 
 	signal(SIGINT, stop);
@@ -475,8 +471,6 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in)*2;
 			float ready_r = apply_preemphasis(&preemp_r, r_in)*2;
-			ready_l = fir_filter(&lpf_l, ready_l);
-			ready_r = fir_filter(&lpf_l, ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 

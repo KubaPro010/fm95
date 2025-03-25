@@ -17,11 +17,3 @@ void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate);
 float apply_preemphasis(ResistorCapacitor *filter, float sample);
 
 float hard_clip(float sample, float threshold);
-
-typedef struct filters
-{
-	float filter[FILTER_LEN];
-	int filter_idx;
-} FIRFilter;
-void init_lpf(FIRFilter *lpf, float freq);
-float fir_filter(FIRFilter *fir, float sample);
