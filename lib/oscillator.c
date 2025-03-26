@@ -22,16 +22,20 @@ float get_oscillator_cos_sample(Oscillator *osc) {
 	return sample;
 }
 
-float get_oscillator_sin_multiplier_ni(Oscillator *osc, float multiplier) { // ni = No Increment
-	return sinf(fmodf(osc->phase * multiplier, M_2PI));
+float get_oscillator_sin_multiplier_ni(Oscillator *osc, float multiplier) {
+    float new_phase = osc->phase * multiplier;
+    new_phase -= (new_phase >= M_2PI) ? M_2PI : 0.0f;
+    return sinf(new_phase);
 }
+
 float get_oscillator_cos_multiplier_ni(Oscillator *osc, float multiplier) {
-	return cosf(fmodf(osc->phase * multiplier, M_2PI));
+	float new_phase = osc->phase * multiplier;
+    new_phase -= (new_phase >= M_2PI) ? M_2PI : 0.0f;
+    return cosf(new_phase);
 }
 
 void advance_oscillator(Oscillator *osc) {
-	osc->phase += osc->phase_increment;
-	if (osc->phase >= M_2PI) {
-		osc->phase -= M_2PI;
-	}
+    osc->phase += osc->phase_increment;
+    osc->phase -= (osc->phase >= M_2PI) ? M_2PI : 0.0f;
+    osc->phase = (fabsf(osc->phase) < 1e-10f) ? 0.0f : osc->phase;
 }
