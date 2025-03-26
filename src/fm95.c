@@ -24,7 +24,7 @@
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define RDS_DEVICE "RDS.monitor"
-#define MPX_DEVICE "FM_MPX.monitor"
+// #define MPX_DEVICE "FM_MPX.monitor"
 // #define SCA_DEVICE ""
 
 #define BUFFER_SIZE 2048
