@@ -414,10 +414,6 @@ int main(int argc, char **argv) {
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
-
-	ResistorCapacitor lpf_l, lpf_r;
-	init_rc_lpf(&lpf_l, 15000, sample_rate);
-	init_rc_lpf(&lpf_r, 15000, sample_rate);
 	// #endregion
 
 	signal(SIGINT, stop);
@@ -473,10 +469,8 @@ int main(int argc, char **argv) {
 			float current_rds2_in = rds2_in[i];
 			float current_sca_in = sca_in[i];
 
-			float ready_l = apply_preemphasis(&preemp_l, l_in)*2;
-			float ready_r = apply_preemphasis(&preemp_r, r_in)*2;
-			ready_l = apply_rc_lpf(&lpf_l, ready_l);
-			ready_r = apply_rc_lpf(&lpf_r, ready_r);
+			float ready_l = apply_preemphasis(&preemp_l, l_in);
+			float ready_r = apply_preemphasis(&preemp_r, r_in);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 

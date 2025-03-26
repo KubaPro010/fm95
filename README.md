@@ -33,7 +33,7 @@ Done!
 
 ## CPU Usage?
 
-Should run completly fine on a pi 5, right now with the preemp, on a pi 3b, its 32%
+Should run completly fine on a pi 5, right now with the preemp and rds2, on a pi 3b, its 25%
 
 ## Recommendations
 
