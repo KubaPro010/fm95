@@ -11,6 +11,7 @@
 
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
+#include "../lib/optimization.h"
 
 #define DEFAULT_FREQ 1000.0f
 #define DEFAULT_SAMPLE_RATE 4000
@@ -68,10 +69,50 @@ void show_help(char *name) {
 	);
 }
 
-void generate_signal(float *output, int buffer_size, Oscillator *osc, float volume,
-					int *elapsed_samples, int total_samples, int pip_samples,
-					int pause_samples, int beep_samples, int num_pips) {
+void generate_signal(float *output, int buffer_size, Oscillator *osc, float volume, int *elapsed_samples, int total_samples, int pip_samples, int pause_samples, int beep_samples, int num_pips) {
+#if USE_NEON
+	float32x4_t v_volume = vdupq_n_f32(volume);
 
+	for (int i = 0; i < buffer_size; i += 4) {
+		if (*elapsed_samples >= total_samples) {
+			vst1q_f32(&output[i], vdupq_n_f32(0.0f));
+			playing_sequence = 0;
+		} else {
+			int cycle_position = *elapsed_samples;
+			int pip_cycle = pip_samples + pause_samples;
+			float32x4_t v_samples;
+
+			if (cycle_position < num_pips * pip_cycle) {
+				int within_cycle = cycle_position % pip_cycle;
+				if (within_cycle < pip_samples) {
+					float samples[4] = {
+						get_oscillator_sin_sample(osc),
+						get_oscillator_sin_sample(osc),
+						get_oscillator_sin_sample(osc),
+						get_oscillator_sin_sample(osc),
+					};
+					v_samples = vmulq_f32(vld1q_f32(samples), v_volume);
+				} else {
+					v_samples = vdupq_n_f32(0.0f);
+				}
+			} else if (cycle_position < num_pips * pip_cycle + beep_samples) {
+				float samples[4] = {
+					get_oscillator_sin_sample(osc),
+					get_oscillator_sin_sample(osc),
+					get_oscillator_sin_sample(osc),
+					get_oscillator_sin_sample(osc),
+				};
+				v_samples = vmulq_f32(vld1q_f32(samples), v_volume);
+			} else {
+				v_samples = vdupq_n_f32(0.0f);
+			}
+
+			vst1q_f32(&output[i], v_samples);
+			(*elapsed_samples) += 4;
+		}
+	}
+}
+#else
 	for (int i = 0; i < buffer_size; i++) {
 		if (*elapsed_samples >= total_samples) {
 			output[i] = 0;
@@ -96,6 +137,7 @@ void generate_signal(float *output, int buffer_size, Oscillator *osc, float volu
 			(*elapsed_samples)++;
 		}
 	}
+#endif
 }
 
 int check_time_for_sequence(int test_mode, int offset) {

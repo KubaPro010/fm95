@@ -34,7 +34,7 @@ Done!
 
 ## CPU Usage?
 
-Should run completly fine on a pi 5, right now with the preemp and rds2, on a pi 3b, its 50-70% (without lpf its more like 25%-27%)
+Should run completly fine on a pi 5, right now with the preemp and rds2, on a pi 3b, its 50-70% (without lpf its more like 25%-27%, lpf with neon optimization is about 50%)
 
 ## Other Apps
 
