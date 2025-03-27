@@ -46,25 +46,28 @@
 
 static volatile sig_atomic_t to_run = 1;
 
-
 void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
-    if (num_samples % 2 != 0) return; 
-
-    size_t num_frames = num_samples / 2; 
-    size_t i = 0;
-
 #if USE_NEON
-    for (; i + 4 <= num_frames; i += 4) {
-        float32x4x2_t interleaved = vld2q_f32(input + i * 2 * 2); 
-        vst1q_f32(left + i, interleaved.val[0]);  
-        vst1q_f32(right + i, interleaved.val[1]); 
-    }
-#endif
+	size_t i = 0;
+	size_t vectorized_count = num_samples & ~3; 
 
-    for (; i < num_frames; i++) {
-        left[i] = input[i * 2];
-        right[i] = input[i * 2 + 1];
-    }
+	for (; i < vectorized_count; i += 4) {
+		float32x4x2_t interleaved = vld2q_f32(input + i * 2);
+
+		vst1q_f32(left + i, interleaved.val[0]);
+		vst1q_f32(right + i, interleaved.val[1]);
+	}
+
+	for (; i < num_samples / 2; i++) {
+		left[i] = input[i * 2];
+		right[i] = input[i * 2 + 1];
+	}
+#else
+	for (size_t i = 0; i < num_samples / 2; i++) {
+		left[i] = input[i * 2];
+		right[i] = input[i * 2 + 1];
+	}
+#endif
 }
 
 static void stop(int signum) {
