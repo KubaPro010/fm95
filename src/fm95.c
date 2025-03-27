@@ -404,7 +404,6 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
-	// #region Setup Filters/Modulaltors/Oscillators
 	Oscillator osc;
 	init_oscillator(&osc, polar_stereo ? 31250.0 : 4750, sample_rate);
 
@@ -414,7 +413,10 @@ int main(int argc, char **argv) {
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
-	// #endregion
+
+	Biquad lpf_l, lpf_r;
+	init_butterworth_lpf(&lpf_l, 15000, 192000);
+	init_butterworth_lpf(&lpf_r, 15000, 192000);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
@@ -471,6 +473,8 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
+			ready_l = biquad(&lpf_l, ready_l);
+			ready_l = biquad(&lpf_r, ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
