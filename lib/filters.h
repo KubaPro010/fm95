@@ -5,7 +5,7 @@
 #include "constants.h"
 #include "oscillator.h"
 
-#define FIR_ORDER 5
+#define LPF_ORDER 5
 
 typedef struct
 {
@@ -21,12 +21,12 @@ float hard_clip(float sample, float threshold);
 
 typedef struct
 {
-	float A[FIR_ORDER];
-	float d1[FIR_ORDER];
-	float d2[FIR_ORDER];
-	float w0[FIR_ORDER];
-	float w1[FIR_ORDER];
-	float w2[FIR_ORDER];
-} FIR;
-void init_lpf(FIR *filter, float cutoff, int sample_rate);
-float process_lpf(FIR *filter, float x);
+	float A[LPF_ORDER];
+	float d1[LPF_ORDER];
+	float d2[LPF_ORDER];
+	float w0[LPF_ORDER];
+	float w1[LPF_ORDER];
+	float w2[LPF_ORDER];
+} LPFFilter;
+void init_lpf(LPFFilter *filter, float cutoff, int sample_rate);
+float process_lpf(LPFFilter *filter, float x);
