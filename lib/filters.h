@@ -5,7 +5,7 @@
 #include "constants.h"
 #include "oscillator.h"
 
-#define LPF_ORDER 5
+#define LPF_ORDER 7
 
 typedef struct
 {
