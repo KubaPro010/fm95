@@ -15,7 +15,7 @@ float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
-int init_chebyshev_lpf(Biquad* filter, float sample_rate, float cutoff_freq, float ripple_db, int order) {
+void init_chebyshev_lpf(Biquad* filter, float sample_rate, float cutoff_freq, float ripple_db, int order) {
     float eps = sqrt(pow(10, ripple_db/10.0) - 1.0);
     float omega_c = 2.0f * M_PI * cutoff_freq / sample_rate;
     
