@@ -35,7 +35,22 @@ float get_oscillator_cos_multiplier_ni(Oscillator *osc, float multiplier) {
 }
 
 void advance_oscillator(Oscillator *osc) {
-    osc->phase += osc->phase_increment;
-    osc->phase -= (osc->phase >= M_2PI) ? M_2PI : 0.0f;
-    osc->phase = (fabsf(osc->phase) < 1e-10f) ? 0.0f : osc->phase;
-}
+	#if USE_NEON  // Use NEON if available
+		float32x4_t v_phase = vdupq_n_f32(osc->phase);
+		float32x4_t v_increment = vdupq_n_f32(osc->phase_increment);
+		float32x4_t v_twopi = vdupq_n_f32(M_2PI);
+	
+		v_phase = vaddq_f32(v_phase, v_increment);
+		uint32x4_t v_mask = vcgeq_f32(v_phase, v_twopi);  // Check if phase >= 2π
+		float32x4_t v_wrapped = vsubq_f32(v_phase, v_twopi);
+		v_phase = vbslq_f32(v_mask, v_wrapped, v_phase);
+	
+		osc->phase = vgetq_lane_f32(v_phase, 0);
+	
+	#else  // Scalar fallback if NEON is not available
+		osc->phase += osc->phase_increment;
+		if (osc->phase >= M_2PI) {
+			osc->phase -= M_2PI;
+		}
+	#endif
+	}
