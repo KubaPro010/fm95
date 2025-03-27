@@ -15,31 +15,17 @@ float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
-void init_chebyshev_lpf(Biquad* filter, float sample_rate, float cutoff_freq, float ripple_db, int order) {
-    float eps = sqrt(pow(10, ripple_db/10.0) - 1.0);
-    float omega_c = 2.0f * M_PI * cutoff_freq / sample_rate;
-    
-    float poles[10];
-    for (int k = 1; k <= order; k++) {
-        float phi = ((2*k - 1) * M_PI) / (2.0 * order);
-        float real = -sinh((1.0/order) * asinh(1.0/eps)) * sin(phi);
-        float imag = cosh((1.0/order) * asinh(1.0/eps)) * cos(phi);
-        
-        float s_real = real * omega_c;
-        float s_imag = imag * omega_c;
-        
-        poles[k-1] = s_real;
-    }
-    
-    float alpha = tan(omega_c/2.0);
-    float a = 1.0f + alpha;
-    
-    filter->b0 = alpha * alpha / (a * a);
-    filter->b1 = 2.0f * filter->b0;
-    filter->b2 = filter->b0;
-    
-    filter->a1 = 2.0f * (alpha * alpha - 1.0f) / (a * a);
-    filter->a2 = (1.0f - alpha) / (1.0f + alpha);
+void init_lpf(Biquad* filter, float sample_rate, float cutoff_freq) {
+    float omega = 2.0f * M_PI * cutoff_freq / sample_rate;
+    float alpha = sinf(omega) / (2.0f * 0.707f);
+    float cos_omega = cosf(omega);
+
+	float norm = 1.0f / (1.0f + alpha);
+	filter->b0 = (1.0f - cos_omega) * 0.5f * norm;
+	filter->b1 = (1.0f - cos_omega) * norm;
+	filter->b2 = filter->b0;
+	filter->a1 = -2.0f * cos_omega * norm;
+	filter->a2 = (1.0f - alpha) * norm;
     
     filter->x1 = filter->x2 = 0.0f;
     filter->y1 = filter->y2 = 0.0f;
