@@ -2,7 +2,6 @@
 
 #include "constants.h"
 #include <math.h>
-#include "optimization.h"
 
 typedef struct {
 	float phase;
