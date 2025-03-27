@@ -475,6 +475,8 @@ int main(int argc, char **argv) {
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
 			ready_l = biquad(&lpf_l, ready_l);
 			ready_l = biquad(&lpf_r, ready_r);
+			ready_l = biquad(&lpf_l, ready_l);
+			ready_l = biquad(&lpf_r, ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
