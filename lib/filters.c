@@ -15,26 +15,28 @@ float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
-void init_butterworth_lpf(Biquad *filter, float cutoff_freq, float sample_rate) {
-    float omega =  M_2PI * cutoff_freq / sample_rate;
-    float Q = 1.0f / sqrtf(2.0f);
-    float alpha = sinf(omega) / (2.0f * Q);
-    
-    float b0 = (1.0f - cosf(omega)) / 2.0f;
-    float b1 = 1.0f - cosf(omega);
-    float b2 = (1.0f - cosf(omega)) / 2.0f;
-    float a0 = 1.0f + alpha;
-    float a1 = -2.0f * cosf(omega);
-    float a2 = 1.0f - alpha;
-    
-    filter->b0 = b0 / a0;
-    filter->b1 = b1 / a0;
-    filter->b2 = b2 / a0;
-    filter->a1 = a1 / a0;
-    filter->a2 = a2 / a0;
-    
-    filter->x1 = filter->x2 = 0.0f;
-    filter->y1 = filter->y2 = 0.0f;
+void init_chebyshev_lpf(Biquad* filter, float cutoff_freq, float sample_rate, float ripple_db) {
+	float Wn = M_2PI * cutoff_freq / sample_rate;
+	float eps = sqrtf(powf(10.0f, ripple_db / 10.0f) - 1.0f);
+	int n = 2;
+	float gamma = (2.0f * eps) / (n + 1.0f);
+	float phi = acoshf(1.0f / gamma);
+	float sin_phi = sinhf(phi / n);
+	float cos_phi = coshf(phi / n);
+	float alpha = sin_phi * cosf(Wn);
+	float beta = sin_phi * sinf(Wn);
+
+	float d = 1.0f + 2.0f * alpha + (alpha * alpha + beta * beta);
+
+	filter->b0 = (1.0f - (alpha * alpha + beta * beta)) / d;
+	filter->b1 = 2.0f * ((alpha * alpha + beta * beta) - 1.0f) / d;
+	filter->b2 = (1.0f - 2.0f * alpha + (alpha * alpha + beta * beta)) / d;
+
+	filter->a1 = -2.0f * (1.0f + 2.0f * alpha - (alpha * alpha + beta * beta)) / d;
+	filter->a2 = (1.0f - 2.0f * alpha + (alpha * alpha + beta * beta)) / d;
+
+	filter->x1 = filter->x2 = 0.0f;
+	filter->y1 = filter->y2 = 0.0f;
 }
 
 float biquad(Biquad *filter, float input) {

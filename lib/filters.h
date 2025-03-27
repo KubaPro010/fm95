@@ -24,5 +24,5 @@ typedef struct
 	float x1, x2;
 	float y1, y2;
 } Biquad;
-void init_butterworth_lpf(Biquad *filter, float cutoff_freq, float sample_rate);
+void init_chebyshev_lpf(Biquad* filter, float cutoff_freq, float sample_rate, float ripple_db);
 float biquad(Biquad *filter, float input);
