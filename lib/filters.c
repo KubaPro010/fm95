@@ -33,29 +33,20 @@ void init_lpf(LPFFilter *filter, float cutoff, int sample_rate) {
 
 float process_lpf(LPFFilter *filter, float x) {
 #if USE_NEON
-	float32_t input = x;
+	float32x4_t y_vec = vdupq_n_f32(x);
+	for (int i = 0; i < LPF_ORDER; i += 4) {
+		float32x4_t d1_vec = vld1q_f32(&filter->d1[i]);
+		float32x4_t d2_vec = vld1q_f32(&filter->d2[i]);
+		float32x4_t w1_vec = vld1q_f32(&filter->w1[i]);
+		float32x4_t w2_vec = vld1q_f32(&filter->w2[i]);
+		float32x4_t A_vec  = vld1q_f32(&filter->A[i]);
 
-	float32x4_t y_vec = vdupq_n_f32(input);
+		float32x4_t w0_new_vec = vmlaq_f32(vmlaq_f32(y_vec, d1_vec, w1_vec), d2_vec, w2_vec);
+		y_vec = vmulq_f32(A_vec, vaddq_f32(vaddq_f32(w0_new_vec, w1_vec), vaddq_f32(w1_vec, w2_vec)));
 
-	for (int i = 0; i < LPF_ORDER; i++) {
-		float32x4_t d1_vec = vdupq_n_f32(filter->d1[i]);
-		float32x4_t d2_vec = vdupq_n_f32(filter->d2[i]);
-		float32x4_t w1_vec = vdupq_n_f32(filter->w1[i]);
-		float32x4_t w2_vec = vdupq_n_f32(filter->w2[i]);
-		float32x4_t A_vec = vdupq_n_f32(filter->A[i]);
-
-		float32x4_t w1_term = vmulq_f32(d1_vec, w1_vec);
-		float32x4_t w2_term = vmulq_f32(d2_vec, w2_vec);
-		float32x4_t w0_new_vec = vaddq_f32(vaddq_f32(w1_term, w2_term), y_vec);
-
-		float32x4_t two_w1 = vmulq_n_f32(w1_vec, 2.0f);
-		float32x4_t output_term = vaddq_f32(w0_new_vec, vaddq_f32(two_w1, w2_vec));
-		y_vec = vmulq_f32(A_vec, output_term);
-
-		filter->w2[i] = filter->w1[i];
-		filter->w1[i] = vgetq_lane_f32(w0_new_vec, 0);
+		vst1q_f32(&filter->w2[i], w1_vec);
+		vst1q_f32(&filter->w1[i], w0_new_vec);
 	}
-
 	return vgetq_lane_f32(y_vec, 0);
 #else
 	float y = x;
