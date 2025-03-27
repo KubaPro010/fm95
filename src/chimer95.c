@@ -111,7 +111,6 @@ void generate_signal(float *output, int buffer_size, Oscillator *osc, float volu
 			(*elapsed_samples) += 4;
 		}
 	}
-}
 #else
 	for (int i = 0; i < buffer_size; i++) {
 		if (*elapsed_samples >= total_samples) {

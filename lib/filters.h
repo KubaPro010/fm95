@@ -8,7 +8,7 @@
 #include "oscillator.h"
 
 #if USE_NEON
-#define LPF_ORDER 12 // neon has to have divisable by 4
+#define LPF_ORDER 20 // neon has to have divisable by 4
 #else
 #define LPF_ORDER 10
 #endif
