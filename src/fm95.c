@@ -49,17 +49,20 @@ static volatile sig_atomic_t to_run = 1;
 void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
 #if USE_NEON
 	size_t i = 0;
-	size_t vec_size = num_samples / 2;
 
-	for (; i + 4 <= vec_size; i += 4) {
-		float32x4x2_t interleaved = vld2q_f32(&input[i * 2]);
-		vst1q_f32(&left[i], interleaved.val[0]);
-		vst1q_f32(&right[i], interleaved.val[1]);
+	for (; i + 7 < num_samples; i += 8) {
+		float32x4x2_t interleaved1 = vld2q_f32(&input[i * 2]);
+		float32x4x2_t interleaved2 = vld2q_f32(&input[i * 2 + 8]);
+
+		vst1q_f32(&left[i], interleaved1.val[0]);
+		vst1q_f32(&right[i], interleaved1.val[1]);
+		vst1q_f32(&left[i + 4], interleaved2.val[0]);
+		vst1q_f32(&right[i + 4], interleaved2.val[1]);
 	}
 
-	for (; i < vec_size; i++) {
-		left[i] = input[i * 2];
-		right[i] = input[i * 2 + 1];
+	for (; i < num_samples; i += 2) {
+		left[i / 2] = input[i];
+		right[i / 2] = input[i + 1];
 	}
 #else
 	for (size_t i = 0; i < num_samples/2; i++) {
