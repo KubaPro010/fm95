@@ -18,6 +18,7 @@
 #include "../lib/oscillator.h"
 #include "../lib/filters.h"
 #include "../lib/fm_modulator.h"
+#include "../lib/optimization.h"
 
 #define DEFAULT_SAMPLE_RATE 192000
 
@@ -47,10 +48,23 @@
 static volatile sig_atomic_t to_run = 1;
 
 void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
+#if USE_NEON
+	size_t i = 0;
+	for (; i + 3 < num_samples / 2; i += 4) {
+		float32x4x2_t input_vec = vld2q_f32(input + i * 2);
+		vst1q_f32(left + i, input_vec.val[0]);
+		vst1q_f32(right + i, input_vec.val[1]);
+	}
+	for (; i < num_samples / 2; i++) {
+		left[i] = input[i * 2];
+		right[i] = input[i * 2 + 1];
+	}
+#else
 	for (size_t i = 0; i < num_samples / 2; i++) {
 		left[i] = input[i * 2];
 		right[i] = input[i * 2 + 1];
 	}
+#endif
 }
 
 static void stop(int signum) {
