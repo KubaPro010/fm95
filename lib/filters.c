@@ -15,28 +15,34 @@ float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
-void init_chebyshev_lpf(Biquad* filter, float cutoff_freq, float sample_rate, float ripple_db) {
-	float Wn = M_2PI * cutoff_freq / sample_rate;
-	float eps = sqrtf(powf(10.0f, ripple_db / 10.0f) - 1.0f);
-	int n = 2;
-	float gamma = (2.0f * eps) / (n + 1.0f);
-	float phi = acoshf(1.0f / gamma);
-	float sin_phi = sinhf(phi / n);
-	float cos_phi = coshf(phi / n);
-	float alpha = sin_phi * cosf(Wn);
-	float beta = sin_phi * sinf(Wn);
-
-	float d = 1.0f + 2.0f * alpha + (alpha * alpha + beta * beta);
-
-	filter->b0 = (1.0f - (alpha * alpha + beta * beta)) / d;
-	filter->b1 = 2.0f * ((alpha * alpha + beta * beta) - 1.0f) / d;
-	filter->b2 = (1.0f - 2.0f * alpha + (alpha * alpha + beta * beta)) / d;
-
-	filter->a1 = -2.0f * (1.0f + 2.0f * alpha - (alpha * alpha + beta * beta)) / d;
-	filter->a2 = (1.0f - 2.0f * alpha + (alpha * alpha + beta * beta)) / d;
-
-	filter->x1 = filter->x2 = 0.0f;
-	filter->y1 = filter->y2 = 0.0f;
+int init_chebyshev_lpf(Biquad* filter, float sample_rate, float cutoff_freq, float ripple_db, int order) {
+    float eps = sqrt(pow(10, ripple_db/10.0) - 1.0);
+    float omega_c = 2.0f * M_PI * cutoff_freq / sample_rate;
+    
+    float poles[10];
+    for (int k = 1; k <= order; k++) {
+        float phi = ((2*k - 1) * M_PI) / (2.0 * order);
+        float real = -sinh((1.0/order) * asinh(1.0/eps)) * sin(phi);
+        float imag = cosh((1.0/order) * asinh(1.0/eps)) * cos(phi);
+        
+        float s_real = real * omega_c;
+        float s_imag = imag * omega_c;
+        
+        poles[k-1] = s_real;
+    }
+    
+    float alpha = tan(omega_c/2.0);
+    float a = 1.0f + alpha;
+    
+    filter->b0 = alpha * alpha / (a * a);
+    filter->b1 = 2.0f * filter->b0;
+    filter->b2 = filter->b0;
+    
+    filter->a1 = 2.0f * (alpha * alpha - 1.0f) / (a * a);
+    filter->a2 = (1.0f - alpha) / (1.0f + alpha);
+    
+    filter->x1 = filter->x2 = 0.0f;
+    filter->y1 = filter->y2 = 0.0f;
 }
 
 float biquad(Biquad *filter, float input) {
