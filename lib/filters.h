@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "constants.h"
+#include "optimization.h"
 #include "oscillator.h"
 
 #define LPF_ORDER 10
