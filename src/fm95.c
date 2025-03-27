@@ -415,8 +415,8 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
 	Biquad lpf_l, lpf_r;
-	init_chebyshev_lpf(&lpf_l, sample_rate, 15000, 1.0f, 4);
-	init_chebyshev_lpf(&lpf_r, sample_rate, 15000, 1.0f, 4);
+	init_chebyshev_lpf(&lpf_l, sample_rate, 15000, 1.0f, 10);
+	init_chebyshev_lpf(&lpf_r, sample_rate, 15000, 1.0f, 10);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
