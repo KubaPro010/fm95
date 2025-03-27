@@ -33,34 +33,6 @@ void init_lpf(LPFFilter *filter, float cutoff, int sample_rate) {
 
 float process_lpf(LPFFilter *filter, float x) {
     float y = x;
-
-#if USE_NEON  // Use NEON if available
-    float32x4_t v_y = vdupq_n_f32(y);  // Load input into all lanes
-
-    for (int i = 0; i < LPF_ORDER; i += 4) {  // Process 4 biquads at a time
-        float32x4_t v_w1 = vld1q_f32(&filter->w1[i]);
-        float32x4_t v_w2 = vld1q_f32(&filter->w2[i]);
-        float32x4_t v_d1 = vld1q_f32(&filter->d1[i]);
-        float32x4_t v_d2 = vld1q_f32(&filter->d2[i]);
-        float32x4_t v_A  = vld1q_f32(&filter->A[i]);
-
-        // Compute w0 = d1 * w1 + d2 * w2 + y
-        float32x4_t v_w0 = vmlaq_f32(vmulq_f32(v_d1, v_w1), v_d2, v_w2);
-        v_w0 = vaddq_f32(v_w0, v_y);
-
-        // Compute y = A * (w0 + 2*w1 + w2)
-        float32x4_t v_tw1 = vaddq_f32(v_w1, v_w1);  // 2*w1
-        float32x4_t v_sum = vaddq_f32(vaddq_f32(v_w0, v_tw1), v_w2);
-        v_y = vmulq_f32(v_A, v_sum);  // Multiply by A
-
-        // Store updated values
-        vst1q_f32(&filter->w2[i], v_w1);
-        vst1q_f32(&filter->w1[i], v_w0);
-    }
-    
-    return vgetq_lane_f32(v_y, 0);  // Return first lane of vector
-
-#else  // Scalar fallback if NEON is not available
     for (int i = 0; i < LPF_ORDER; i++) {
         float w0_new = filter->d1[i] * filter->w1[i] + filter->d2[i] * filter->w2[i] + y;
         y = filter->A[i] * (w0_new + 2.0f * filter->w1[i] + filter->w2[i]);
@@ -68,5 +40,4 @@ float process_lpf(LPFFilter *filter, float x) {
         filter->w1[i] = w0_new;
     }
     return y;
-#endif
 }
