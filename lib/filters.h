@@ -24,5 +24,11 @@ typedef struct
 	float x1, x2;
 	float y1, y2;
 } Biquad;
-void init_lpf(Biquad* filter, float sample_rate, float cutoff_freq);
+typedef struct {
+    Biquad section1;
+    Biquad section2;
+} LPF4;
+void init_lpf(Biquad* filter, float sample_rate, float cutoff_freq, float Q);
+void init_lpf4(LPF4* filter, float sample_rate, float cutoff_freq);
+float apply_lpf4(LPF4* filter, float input);
 float biquad(Biquad *filter, float input);
