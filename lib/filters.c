@@ -38,7 +38,21 @@ void init_lpf4(LPF4* filter, float sample_rate, float cutoff_freq) {
     float Q2 = 1.0f / (2.0f * cosf(3.0f * M_PI / 8.0f));
     init_lpf(&filter->section2, sample_rate, cutoff_freq, Q2);
 }
-
+float biquad(Biquad *filter, float input) {
+    float output = filter->b0 * input 
+                 + filter->b1 * filter->x1 
+                 + filter->b2 * filter->x2
+                 - filter->a1 * filter->y1 
+                 - filter->a2 * filter->y2;
+    
+    filter->x2 = filter->x1;
+    filter->x1 = input;
+    
+    filter->y2 = filter->y1;
+    filter->y1 = output;
+    
+    return output;
+}
 float apply_lpf4(LPF4* filter, float input) {
     float output = biquad(&filter->section1, input);
     output = biquad(&filter->section2, output);
