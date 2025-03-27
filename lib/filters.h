@@ -5,6 +5,8 @@
 #include "constants.h"
 #include "oscillator.h"
 
+#define FIR_ORDER 10
+
 typedef struct
 {
 	float alpha;
@@ -19,16 +21,12 @@ float hard_clip(float sample, float threshold);
 
 typedef struct
 {
-	float b0, b1, b2;
-	float a1, a2;
-	float x1, x2;
-	float y1, y2;
-} Biquad;
-typedef struct {
-    Biquad section1;
-    Biquad section2;
-} LPF4;
-void init_lpf(Biquad* filter, float sample_rate, float cutoff_freq, float Q);
-void init_lpf4(LPF4* filter, float sample_rate, float cutoff_freq);
-float apply_lpf4(LPF4* filter, float input);
-float biquad(Biquad *filter, float input);
+	float A[FIR_ORDER];
+	float d1[FIR_ORDER];
+	float d2[FIR_ORDER];
+	float w0[FIR_ORDER];
+	float w1[FIR_ORDER];
+	float w2[FIR_ORDER];
+} FIR;
+void init_lpf(FIR *filter, float cutoff, int sample_rate);
+float process_lpf(FIR *filter, float x);
