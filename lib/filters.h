@@ -1,9 +1,4 @@
 #pragma once
-#include <string.h>
-#include <stdlib.h>
-#include <math.h>
-#include "constants.h"
-#include "oscillator.h"
 
 #if defined(__ARM_NEON) || defined(__ARM_NEON__)
     #include <arm_neon.h>
@@ -11,6 +6,12 @@
 #else
     #define USE_NEON 0
 #endif
+
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include "constants.h"
+#include "oscillator.h"
 
 #define LPF_ORDER 10
 
