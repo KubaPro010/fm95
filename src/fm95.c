@@ -414,10 +414,6 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
-	LPFFilter lpf_l, lpf_r;
-	init_lpf(&lpf_l, 15000, sample_rate);
-	init_lpf(&lpf_r, 15000, sample_rate);
-
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
 
@@ -473,8 +469,6 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
-			ready_l = process_lpf(&lpf_l, ready_l);
-			ready_r = process_lpf(&lpf_r, ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
