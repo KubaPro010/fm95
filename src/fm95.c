@@ -415,8 +415,8 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
 	FIR lpf_l, lpf_r;
-	init_lpf(&lpf_l, 15000/sample_rate, sample_rate);
-	init_lpf(&lpf_r, 15000/sample_rate, sample_rate);
+	init_lpf(&lpf_l, 15000, sample_rate);
+	init_lpf(&lpf_r, 15000, sample_rate);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);

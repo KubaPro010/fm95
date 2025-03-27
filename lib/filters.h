@@ -5,7 +5,7 @@
 #include "constants.h"
 #include "oscillator.h"
 
-#define FIR_ORDER 21
+#define FIR_ORDER 13
 
 typedef struct
 {
