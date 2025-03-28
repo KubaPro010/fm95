@@ -128,51 +128,46 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 	memset(bits, 0, 60 * sizeof(int));
 
 	bits[16] = is_timezone_change_soon();
-	if(cest) {
-		bits[17] = 1;
-	} else {
-		bits[18] = 1;
-	}
+	bits[17] = cest;
+	bits[18] = !cest;
 	bits[20] = 1;
 
 	int minutes = t->tm_min;
-	bits[21] = (minutes % 10) & 0x01;
-	bits[22] = ((minutes % 10) >> 1) & 0x01;
-	bits[23] = ((minutes % 10) >> 2) & 0x01;
-	bits[24] = ((minutes % 10) >> 3) & 0x01;
-	bits[25] = ((minutes / 10) & 0x01);
-	bits[26] = ((minutes / 10) >> 1) & 0x01;
-	bits[27] = ((minutes / 10) >> 2) & 0x01;
+    for (int i = 0; i < 4; i++) {
+        bits[21 + i] = (minutes % 10 >> i) & 1;
+    }
+    for (int i = 0; i < 3; i++) {
+        bits[25 + i] = (minutes / 10 >> i) & 1;
+    }
 
-	int parity = 0;
-	for (int i = 21; i <= 27; i++) {
-		parity ^= bits[i];
-	}
-	bits[28] = parity;
+    int minute_parity = 0;
+    for (int i = 21; i <= 27; i++) {
+        minute_parity ^= bits[i];
+    }
+    bits[28] = minute_parity;
 
-	int hours = t->tm_hour-1;
-	hours += 1;
+	int hours = t->tm_hour;
 	if(cest) hours += 1;
-	bits[29] = (hours % 10) & 0x01;
-	bits[30] = ((hours % 10) >> 1) & 0x01;
-	bits[31] = ((hours % 10) >> 2) & 0x01;
-	bits[32] = ((hours % 10) >> 3) & 0x01;
-	bits[33] = ((hours / 10) & 0x01);
-	bits[34] = ((hours / 10) >> 1) & 0x01;
+	for (int i = 0; i < 4; i++) {
+        bits[29 + i] = (hours % 10 >> i) & 1;
+    }
+    for (int i = 0; i < 2; i++) {
+        bits[33 + i] = (hours / 10 >> i) & 1;
+    }
 
-	parity = 0;
-	for (int i = 29; i <= 34; i++) {
-		parity ^= bits[i];
-	}
-	bits[35] = parity;
+	int hour_parity = 0;
+    for (int i = 29; i <= 34; i++) {
+        hour_parity ^= bits[i];
+    }
+    bits[35] = hour_parity;
 
 	int day = t->tm_mday;
-	bits[36] = (day % 10) & 0x01;
-	bits[37] = ((day % 10) >> 1) & 0x01;
-	bits[38] = ((day % 10) >> 2) & 0x01;
-	bits[39] = ((day % 10) >> 3) & 0x01;
-	bits[40] = ((day / 10) & 0x01);
-	bits[41] = ((day / 10) >> 1) & 0x01;
+	for (int i = 0; i < 4; i++) {
+        bits[36 + i] = (day % 10 >> i) & 1;
+    }
+    for (int i = 0; i < 2; i++) {
+        bits[40 + i] = (day / 10 >> i) & 1;
+    }
 
 	int dow = t->tm_wday == 0 ? 7 : t->tm_wday;
 	bits[42] = dow & 0x01;
@@ -180,27 +175,24 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 	bits[44] = (dow >> 2) & 0x01;
 
 	int month = t->tm_mon + 1;
-	bits[45] = (month % 10) & 0x01;
-	bits[46] = ((month % 10) >> 1) & 0x01;
-	bits[47] = ((month % 10) >> 2) & 0x01;
-	bits[48] = ((month % 10) >> 3) & 0x01;
+	for (int i = 0; i < 4; i++) {
+        bits[45 + i] = (month % 10 >> i) & 1;
+    }
 	bits[49] = (month / 10) & 0x01;
 
 	int year = t->tm_year % 100;
-	bits[50] = (year % 10) & 0x01;
-	bits[51] = ((year % 10) >> 1) & 0x01;
-	bits[52] = ((year % 10) >> 2) & 0x01;
-	bits[53] = ((year % 10) >> 3) & 0x01;
-	bits[54] = ((year / 10) & 0x01);
-	bits[55] = ((year / 10) >> 1) & 0x01;
-	bits[56] = ((year / 10) >> 2) & 0x01;
-	bits[57] = ((year / 10) >> 3) & 0x01;
+	for (int i = 0; i < 4; i++) {
+        bits[50 + i] = (month % year >> i) & 1;
+    }
+	for (int i = 0; i < 4; i++) {
+        bits[54 + i] = (year / 10 >> i) & 1;
+    }
 
-	parity = 0;
+	int hour_parity = 0;
 	for (int i = 36; i <= 57; i++) {
-		parity ^= bits[i];
+		hour_parity ^= bits[i];
 	}
-	bits[58] = parity;
+	bits[58] = hour_parity;
 
 	bits[59] = 2;
 }
