@@ -188,11 +188,11 @@ void calculate_dcf77_bits(time_t now, int *bits) {
         bits[54 + i] = (year / 10 >> i) & 1;
     }
 
-	int hour_parity = 0;
+	int year_parity = 0;
 	for (int i = 36; i <= 57; i++) {
-		hour_parity ^= bits[i];
+		year_parity ^= bits[i];
 	}
-	bits[58] = hour_parity;
+	bits[58] = year_parity;
 
 	bits[59] = 2;
 }
