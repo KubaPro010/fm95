@@ -11,8 +11,8 @@ float measure_mpx(MPXPowerMeasurement* mpx, int deviation) {
 
 	float modulation_power = mpx->sample/(mpx->i++);
 
-	if (mpx->i >= mpx->sample_rate) {
-		mpx->sample = modulation_power;
+	if (mpx->i >= mpx->sample_rate*60) {
+		mpx->sample = 0;
 		mpx->i = 0;
 	}	
 	return modulation_power;
