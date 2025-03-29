@@ -518,7 +518,7 @@ int main(int argc, char **argv) {
 			
 			float mpower = measure_mpx(&power, output[i]*75000);
 			if(mpower > 3) {
-				printf("MPX Power over 3 dbr");
+				printf("MPX Power over 3 dbr (%f)\n", mpower);
 			}
 
 			output[i] *= master_volume;
