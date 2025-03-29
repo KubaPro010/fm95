@@ -456,8 +456,6 @@ int main(int argc, char **argv) {
 	float left[BUFFER_SIZE], right[BUFFER_SIZE];
 	float output[BUFFER_SIZE];
 
-	float current_audio_level = 1.0f;
-	int audio_level_adjusted = 0;
 	while (to_run) {
 		if (pa_simple_read(input_device, audio_stereo_input, sizeof(audio_stereo_input), &pulse_error) < 0) {
 			fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
@@ -489,8 +487,8 @@ int main(int argc, char **argv) {
 		}
 
 		for (int i = 0; i < BUFFER_SIZE; i++) {
-			float l_in = left[i]*current_audio_level;
-			float r_in = right[i]*current_audio_level;
+			float l_in = left[i];
+			float r_in = right[i];
 			float current_mpx_in = mpx_in[i];
 			float current_rds_in = rds1_in[i];
 			float current_rds2_in = rds2_in[i];
@@ -503,9 +501,10 @@ int main(int argc, char **argv) {
 
 			float mono = (ready_l + ready_r) / 2.0f;
 			output[i] = mono*MONO_VOLUME;
+			float stereo_carrier = 0.0f;
 			if(stereo) {
 				float stereo = (ready_l - ready_r) / 2.0f;
-				float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8);
+				stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8);
 
 				if(polar_stereo) {
 					output[i] += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
@@ -528,12 +527,8 @@ int main(int argc, char **argv) {
 			
 			float mpower = measure_mpx(&power, output[i]*75000);
 			if(mpower > mpx_power) {
-				current_audio_level *= 0.95f;
-				audio_level_adjusted = 1;
-				if (current_audio_level < 0.1f) current_audio_level = 0.1f;
-			} else if(audio_level_adjusted && mpower < (mpx_power * 0.5)) {
-				current_audio_level /= 0.95f;
-				if (current_audio_level > 1.0f) current_audio_level = 1.0f;
+				output[i] -= (mono/power);
+				output[i] -= ((stereo*stereo_carrier)/mpower);
 			}
 
 			output[i] *= master_volume;
