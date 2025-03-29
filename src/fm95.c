@@ -526,7 +526,7 @@ int main(int argc, char **argv) {
 			if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 
 			float mpower = measure_mpx(&power, output[i] * 75000);
-			if (mpower > mpx_power) {
+			if (fabsf(mpower) > mpx_power) {
 				float excess = mpower - mpx_power;
 				float attenuation_db = excess * 0.5f;
 				float attenuation_linear = dbr_to_deviation(attenuation_db)/75000;
