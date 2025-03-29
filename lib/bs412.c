@@ -7,7 +7,7 @@ void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
 }
 
 float measure_mpx(MPXPowerMeasurement* mpx, int deviation) {
-	mpx->sample += 10*log10f(deviation/19000.0f);
+	mpx->sample += 20*log10f(deviation/19000.0f);
 
 	float modulation_power = mpx->sample/mpx->i;
 
@@ -19,9 +19,9 @@ float measure_mpx(MPXPowerMeasurement* mpx, int deviation) {
 }
 
 float dbr_to_deviation(float dbr) {
-	return 19000.0f * powf(10.0f, dbr / 10.0f);
+	return 19000.0f * powf(10.0f, dbr / 20.0f);
 }
 
 float deviation_to_dbr(float deviation) {
-	return 10*log10f(deviation/19000.0f);
+	return 20*log10f(deviation/19000.0f);
 }
