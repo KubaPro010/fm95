@@ -533,9 +533,6 @@ int main(int argc, char **argv) {
 				float reduction_factor_linear = powf(10.0f, -reduction_factor_db / 20.0f);
 				
 				output[i] *= reduction_factor_linear;
-				
-				mpower = measure_mpx(&power, output[i] * 75000);
-				printf("Reduced overpower: %f -> %f (target: %f)\n", mpower + excess_power, mpower, mpx_power);
 			}
 
 			output[i] *= master_volume;

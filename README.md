@@ -6,7 +6,7 @@ FM95 is a audio processor for FM, it does:
 - Stereo
 - Polar Stereo
 - SCA
-- A little bit of BS412 (MPX Power limit)
+- BS412 (mpx power limiter, simplest implementation ever)
 
 Supports these inputs:
 
