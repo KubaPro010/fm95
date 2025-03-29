@@ -515,10 +515,10 @@ int main(int argc, char **argv) {
 				}
 			}
 			if(rds_on && polar_stereo == 0) {
-				float rds_carrier = get_oscillator_sin_multiplier_ni(&osc, 12);
+				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12);
 				output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
 				if(!sca_on) {
-					float rds2_carrier_66 = get_oscillator_sin_multiplier_ni(&osc, 14);
+					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14);
 					output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
 				}
 			}
