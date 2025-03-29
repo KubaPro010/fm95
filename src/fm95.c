@@ -19,6 +19,7 @@
 #include "../lib/filters.h"
 #include "../lib/fm_modulator.h"
 #include "../lib/optimization.h"
+#include "../lib/bs412.h"
 
 #define DEFAULT_SAMPLE_RATE 192000
 
@@ -428,6 +429,9 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
+	MPXPowerMeasurement power;
+	init_modulation_power_measure(&power, sample_rate);
+
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
 
@@ -511,6 +515,12 @@ int main(int argc, char **argv) {
 			if(rds_on || stereo) advance_oscillator(&osc);
 			if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
 			if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+			
+			float mpower = measure_mpx(&power, output[i]*75000);
+			if(mpower > 3) {
+				printf("MPX Power over 3 dbr");
+			}
+
 			output[i] *= master_volume;
 		}
 
