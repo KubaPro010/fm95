@@ -17,8 +17,10 @@ void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
 float measure_mpx(MPXPowerMeasurement* mpx, int deviation) {
 	mpx->sample += deviation;
 
-	float avg_deviation = mpx->sample/mpx->i;
+	float avg_deviation = (float)mpx->sample / mpx->i;
 	float modulation_power = deviation_to_dbr(avg_deviation);
+
+	mpx->i++;
 
 	if (mpx->i >= mpx->sample_rate*60) {
 		mpx->sample = 0;
