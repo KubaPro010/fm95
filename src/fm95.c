@@ -437,8 +437,9 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
-	MPXPowerMeasurement power;
+	MPXPowerMeasurement power, sound_power;
 	init_modulation_power_measure(&power, sample_rate);
+	init_modulation_power_measure(&sound_power, sample_rate);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
@@ -487,6 +488,9 @@ int main(int argc, char **argv) {
 		}
 
 		for (int i = 0; i < BUFFER_SIZE; i++) {
+			float mpx = 0.0f;
+			float sound = 0.0f;
+
 			float l_in = left[i];
 			float r_in = right[i];
 			float current_mpx_in = mpx_in[i];
@@ -500,39 +504,39 @@ int main(int argc, char **argv) {
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
 			float mono = (ready_l + ready_r) / 2.0f;
-			output[i] = mono*MONO_VOLUME;
+			sound = mono*MONO_VOLUME;
 			float stereo_carrier = 0.0f;
 			if(stereo) {
 				float stereo = (ready_l - ready_r) / 2.0f;
 				stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8);
 
 				if(polar_stereo) {
-					output[i] += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
+					sound += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
 				} else {
 					float pilot = get_oscillator_sin_multiplier_ni(&osc, 4);
-					output[i] += pilot*PILOT_VOLUME +
+					sound += pilot*PILOT_VOLUME +
 						(stereo*stereo_carrier)*STEREO_VOLUME;
 				}
 			}
 			if(rds_on && polar_stereo == 0) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12);
-				output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
+				mpx += (current_rds_in*rds_carrier)*RDS_VOLUME;
 				if(!sca_on) {
 					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14);
-					output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
+					mpx += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
 				}
 			}
-			if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
-			if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+			if(mpx_on) mpx += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
+			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 			
-			float mpower = measure_mpx(&power, output[i]*75000);
+			float mpower = measure_mpx(&power, (sound+mpx)*75000);
+			float spower = measure_mpx(&sound_power, sound*75000);
 			if(mpower > mpx_power) {
-				output[i] -= (mono/2);
-				output[i] -= ((stereo*stereo_carrier)/2);
-				printf("Overpower! %f\n", mpower);
+				float sound_attuenation = (dbr_to_deviation(mpower)-dbr_to_deviation(spower))/75000;
+				sound *= sound_attuenation;
 			}
 
-			output[i] *= master_volume;
+			output[i] = (sound+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);
 		}
 
