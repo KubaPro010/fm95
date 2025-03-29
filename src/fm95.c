@@ -529,6 +529,7 @@ int main(int argc, char **argv) {
 			if(mpower > mpx_power) {
 				output[i] -= (mono/2);
 				output[i] -= ((stereo*stereo_carrier)/2);
+				printf("Overpower! %f\n", mpower);
 			}
 
 			output[i] *= master_volume;
