@@ -531,6 +531,7 @@ int main(int argc, char **argv) {
 				float attenuation_db = excess * 0.5f;
 				float attenuation_linear = dbr_to_deviation(attenuation_db)/75000;
 				output[i] *= attenuation_linear;
+				printf("Overpower! %f*%f/%f\n", mpower, attenuation_linear, mpx_power);
 			}
 
 			output[i] *= master_volume;
