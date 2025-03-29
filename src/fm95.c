@@ -489,8 +489,8 @@ int main(int argc, char **argv) {
 		}
 
 		for (int i = 0; i < BUFFER_SIZE; i++) {
-			float l_in = left[i];
-			float r_in = right[i];
+			float l_in = left[i]*current_audio_level;
+			float r_in = right[i]*current_audio_level;
 			float current_mpx_in = mpx_in[i];
 			float current_rds_in = rds1_in[i];
 			float current_rds2_in = rds2_in[i];
@@ -498,8 +498,8 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
-			ready_l = hard_clip(ready_l*audio_volume*current_audio_level, clipper_threshold);
-			ready_r = hard_clip(ready_r*audio_volume*current_audio_level, clipper_threshold);
+			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
+			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
 			float mono = (ready_l + ready_r) / 2.0f;
 			output[i] = mono*MONO_VOLUME;
