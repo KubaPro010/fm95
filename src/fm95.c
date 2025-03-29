@@ -530,8 +530,10 @@ int main(int argc, char **argv) {
 			if(mpower > mpx_power) {
 				current_audio_level *= 0.95f;
 				audio_level_adjusted = 1;
+				if (current_audio_level < 0.1f) current_audio_level = 0.1f;
 			} else if(audio_level_adjusted && mpower < (mpx_power * 0.5)) {
 				current_audio_level /= 0.95f;
+				if (current_audio_level > 1.0f) current_audio_level = 1.0f;
 			}
 
 			output[i] *= master_volume;
