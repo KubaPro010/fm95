@@ -81,22 +81,22 @@ void show_version() {
 void show_help(char *name) {
 	printf(
 		"Usage: %s\n"
-		"   -s,--stereo     Force Stereo [default: %d]\n"
-		"   -i,--input      Override input device [default: %s]\n"
-		"   -o,--output     Override output device [default: %s]\n"
-		"   -M,--mpx        Override MPX input device [default: %s]\n"
-		"   -r,--rds        Override RDS95 input device [default: %s]\n"
-		"   -C,--sca        Override the SCA input device [default: %s]\n"
-		"   -f,--sca_freq   Override the SCA frequency [default: %.1f]\n"
-		"   -F,--sca_dev    Override the SCA deviation [default: %.2f]\n"
-		"   -L,--sca_clip   Override the SCA clipper threshold [default: %.2f]\n"
-		"   -c,--clipper    Override the clipper threshold [default: %.2f]\n"
-		"   -P,--polar      Force Polar Stereo (does not take effect with -m%s)\n"
-		"   -R,--preemp     Override preemphasis [default: %.2f µs]\n"
-		"   -V,--calibrate  Enable Calibration mode [default: off]\n"
+		"   -s,--stereo		Force Stereo [default: %d]\n"
+		"   -i,--input		Override input device [default: %s]\n"
+		"   -o,--output		Override output device [default: %s]\n"
+		"   -M,--mpx		Override MPX input device [default: %s]\n"
+		"   -r,--rds		Override RDS95 input device [default: %s]\n"
+		"   -C,--sca		Override the SCA input device [default: %s]\n"
+		"   -f,--sca_freq	Override the SCA frequency [default: %.1f]\n"
+		"   -F,--sca_dev	Override the SCA deviation [default: %.2f]\n"
+		"   -L,--sca_clip	Override the SCA clipper threshold [default: %.2f]\n"
+		"   -c,--clipper	Override the clipper threshold [default: %.2f]\n"
+		"   -P,--polar		Force Polar Stereo (does not take effect with -m%s)\n"
+		"   -R,--preemp		Override preemphasis [default: %.2f µs]\n"
+		"   -V,--calibrate	Enable Calibration mode [default: off]\n"
 		"   -p,--power		Set the MPX power [default: %.1f]\n"
-		"   -A,--master_vol Set master volume [default: %.3f]\n"
-		"   -v,--audio_vol  Set audio volume [default: %.3f]\n"
+		"   -A,--master_vol	Set master volume [default: %.3f]\n"
+		"   -v,--audio_vol	Set audio volume [default: %.3f]\n"
 		,name
 		,DEFAULT_STEREO
 		,INPUT_DEVICE
@@ -455,6 +455,9 @@ int main(int argc, char **argv) {
 	float sca_in[BUFFER_SIZE] = {0};
 	float left[BUFFER_SIZE], right[BUFFER_SIZE];
 	float output[BUFFER_SIZE];
+
+	float current_audio_level = 1.0f;
+	int audio_level_adjusted = 0;
 	while (to_run) {
 		if (pa_simple_read(input_device, audio_stereo_input, sizeof(audio_stereo_input), &pulse_error) < 0) {
 			fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
@@ -484,9 +487,6 @@ int main(int argc, char **argv) {
 				break;
 			}
 		}
-
-		float current_audio_level = 1.0f;
-		int audio_level_adjusted = 0;
 
 		for (int i = 0; i < BUFFER_SIZE; i++) {
 			float l_in = left[i];
