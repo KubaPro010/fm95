@@ -8,12 +8,9 @@ void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
 
 float measure_mpx(MPXPowerMeasurement* mpx, int deviation) {
 	mpx->sample += 10*log10f(deviation/19000.0f);
-	
-	float div = mpx->i;
-	if(div == 0) div = 1;
-	float modulation_power = mpx->sample/div;
 
-	mpx->i++;
+	float modulation_power = mpx->sample/(mpx->i++);
+
 	if (mpx->i >= mpx->sample_rate) {
 		mpx->sample = modulation_power;
 		mpx->i = 0;
