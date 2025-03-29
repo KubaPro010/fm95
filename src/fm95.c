@@ -527,15 +527,10 @@ int main(int argc, char **argv) {
 
 			float mpower = measure_mpx(&power, output[i] * 75000);
 			if (mpower > mpx_power) {
-				float excess_power = mpower - mpx_power;
-				float reduction_factor_db = excess_power;
-
-				float reduction_factor_linear = powf(10.0f, -reduction_factor_db / 20.0f);
-
-				output[i] *= reduction_factor_linear;
-
-				mpower = measure_mpx(&power, output[i] * 75000);
-				printf("Reduced overpower: %f -> %f (target: %f)\n", mpower + excess_power, mpower, mpx_power);
+				float excess = mpower - mpx_power;
+				float attenuation_db = excess * 0.5f;
+				float attenuation_linear = dbr_to_deviation(attenuation_db)/75000;
+				output[i] *= attenuation_linear;
 			}
 
 			output[i] *= master_volume;
