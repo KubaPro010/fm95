@@ -22,6 +22,6 @@ float dbr_to_deviation(float dbr) {
 	return 19000.0f * powf(10.0f, dbr / 10.0f);
 }
 
-float deviation_to_dbr(float dbr) {
+float deviation_to_dbr(float deviation) {
 	return 10*log10f(deviation/19000.0f);
 }
