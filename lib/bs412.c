@@ -18,6 +18,6 @@ float measure_mpx(MPXPowerMeasurement* mpx, int deviation) {
 
 		return modulation_power;
 	} else {
-		return mpx->sample/mpx->i;
+		return NAN;
 	}
 }
