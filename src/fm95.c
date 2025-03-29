@@ -527,8 +527,8 @@ int main(int argc, char **argv) {
 			
 			float mpower = measure_mpx(&power, output[i]*75000);
 			if(mpower > mpx_power) {
-				output[i] -= (mono/mpower);
-				output[i] -= ((stereo*stereo_carrier)/mpower);
+				output[i] -= (mono/2);
+				output[i] -= ((stereo*stereo_carrier)/2);
 			}
 
 			output[i] *= master_volume;
