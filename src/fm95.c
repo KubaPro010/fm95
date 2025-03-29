@@ -437,9 +437,8 @@ int main(int argc, char **argv) {
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
 
-	MPXPowerMeasurement power, sound_power;
+	MPXPowerMeasurement power;
 	init_modulation_power_measure(&power, sample_rate);
-	init_modulation_power_measure(&sound_power, sample_rate);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
@@ -530,11 +529,7 @@ int main(int argc, char **argv) {
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 			
 			float mpower = measure_mpx(&power, (sound+mpx)*75000);
-			float spower = measure_mpx(&sound_power, sound*75000);
-			if(mpower > mpx_power) {
-				float sound_attuenation = (dbr_to_deviation(mpower)-dbr_to_deviation(spower))/75000;
-				sound *= sound_attuenation;
-			}
+			sound *= dbr_to_deviation(mpower/mpx_power)/75000/(sound/2);
 
 			output[i] = (sound+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);
