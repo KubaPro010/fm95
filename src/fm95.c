@@ -517,7 +517,7 @@ int main(int argc, char **argv) {
 			if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 			
 			float mpower = measure_mpx(&power, output[i]*75000);
-			if(mpower > 3) {
+			if(mpower > 3 && power.i == power.sample_rate) {
 				printf("MPX Power over 3 dbr (%f)\n", mpower);
 			}
 
