@@ -524,10 +524,18 @@ int main(int argc, char **argv) {
 			}
 			if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
 			if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
-			
-			float mpower = measure_mpx(&power, output[i]*75000);
-			if(mpower > mpx_power) {
-				printf("Overpower! %f/%f\n", mpower, mpx_power);
+
+			float mpower = measure_mpx(&power, output[i] * 75000);
+			if (mpower > mpx_power) {
+				float excess_power = mpower - mpx_power;
+				float reduction_factor_db = excess_power;
+
+				float reduction_factor_linear = powf(10.0f, -reduction_factor_db / 20.0f);
+
+				output[i] *= reduction_factor_linear;
+
+				mpower = measure_mpx(&power, output[i] * 75000);
+				printf("Reduced overpower: %f -> %f (target: %f)\n", mpower + excess_power, mpower, mpx_power);
 			}
 
 			output[i] *= master_volume;
