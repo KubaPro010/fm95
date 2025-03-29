@@ -530,7 +530,7 @@ int main(int argc, char **argv) {
 			if(mpower > mpx_power) {
 				current_audio_level *= 0.95f;
 				audio_level_adjusted = 1;
-			} else if(audio_level_adjusted && mpower < (mpx_power * 0.9)) {
+			} else if(audio_level_adjusted && mpower < (mpx_power * 0.5)) {
 				current_audio_level /= 0.95f;
 			}
 
