@@ -11,8 +11,12 @@ float measure_mpx(MPXPowerMeasurement* mpx, int deviation) {
 	mpx->i++;
 	float modulation_power = mpx->sample/mpx->i;
 	if (mpx->i >= mpx->sample_rate) {
-		mpx->sample = 0.0f;
+		mpx->sample = modulation_power;
 		mpx->i = 0;
 	}	
 	return modulation_power;
+}
+
+float dbr_to_deviation(float dbr) {
+	return 19000.0f * powf(10.0f, dbr / 10.0f);
 }

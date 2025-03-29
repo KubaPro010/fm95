@@ -11,3 +11,5 @@ typedef struct
 void init_modulation_power_measure(MPXPowerMeasurement *mpx, int sample_rate);
 
 float measure_mpx(MPXPowerMeasurement *mpx, int deviation);
+
+float dbr_to_deviation(float dbr);
