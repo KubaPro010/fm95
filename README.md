@@ -6,6 +6,7 @@ FM95 is a audio processor for FM, it does:
 - Stereo
 - Polar Stereo
 - SCA
+- A little bit of BS412 (MPX Power limit)
 
 Supports these inputs:
 
@@ -33,7 +34,7 @@ Done!
 
 ## CPU Usage?
 
-Should run completly fine on a pi 5, fine on a pi 3b
+Should run completly fine on a pi 5, fine on a pi 3b (30% cpu)
 
 ## Other Apps
 
