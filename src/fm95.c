@@ -13,6 +13,7 @@
 #define DEFAULT_SCA_DEVIATION 7000.0f
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
+#define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
 
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
@@ -93,6 +94,7 @@ void show_help(char *name) {
 		"   -P,--polar      Force Polar Stereo (does not take effect with -m%s)\n"
 		"   -R,--preemp     Override preemphasis [default: %.2f µs]\n"
 		"   -V,--calibrate  Enable Calibration mode [default: off]\n"
+		"   -p,--power		Set the MPX power [default: %.1f]\n"
 		"   -A,--master_vol Set master volume [default: %.3f]\n"
 		"   -v,--audio_vol  Set audio volume [default: %.3f]\n"
 		,name
@@ -120,6 +122,7 @@ void show_help(char *name) {
 		,DEFAULT_CLIPPER_THRESHOLD
 		,(DEFAULT_STEREO_POLAR == 1) ? ", default" : ""
 		,DEFAULT_PREEMPHASIS_TAU/0.000001
+		,DEFAULT_MPX_POWER
 		,DEFAULT_MASTER_VOLUME
 		,DEFAULT_AUDIO_VOLUME
 	);
@@ -163,6 +166,7 @@ int main(int argc, char **argv) {
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
 	int calibration_mode = 0;
+	float mpx_power = DEFAULT_MPX_POWER;
 	float master_volume = DEFAULT_MASTER_VOLUME;
 	float audio_volume = DEFAULT_AUDIO_VOLUME;
 
@@ -170,7 +174,7 @@ int main(int argc, char **argv) {
 
 	// #region Parse Arguments
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:C:f:F:L:c:P::R:VA:v:h";
+	const char	*short_opt = "s::i:o:M:r:C:f:F:L:c:P::R:Vp:A:v:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -186,6 +190,7 @@ int main(int argc, char **argv) {
 		{"polar",       optional_argument,       NULL, 'P'},
 		{"preemp",      required_argument,       NULL, 'R'},
 		{"calibrate",     no_argument,       NULL, 'V'},
+		{"power",     required_argument,       NULL, 'p'},
 		{"master_vol",     required_argument,       NULL, 'A'},
 		{"audio_vol",     required_argument,       NULL, 'v'},
 
@@ -241,6 +246,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'V': // Calibration
 				calibration_mode = 1;
+				break;
+			case 'p': // Power
+				mpx_power = strtof(optarg, NULL);
 				break;
 			case 'A': // Master vol
 				master_volume = strtof(optarg, NULL);
@@ -477,6 +485,9 @@ int main(int argc, char **argv) {
 			}
 		}
 
+		float current_audio_level = 1.0f;
+		int audio_level_adjusted = 0;
+
 		for (int i = 0; i < BUFFER_SIZE; i++) {
 			float l_in = left[i];
 			float r_in = right[i];
@@ -487,8 +498,8 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
-			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
-			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
+			ready_l = hard_clip(ready_l*audio_volume*current_audio_level, clipper_threshold);
+			ready_r = hard_clip(ready_r*audio_volume*current_audio_level, clipper_threshold);
 
 			float mono = (ready_l + ready_r) / 2.0f;
 			output[i] = mono*MONO_VOLUME;
@@ -512,16 +523,19 @@ int main(int argc, char **argv) {
 					output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
 				}
 			}
-			if(rds_on || stereo) advance_oscillator(&osc);
 			if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
 			if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 			
 			float mpower = measure_mpx(&power, output[i]*75000);
-			if(mpower > 3) {
-				printf("MPX Power (%f)\n", mpower);
+			if(mpower > mpx_power) {
+				current_audio_level *= 0.95f;
+				audio_level_adjusted = 1;
+			} else if(audio_level_adjusted && mpower < (mpx_power * 0.9)) {
+				current_audio_level /= 0.95f;
 			}
 
 			output[i] *= master_volume;
+			if(rds_on || stereo) advance_oscillator(&osc);
 		}
 
 		if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {

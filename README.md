@@ -38,3 +38,7 @@ Should run completly fine on a pi 5, fine on a pi 3b
 ## Other Apps
 
 FM95 also includes some other apps, such as chimer95 which generates GTS tones each half hour, and dcf95 which creates a DCF77 compatible signal
+
+## FM95 Calibration
+
+FM95 features a calibration mode `-V` which instead of outputing the MPX just outputs a 400 hz tone, use that tone to match the deviation on your transmitter
