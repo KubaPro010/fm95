@@ -487,6 +487,9 @@ int main(int argc, char **argv) {
 		}
 
 		for (int i = 0; i < BUFFER_SIZE; i++) {
+			float mpx = 0.0f;
+			float audio = 0.0f;
+
 			float l_in = left[i];
 			float r_in = right[i];
 			float current_mpx_in = mpx_in[i];
@@ -500,42 +503,42 @@ int main(int argc, char **argv) {
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
 			float mono = (ready_l + ready_r) / 2.0f;
-			output[i] = mono*MONO_VOLUME;
+			audio = mono*MONO_VOLUME;
 			float stereo_carrier = 0.0f;
 			if(stereo) {
 				float stereo = (ready_l - ready_r) / 2.0f;
 				stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8);
 
 				if(polar_stereo) {
-					output[i] += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
+					audio += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
 				} else {
 					float pilot = get_oscillator_sin_multiplier_ni(&osc, 4);
-					output[i] += pilot*PILOT_VOLUME +
-						(stereo*stereo_carrier)*STEREO_VOLUME;
+					mpx += pilot*PILOT_VOLUME;
+					audio += (stereo*stereo_carrier)*STEREO_VOLUME;
 				}
 			}
 			if(rds_on && polar_stereo == 0) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12);
-				output[i] += (current_rds_in*rds_carrier)*RDS_VOLUME;
+				mpx += (current_rds_in*rds_carrier)*RDS_VOLUME;
 				if(!sca_on) {
 					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14);
-					output[i] += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
+					mpx += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
 				}
 			}
-			if(mpx_on) output[i] += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
-			if(sca_on) output[i] += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+			if(mpx_on) mpx += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
+			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 
-			float mpower = measure_mpx(&power, output[i] * 75000);
+			float mpower = measure_mpx(&power, (audio+mpx) * 75000);
 			if (mpower > mpx_power) {
 				float excess_power = mpower - mpx_power;
 				float reduction_factor_db = excess_power;
 				
 				float reduction_factor_linear = powf(10.0f, -reduction_factor_db / 20.0f);
 				
-				output[i] *= reduction_factor_linear;
+				audio *= reduction_factor_linear;
 			}
 
-			output[i] *= master_volume;
+			output[i] = (audio+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);
 		}
 
