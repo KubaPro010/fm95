@@ -23,8 +23,8 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
 	mpx->i++;
 
 	if (mpx->i >= mpx->sample_rate*60) {
-		mpx->sample = 0;
-		mpx->i = 1;
+		mpx->sample = avg_deviation;
+		mpx->i = 2;
 	}	
 	return modulation_power;
 }
