@@ -14,7 +14,7 @@
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
 #define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
-#define DEFAULT_MPX_DEVIATION 75000 // for BS412
+#define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
 
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
