@@ -545,11 +545,6 @@ int main(int argc, char **argv) {
 				float excess_power = mpower - mpx_power;
 				audio *= powf(10.0f, -excess_power / 20.0f);
 			}
-			float mpower_peak = deviation_to_dbr((audio+mpx) * mpx_deviation);
-			if (mpower_peak > (mpx_power+0.1f)) { // According to the FM22 standard (https://cept.org/documents/fm-22/16691/fm22-14-14_fm-broadcast-deviation-and-mpx-measurements) the peak power should never be more than 0.1 dB above the designated power
-				float excess_power = mpower_peak - (mpx_power+0.1f);
-				audio *= powf(10.0f, -excess_power / 20.0f);
-			}
 
 			output[i] = (audio+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);
