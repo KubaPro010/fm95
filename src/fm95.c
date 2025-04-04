@@ -14,6 +14,7 @@
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
 #define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
+#define DEFAULT_MPX_DEVIATION 75000 // for BS412
 
 #include "../lib/constants.h"
 #include "../lib/oscillator.h"
@@ -95,6 +96,7 @@ void show_help(char *name) {
 		"   -R,--preemp		Override preemphasis [default: %.2f µs]\n"
 		"   -V,--calibrate	Enable Calibration mode [default: off]\n"
 		"   -p,--power		Set the MPX power [default: %.1f]\n"
+		"   -d,--mpx_dev	Set the MPX deviation [default: %.1f]\n"
 		"   -A,--master_vol	Set master volume [default: %.3f]\n"
 		"   -v,--audio_vol	Set audio volume [default: %.3f]\n"
 		,name
@@ -123,6 +125,7 @@ void show_help(char *name) {
 		,(DEFAULT_STEREO_POLAR == 1) ? ", default" : ""
 		,DEFAULT_PREEMPHASIS_TAU/0.000001
 		,DEFAULT_MPX_POWER
+		,DEFAULT_MPX_DEVIATION
 		,DEFAULT_MASTER_VOLUME
 		,DEFAULT_AUDIO_VOLUME
 	);
@@ -167,6 +170,7 @@ int main(int argc, char **argv) {
 
 	int calibration_mode = 0;
 	float mpx_power = DEFAULT_MPX_POWER;
+	float mpx_deviation = DEFAULT_MPX_DEVIATION;
 	float master_volume = DEFAULT_MASTER_VOLUME;
 	float audio_volume = DEFAULT_AUDIO_VOLUME;
 
@@ -174,7 +178,7 @@ int main(int argc, char **argv) {
 
 	// #region Parse Arguments
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:C:f:F:L:c:P::R:Vp:A:v:h";
+	const char	*short_opt = "s::i:o:M:r:C:f:F:L:c:P::R:Vp:d:A:v:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -191,6 +195,7 @@ int main(int argc, char **argv) {
 		{"preemp",      required_argument,       NULL, 'R'},
 		{"calibrate",     no_argument,       NULL, 'V'},
 		{"power",     required_argument,       NULL, 'p'},
+		{"mpx_dev",     required_argument,       NULL, 'd'},
 		{"master_vol",     required_argument,       NULL, 'A'},
 		{"audio_vol",     required_argument,       NULL, 'v'},
 
@@ -249,6 +254,13 @@ int main(int argc, char **argv) {
 				break;
 			case 'p': // Power
 				mpx_power = strtof(optarg, NULL);
+				break;
+			case 'd': // MPX deviation
+				mpx_deviation = strtof(optarg, NULL);
+				if (mpx_deviation < 38000) {
+					fprintf(stderr, "Warning: MPX deviation cannot be lower than 38000. Setting to 38000.\n");
+					mpx_deviation = 38000;
+				}
 				break;
 			case 'A': // Master vol
 				master_volume = strtof(optarg, NULL);
@@ -528,14 +540,15 @@ int main(int argc, char **argv) {
 			if(mpx_on) mpx += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 
-			float mpower = measure_mpx(&power, (audio+mpx) * 75000);
+			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation);
 			if (mpower > mpx_power) {
 				float excess_power = mpower - mpx_power;
-				float reduction_factor_db = excess_power;
-				
-				float reduction_factor_linear = powf(10.0f, -reduction_factor_db / 20.0f);
-				
-				audio *= reduction_factor_linear;
+				audio *= powf(10.0f, -excess_power / 20.0f);
+			}
+			float mpower_peak = deviation_to_dbr((audio+mpx) * mpx_deviation);
+			if (mpower_peak > (mpx_power+0.1f)) { // According to the FM22 standard (https://cept.org/documents/fm-22/16691/fm22-14-14_fm-broadcast-deviation-and-mpx-measurements) the peak power should never be more than 0.1 dB above the designated power
+				float excess_power = mpower_peak - (mpx_power+0.1f);
+				audio *= powf(10.0f, -excess_power / 20.0f);
 			}
 
 			output[i] = (audio+mpx)*master_volume;
