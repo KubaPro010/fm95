@@ -182,8 +182,8 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 
 	int year = t->tm_year % 100;
 	for (int i = 0; i < 4; i++) {
-        bits[50 + i] = (month % year >> i) & 1;
-    }
+    	bits[50 + i] = (year % 10 >> i) & 1;
+	}
 	for (int i = 0; i < 4; i++) {
         bits[54 + i] = (year / 10 >> i) & 1;
     }
