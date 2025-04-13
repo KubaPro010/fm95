@@ -41,9 +41,9 @@
 
 #define MONO_VOLUME 0.45f
 #define PILOT_VOLUME 0.09f
-#define STEREO_VOLUME 0.45f
-#define RDS_VOLUME 0.075f
-#define RDS2_VOLUME 0.0675f
+#define STEREO_VOLUME 0.3f
+#define RDS_VOLUME 0.06f
+#define RDS2_VOLUME 0.045f
 #define SCA_VOLUME 0.1f
 #define MPX_VOLUME 1.0f
 #define MPX_CLIPPER_THRESHOLD 1.0f
