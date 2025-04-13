@@ -543,7 +543,7 @@ int main(int argc, char **argv) {
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation);
 			if (mpower > mpx_power) {
 				float excess_power = mpower - mpx_power;
-				audio *= powf(10.0f, -excess_power / 20.0f);
+				audio *= (dbr_to_deviation(-excess_power)/mpx_deviation);
 			}
 
 			output[i] = (audio+mpx)*master_volume;
