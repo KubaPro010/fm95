@@ -1,5 +1,4 @@
 #pragma once
-#include "debug.h"
 #include <math.h>
 
 typedef struct
