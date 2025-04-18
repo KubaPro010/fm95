@@ -21,9 +21,6 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
     float avg_deviation = sqrtf(mpx->sample / mpx->i);
     float modulation_power = deviation_to_dbr(avg_deviation);
 
-    if (mpx->i == 1 || (mpx->i % mpx->sample_rate) == 0) {
-    }
-
     if (mpx->i >= mpx->sample_rate * 60) {
         mpx->sample = 0;
         mpx->i = 0;
