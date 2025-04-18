@@ -451,6 +451,8 @@ int main(int argc, char **argv) {
 
 	MPXPowerMeasurement power;
 	init_modulation_power_measure(&power, sample_rate);
+    MPXPowerMeasurement mpx_only_power;
+    init_modulation_power_measure(&mpx_only_power, sample_rate);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
@@ -540,9 +542,10 @@ int main(int argc, char **argv) {
 			if(mpx_on) mpx += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 
+            float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation);
 			if (mpower > mpx_power) {
-				float excess_power = mpower - mpx_power;
+				float excess_power = mpower - mpx_power - mpx_only_power;
 				audio *= (dbr_to_deviation(-excess_power)/mpx_deviation);
 			}
 

@@ -18,7 +18,7 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
     mpx->sample += deviation * deviation; // rmS
     mpx->i++;
 
-    float avg_deviation = sqrtf(mpx->sample / mpx->i);
+    float avg_deviation = sqrtf(mpx->sample / mpx->i); // RMs
     float modulation_power = deviation_to_dbr(avg_deviation);
 
     if (mpx->i >= mpx->sample_rate * 60) {
