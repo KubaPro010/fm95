@@ -1,11 +1,11 @@
 #include "bs412.h"
 
 float dbr_to_deviation(float dbr) {
-	return 19000.0f * powf(10.0f, dbr / 20.0f);
+	return (19000.0f * 0.70710678f) * powf(10.0f, dbr / 20.0f);
 }
 
 float deviation_to_dbr(float deviation) {
-	return 20 * log10f((deviation + 1e-6f) / 19000.0f);
+	return 20 * log10f((deviation + 1e-6f) / (19000.0f * 0.70710678f));
 }
 
 void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
@@ -15,16 +15,19 @@ void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
 }
 
 float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
-	mpx->sample += deviation;
+    mpx->sample += deviation * deviation;
+    mpx->i++;
 
-	float avg_deviation = (float)mpx->sample / mpx->i;
-	float modulation_power = deviation_to_dbr(avg_deviation);
+    float avg_deviation = sqrtf(mpx->sample / mpx->i);
+    float modulation_power = deviation_to_dbr(avg_deviation);
 
-	mpx->i++;
+    if (mpx->i == 1 || (mpx->i % mpx->sample_rate) == 0) {
+    }
 
-	if (mpx->i >= mpx->sample_rate*60) {
-		mpx->sample = avg_deviation;
-		mpx->i = 2;
-	}	
-	return modulation_power;
+    if (mpx->i >= mpx->sample_rate * 60) {
+        mpx->sample = 0;
+        mpx->i = 0;
+    }
+
+    return modulation_power;
 }

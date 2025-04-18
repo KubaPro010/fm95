@@ -1,11 +1,12 @@
 #pragma once
+#include "debug.h"
 #include <math.h>
 
 typedef struct
 {
     int i;
     int sample_rate;
-    float sample;
+    double sample;
 } MPXPowerMeasurement;
 
 float dbr_to_deviation(float dbr);
