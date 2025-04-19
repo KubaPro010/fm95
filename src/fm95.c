@@ -21,6 +21,7 @@
 #include "../lib/fm_modulator.h"
 #include "../lib/optimization.h"
 #include "../lib/bs412.h"
+#include "../lib/gain_control.h"
 
 #define DEFAULT_SAMPLE_RATE 192000
 
@@ -453,6 +454,10 @@ int main(int argc, char **argv) {
 	MPXPowerMeasurement mpx_only_power;
 	init_modulation_power_measure(&mpx_only_power, sample_rate);
 
+	AGC agc;
+	void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime);
+	initAGC(&agc, sample_rate, 0.707f, 0.25f, 2.5f, 0.01f, 0.4f);
+
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
 
@@ -512,6 +517,7 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
+			ready_l = process_agc_stereo(&agc, ready_l, ready_r, &ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 

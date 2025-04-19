@@ -3,9 +3,9 @@
 
 typedef struct
 {
-    int i;
-    int sample_rate;
-    double sample;
+	int i;
+	int sample_rate;
+	double sample;
 } MPXPowerMeasurement;
 
 float dbr_to_deviation(float dbr);

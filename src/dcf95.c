@@ -133,41 +133,41 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 	bits[20] = 1;
 
 	int minutes = t->tm_min;
-    for (int i = 0; i < 4; i++) {
-        bits[21 + i] = (minutes % 10 >> i) & 1;
-    }
-    for (int i = 0; i < 3; i++) {
-        bits[25 + i] = (minutes / 10 >> i) & 1;
-    }
+	for (int i = 0; i < 4; i++) {
+		bits[21 + i] = (minutes % 10 >> i) & 1;
+	}
+	for (int i = 0; i < 3; i++) {
+		bits[25 + i] = (minutes / 10 >> i) & 1;
+	}
 
-    int minute_parity = 0;
-    for (int i = 21; i <= 27; i++) {
-        minute_parity ^= bits[i];
-    }
-    bits[28] = minute_parity;
+	int minute_parity = 0;
+	for (int i = 21; i <= 27; i++) {
+		minute_parity ^= bits[i];
+	}
+	bits[28] = minute_parity;
 
 	int hours = t->tm_hour;
 	if(cest) hours += 1;
 	for (int i = 0; i < 4; i++) {
-        bits[29 + i] = (hours % 10 >> i) & 1;
-    }
-    for (int i = 0; i < 2; i++) {
-        bits[33 + i] = (hours / 10 >> i) & 1;
-    }
+		bits[29 + i] = (hours % 10 >> i) & 1;
+	}
+	for (int i = 0; i < 2; i++) {
+		bits[33 + i] = (hours / 10 >> i) & 1;
+	}
 
 	int hour_parity = 0;
-    for (int i = 29; i <= 34; i++) {
-        hour_parity ^= bits[i];
-    }
-    bits[35] = hour_parity;
+	for (int i = 29; i <= 34; i++) {
+		hour_parity ^= bits[i];
+	}
+	bits[35] = hour_parity;
 
 	int day = t->tm_mday;
 	for (int i = 0; i < 4; i++) {
-        bits[36 + i] = (day % 10 >> i) & 1;
-    }
-    for (int i = 0; i < 2; i++) {
-        bits[40 + i] = (day / 10 >> i) & 1;
-    }
+		bits[36 + i] = (day % 10 >> i) & 1;
+	}
+	for (int i = 0; i < 2; i++) {
+		bits[40 + i] = (day / 10 >> i) & 1;
+	}
 
 	int dow = t->tm_wday == 0 ? 7 : t->tm_wday;
 	bits[42] = dow & 0x01;
@@ -176,17 +176,17 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 
 	int month = t->tm_mon + 1;
 	for (int i = 0; i < 4; i++) {
-        bits[45 + i] = (month % 10 >> i) & 1;
-    }
+		bits[45 + i] = (month % 10 >> i) & 1;
+	}
 	bits[49] = (month / 10) & 0x01;
 
 	int year = t->tm_year % 100;
 	for (int i = 0; i < 4; i++) {
-    	bits[50 + i] = (year % 10 >> i) & 1;
+		bits[50 + i] = (year % 10 >> i) & 1;
 	}
 	for (int i = 0; i < 4; i++) {
-        bits[54 + i] = (year / 10 >> i) & 1;
-    }
+		bits[54 + i] = (year / 10 >> i) & 1;
+	}
 
 	int year_parity = 0;
 	for (int i = 36; i <= 57; i++) {
