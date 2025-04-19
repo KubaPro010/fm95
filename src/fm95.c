@@ -455,7 +455,8 @@ int main(int argc, char **argv) {
 	init_modulation_power_measure(&mpx_only_power, sample_rate);
 
 	AGC agc;
-	initAGC(&agc, sample_rate, 0.625f, 0.25f, 1.0f, 0.015f, 0.4f);
+	//            fs          target   min    max   attack  relese
+	initAGC(&agc, sample_rate, 0.625f, 0.0f, 1.25f, 0.025f, 0.25f);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
