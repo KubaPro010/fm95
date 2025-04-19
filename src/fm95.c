@@ -16,7 +16,6 @@
 #define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
 #define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
 
-#include "../lib/constants.h"
 #include "../lib/oscillator.h"
 #include "../lib/filters.h"
 #include "../lib/fm_modulator.h"
@@ -543,9 +542,9 @@ int main(int argc, char **argv) {
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
-			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation);
+			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation) - mpx_only;
 			if (mpower > mpx_power) {
-				float excess_power = mpower - mpx_power - mpx_only;
+				float excess_power = mpower - mpx_power;
 				audio *= (dbr_to_deviation(-excess_power)/mpx_deviation);
 			}
 
