@@ -456,7 +456,7 @@ int main(int argc, char **argv) {
 
 	AGC agc;
 	void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime);
-	initAGC(&agc, sample_rate, 0.707f, 0.25f, 2.5f, 0.01f, 0.4f);
+	initAGC(&agc, sample_rate, 0.625f, 0.25f, 2.5f, 0.015f, 0.4f);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
