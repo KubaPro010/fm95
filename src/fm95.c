@@ -549,6 +549,8 @@ int main(int argc, char **argv) {
 				audio *= (dbr_to_deviation(-excess_power)/mpx_deviation);
 			}
 
+			audio = hard_clip(audio, 1-mpx);
+
 			output[i] = (audio+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);
 		}
