@@ -11,26 +11,17 @@ int init_PulseInputDevice(PulseInputDevice* dev, int sample_rate, int channels, 
 	dev->sample_spec = sample_spec;
 	dev->buffer_attr = new_buffer_attr;
 
-	char* new_app_name = strdup(app_name);
-	char* new_stream_name = strdup(stream_name);
-	char* new_device = strdup(device);
-	if (!(dev->app_name = strdup(app_name)) || !(dev->stream_name = strdup(stream_name)) || !(dev->device = strdup(device))) {
-	    free(dev->app_name);
-	    free(dev->stream_name);
-	    free(dev->device);
-	    return -2;
-	}
-	dev->app_name = new_app_name;
-	dev->stream_name = new_stream_name;
-	dev->device = new_device;
+	dev->app_name = strdup(app_name);
+	dev->stream_name = strdup(stream_name);
+	dev->device = strdup(device);
 
 	int error;
 	dev->dev = pa_simple_new(
 		NULL,
-		new_app_name,
+		app_name,
 		PA_STREAM_RECORD,
-		new_device,
-		new_stream_name,
+		device,
+		stream_name,
 		&sample_spec,
 		NULL,
 		&new_buffer_attr,
@@ -67,26 +58,17 @@ int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels
 	dev->sample_spec = sample_spec;
 	dev->buffer_attr = new_buffer_attr;
 
-	char* new_app_name = strdup(app_name);
-	char* new_stream_name = strdup(stream_name);
-	char* new_device = strdup(device);
-	if (!(dev->app_name = strdup(app_name)) || !(dev->stream_name = strdup(stream_name)) || !(dev->device = strdup(device))) {
-	    free(dev->app_name);
-	    free(dev->stream_name);
-	    free(dev->device);
-	    return -2;
-	}
-	dev->app_name = new_app_name;
-	dev->stream_name = new_stream_name;
-	dev->device = new_device;
+	dev->app_name = strdup(app_name);
+	dev->stream_name = strdup(stream_name);
+	dev->device = strdup(device);
 
 	int error;
 	dev->dev = pa_simple_new(
 		NULL,
-		new_app_name,
+		app_name,
 		PA_STREAM_PLAYBACK,
-		new_device,
-		new_stream_name,
+		device,
+		stream_name,
 		&sample_spec,
 		NULL,
 		&new_buffer_attr,
