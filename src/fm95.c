@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
 	if(rds_on) {
 		printf("Connecting to RDS95 device... (%s)\n", audio_rds_device);
 
-		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, 1, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr);
+		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, 2, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
 			free_PulseInputDevice(&input_device);
@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 2, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr);
+	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
 		free_PulseInputDevice(&input_device);
