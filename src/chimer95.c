@@ -20,8 +20,7 @@
 
 #define BUFFER_SIZE 256
 
-#include <pulse/simple.h>
-#include <pulse/error.h>
+#include "../io/audio.h"
 
 #define DEFAULT_MASTER_VOLUME 0.5f
 #define DEFAULT_OFFSET 0
@@ -53,13 +52,13 @@ void show_version() {
 
 void show_help(char *name) {
 	printf(
-		"Usage: %s\n"
-		"   -o,--output     Override output device [default: %s]\n"
-		"   -F,--frequency  GTS Frequency [default: %.1f Hz]\n"
-		"   -s,--samplerate Output Samplerate [default: %d]\n"
-		"   -v,--volume     Output volume [default: %.2f]\n"
-		"   -t,--offset     GTS Offset [default: %d s]\n"
-		"   -T,--test       Enable test mode (plays full hour signal at end of every minute)\n"
+		"Usage:\t%s\n"
+		"\t-o,--output\tOverride output device [default: %s]\n"
+		"\t-F,--frequency\tGTS Frequency [default: %.1f Hz]\n"
+		"\t-s,--samplerate\tOutput Samplerate [default: %d]\n"
+		"\t-v,--volume\tOutput volume [default: %.2f]\n"
+		"\t-t,--offset\tGTS Offset [default: %d s]\n"
+		"\t-T,--test\tEnable test mode (plays full hour signal at end of every minute)\n"
 		,name
 		,OUTPUT_DEVICE
 		,DEFAULT_FREQ
@@ -179,7 +178,8 @@ int check_time_for_sequence(int test_mode, int offset) {
 int main(int argc, char **argv) {
 	show_version();
 
-	pa_simple *output_device;
+	PulseOutputDevice output_device;
+
 	char audio_output_device[64] = OUTPUT_DEVICE;
 	float master_volume = DEFAULT_MASTER_VOLUME;
 	float freq = DEFAULT_FREQ;
@@ -237,12 +237,6 @@ int main(int argc, char **argv) {
 	printf("  Test mode: %s\n", test_mode ? "Enabled" : "Disabled");
 
 	// Setup PulseAudio
-	pa_sample_spec mono_format = {
-		.format = PA_SAMPLE_FLOAT32NE,
-		.channels = 1,
-		.rate = sample_rate
-	};
-
 	pa_buffer_attr output_buffer_atr = {
 		.maxlength = buffer_maxlength,
 		.tlength = buffer_tlength_fragsize,
@@ -253,19 +247,8 @@ int main(int argc, char **argv) {
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	output_device = pa_simple_new(
-		NULL,
-		"chimer95",
-		PA_STREAM_PLAYBACK,
-		audio_output_device,
-		"GTS Output",
-		&mono_format,
-		NULL,
-		&output_buffer_atr,
-		&pulse_error
-	);
-
-	if (!output_device) {
+	pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "chimer95", "Main Audio Output", audio_output_device, &output_buffer_atr);
+	if (pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(pulse_error));
 		return 1;
 	}
@@ -316,7 +299,7 @@ int main(int argc, char **argv) {
 				static int idle_counter = 0;
 				if (idle_counter++ % 10 == 0) {
 					memset(output, 0, sizeof(output));
-					pa_simple_write(output_device, output, sizeof(output), &pulse_error);
+					write_PulseOutputDevice(&output_device, output, sizeof(output));
 				}
 
 				struct timespec ts = {0, 5000000}; // 5ms sleep
@@ -334,7 +317,7 @@ int main(int argc, char **argv) {
 			sequence_completed = 1;
 		}
 
-		if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
+		if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) {
 			fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
@@ -342,6 +325,6 @@ int main(int argc, char **argv) {
 	}
 
 	printf("Cleaning up...\n");
-	pa_simple_free(output_device);
+	free_PulseOutputDevice(&output_device);
 	return 0;
 }

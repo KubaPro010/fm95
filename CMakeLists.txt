@@ -9,18 +9,21 @@ file(GLOB SRC_FILES "src/*.c")
 
 file(GLOB LIB_FILES "lib/*.c")
 
+file(GLOB IO_FILES "io/*.c")
+
 add_library(libfm OBJECT ${LIB_FILES})
 
-set(LINK_LIBS "-lpulse -lpulse-simple -lm")
+add_library(libfmio OBJECT ${IO_FILES})
+
+set(FM_LIBS libfm libfmio pulse pulse-simple m)
 
 foreach(SRC_FILE ${SRC_FILES})
     get_filename_component(EXEC_NAME ${SRC_FILE} NAME_WE)
 
     add_executable(${EXEC_NAME} ${SRC_FILE})
     target_compile_options(${EXEC_NAME} PRIVATE -O2 -Wall -Wextra -Werror -Wno-unused-parameter)
+    target_link_libraries(${EXEC_NAME} PRIVATE ${FM_LIBS})
 
-    target_link_libraries(${EXEC_NAME} PRIVATE libfm ${LINK_LIBS})
-    
     install(TARGETS ${EXEC_NAME}
         DESTINATION /usr/bin
         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ

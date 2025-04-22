@@ -22,8 +22,7 @@
 
 #define BUFFER_SIZE 512
 
-#include <pulse/simple.h>
-#include <pulse/error.h>
+#include "../io/audio.h"
 
 #define DEFAULT_MASTER_VOLUME 0.5f
 #define DEFAULT_OFFSET 0
@@ -212,14 +211,14 @@ void show_version() {
 
 void show_help(char *name) {
 	printf(
-		"Usage: %s\n"
-		"   -o,--output     Override output device [default: %s]\n"
-		"   -F,--frequency  DCF77 Frequency [default: %.1f Hz]\n"
-		"   -s,--samplerate Output Samplerate [default: %d]\n"
-		"   -v,--volume     Output volume [default: %.2f]\n"
-		"   -t,--offset     Time Offset [default: %ds]\n"
-		"   -T,--test       Enable test mode\n"
-		"   -n,--no-phase   Disable phase modulation\n"
+		"Usage: \t%s\n"
+		"\t-o,--output\tOverride output device [default: %s]\n"
+		"\t-F,--frequency\tDCF77 Frequency [default: %.1f Hz]\n"
+		"\t-s,--samplerate\tOutput Samplerate [default: %d]\n"
+		"\t-v,--volume\tOutput volume [default: %.2f]\n"
+		"\t-t,--offset\tTime Offset [default: %ds]\n"
+		"\t-T,--test\tEnable test mode\n"
+		"\t-n,--no-phase\tDisable phase modulation\n"
 		,name
 		,OUTPUT_DEVICE
 		,DEFAULT_FREQ
@@ -232,7 +231,7 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
 	show_version();
 
-	pa_simple *output_device;
+	PulseOutputDevice output_device;
 
 	char audio_output_device[64] = OUTPUT_DEVICE;
 
@@ -311,12 +310,6 @@ int main(int argc, char **argv) {
 	}
 
 	// #region Setup devices
-	pa_sample_spec mono_format = {
-		.format = PA_SAMPLE_FLOAT32NE,
-		.channels = 1,
-		.rate = sample_rate
-	};
-
 	pa_buffer_attr output_buffer_atr = {
 		.maxlength = buffer_maxlength,
 		.tlength = buffer_tlength_fragsize,
@@ -327,18 +320,8 @@ int main(int argc, char **argv) {
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	output_device = pa_simple_new(
-		NULL,
-		"dcf95",
-		PA_STREAM_PLAYBACK,
-		audio_output_device,
-		"DCF77 Output",
-		&mono_format,
-		NULL,
-		&output_buffer_atr,
-		&opentime_pulse_error
-	);
-	if (!output_device) {
+	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "dcf95", "Main Audio Output", audio_output_device, &output_buffer_atr);
+	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
 		return 1;
 	}
@@ -464,7 +447,7 @@ int main(int argc, char **argv) {
 			elapsed_samples++;
 		}
 
-		if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
+		if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) {
 			fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
@@ -472,6 +455,6 @@ int main(int argc, char **argv) {
 	}
 
 	printf("Cleaning up...\n");
-	pa_simple_free(output_device);
+	free_PulseOutputDevice(&output_device);
 	return 0;
 }

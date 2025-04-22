@@ -33,8 +33,7 @@
 
 #define BUFFER_SIZE 2048
 
-#include <pulse/simple.h>
-#include <pulse/error.h>
+#include "../io/audio.h"
 
 #define DEFAULT_MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
 #define DEFAULT_AUDIO_VOLUME 1.0f // Audio volume, before clipper
@@ -81,24 +80,24 @@ void show_version() {
 }
 void show_help(char *name) {
 	printf(
-		"Usage: %s\n"
-		"   -s,--stereo		Force Stereo [default: %d]\n"
-		"   -i,--input		Override input device [default: %s]\n"
-		"   -o,--output		Override output device [default: %s]\n"
-		"   -M,--mpx		Override MPX input device [default: %s]\n"
-		"   -r,--rds		Override RDS95 input device [default: %s]\n"
-		"   -C,--sca		Override the SCA input device [default: %s]\n"
-		"   -f,--sca_freq	Override the SCA frequency [default: %.1f]\n"
-		"   -F,--sca_dev	Override the SCA deviation [default: %.2f]\n"
-		"   -L,--sca_clip	Override the SCA clipper threshold [default: %.2f]\n"
-		"   -c,--clipper	Override the clipper threshold [default: %.2f]\n"
-		"   -P,--polar		Force Polar Stereo (does not take effect with -m%s)\n"
-		"   -R,--preemp		Override preemphasis [default: %.2f µs]\n"
-		"   -V,--calibrate	Enable Calibration mode [default: off]\n"
-		"   -p,--power		Set the MPX power [default: %.1f]\n"
-		"   -d,--mpx_dev	Set the MPX deviation [default: %.1f]\n"
-		"   -A,--master_vol	Set master volume [default: %.3f]\n"
-		"   -v,--audio_vol	Set audio volume [default: %.3f]\n"
+		"Usage: \t%s\n"
+		"\t-s,--stereo\tForce Stereo [default: %d]\n"
+		"\t-i,--input\tOverride input device [default: %s]\n"
+		"\t-o,--output\tOverride output device [default: %s]\n"
+		"\t-M,--mpx\tOverride MPX input device [default: %s]\n"
+		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
+		"\t-C,--sca\tOverride the SCA input device [default: %s]\n"
+		"\t-f,--sca_freq\tOverride the SCA frequency [default: %.1f]\n"
+		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
+		"\t-L,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
+		"\t-c,--clipper\tOverride the clipper threshold [default: %.2f]\n"
+		"\t-P,--polar\tForce Polar Stereo (does not take effect with -m%s)\n"
+		"\t-R,--preemp\tOverride preemphasis [default: %.2f µs]\n"
+		"\t-V,--calibrate\tEnable Calibration mode [default: off]\n"
+		"\t-p,--power\tSet the MPX power [default: %.1f]\n"
+		"\t-d,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
+		"\t-A,--master_vol\tSet master volume [default: %.3f]\n"
+		"\t-v,--audio_vol\tSet audio volume [default: %.3f]\n"
 		,name
 		,DEFAULT_STEREO
 		,INPUT_DEVICE
@@ -134,12 +133,10 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
 	show_version();
 
-	pa_simple *mpx_device = NULL;
-	pa_simple *rds_device = NULL;
-	pa_simple *sca_device = NULL;
+	PulseInputDevice mpx_device, rds_device, sca_device;
 
-	pa_simple *input_device;
-	pa_simple *output_device;
+	PulseInputDevice input_device;
+	PulseOutputDevice output_device;
 
 	float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
 	int stereo = DEFAULT_STEREO;
@@ -282,17 +279,6 @@ int main(int argc, char **argv) {
 	// #region Setup devices
 
 	// Define formats and buffer atributes
-	pa_sample_spec stereo_format = {
-		.format = PA_SAMPLE_FLOAT32NE,
-		.channels = 2,
-		.rate = sample_rate
-	};
-	pa_sample_spec mono_format = {
-		.format = PA_SAMPLE_FLOAT32NE,
-		.channels = 1,
-		.rate = sample_rate
-	};
-
 	pa_buffer_attr input_buffer_atr = {
 		.maxlength = buffer_maxlength,
 		.fragsize = buffer_tlength_fragsize
@@ -306,19 +292,8 @@ int main(int argc, char **argv) {
 	int opentime_pulse_error;
 
 	printf("Connecting to input device... (%s)\n", audio_input_device);
-
-	input_device = pa_simple_new(
-		NULL,
-		"fm95",
-		PA_STREAM_RECORD,
-		audio_input_device,
-		"Main Audio Input",
-		&stereo_format,
-		NULL,
-		&input_buffer_atr,
-		&opentime_pulse_error
-	);
-	if (!input_device) {
+	opentime_pulse_error = init_PulseInputDevice(&input_device, sample_rate, 2, "fm95", "Main Audio Input", audio_input_device, &input_buffer_atr);
+	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open input device: %s\n", pa_strerror(opentime_pulse_error));
 		return 1;
 	}
@@ -326,41 +301,21 @@ int main(int argc, char **argv) {
 	if(mpx_on) {
 		printf("Connecting to MPX device... (%s)\n", audio_mpx_device);
 
-		mpx_device = pa_simple_new(
-			NULL,
-			"fm95",
-			PA_STREAM_RECORD,
-			audio_mpx_device,
-			"MPX Input",
-			&mono_format,
-			NULL,
-			&input_buffer_atr,
-			&opentime_pulse_error
-		);
-		if (!mpx_device) {
+		opentime_pulse_error = init_PulseInputDevice(&mpx_device, sample_rate, 1, "fm95", "MPX Input", audio_mpx_device, &input_buffer_atr);
+		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open MPX device: %s\n", pa_strerror(opentime_pulse_error));
-			pa_simple_free(input_device);
+			free_PulseInputDevice(&input_device);
 			return 1;
 		}
 	}
 	if(rds_on) {
 		printf("Connecting to RDS95 device... (%s)\n", audio_rds_device);
 
-		rds_device = pa_simple_new(
-			NULL,
-			"fm95",
-			PA_STREAM_RECORD,
-			audio_rds_device,
-			"RDS Input",
-			&stereo_format,
-			NULL,
-			&input_buffer_atr,
-			&opentime_pulse_error
-		);
-		if (!rds_device) {
+		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, 1, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr);
+		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
-			pa_simple_free(input_device);
-			if(mpx_on) pa_simple_free(mpx_device);
+			free_PulseInputDevice(&input_device);
+			if(mpx_on) free_PulseInputDevice(&mpx_device);
 			return 1;
 		}
 	}
@@ -368,45 +323,25 @@ int main(int argc, char **argv) {
 	if(sca_on) {
 		printf("Connecting to SCA device... (%s)\n", audio_sca_device);
 
-		sca_device = pa_simple_new(
-			NULL,
-			"fm95",
-			PA_STREAM_RECORD,
-			audio_sca_device,
-			"SCA Input",
-			&mono_format,
-			NULL,
-			&input_buffer_atr,
-			&opentime_pulse_error
-		);
-		if (!sca_device) {
+		opentime_pulse_error = init_PulseInputDevice(&sca_device, sample_rate, 1, "fm95", "SCA Input", audio_sca_device, &input_buffer_atr);
+		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open SCA device: %s\n", pa_strerror(opentime_pulse_error));
-			pa_simple_free(input_device);
-			if(mpx_on) pa_simple_free(mpx_device);
-			if(rds_on) pa_simple_free(rds_device);
+			free_PulseInputDevice(&input_device);
+			if(mpx_on) free_PulseInputDevice(&mpx_device);
+			if(rds_on) free_PulseInputDevice(&rds_device);
 			return 1;
 		}
 	}
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	output_device = pa_simple_new(
-		NULL,
-		"StereoEncoder",
-		PA_STREAM_PLAYBACK,
-		audio_output_device,
-		"MPX Output",
-		&mono_format,
-		NULL,
-		&output_buffer_atr,
-		&opentime_pulse_error
-	);
-	if (!output_device) {
+	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 2, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr);
+	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
-		pa_simple_free(input_device);
-		if(mpx_on) pa_simple_free(mpx_device);
-		if(rds_on) pa_simple_free(rds_device);
-		if(sca_on) pa_simple_free(sca_device);
+		free_PulseInputDevice(&input_device);
+		if(mpx_on) free_PulseInputDevice(&mpx_device);
+		if(rds_on) free_PulseInputDevice(&rds_device);
+		if(sca_on) free_PulseInputDevice(&sca_device);
 		return 1;
 	}
 	// #endregion
@@ -424,18 +359,18 @@ int main(int argc, char **argv) {
 			for (int i = 0; i < BUFFER_SIZE; i++) {
 				output[i] = get_oscillator_sin_sample(&osc)*master_volume;
 			}
-			if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
+			if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
 				fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
 		}
 		printf("Cleaning up...\n");
-		pa_simple_free(input_device);
-		if(mpx_on) pa_simple_free(mpx_device);
-		if(rds_on) pa_simple_free(rds_device);
-		if(sca_on) pa_simple_free(sca_device);
-		pa_simple_free(output_device);
+		free_PulseInputDevice(&input_device);
+		if(mpx_on) free_PulseInputDevice(&mpx_device);
+		if(rds_on) free_PulseInputDevice(&rds_device);
+		if(sca_on) free_PulseInputDevice(&sca_device);
+		free_PulseOutputDevice(&output_device);
 		return 0;
 	}
 
@@ -475,21 +410,21 @@ int main(int argc, char **argv) {
 	float output[BUFFER_SIZE];
 
 	while (to_run) {
-		if (pa_simple_read(input_device, audio_stereo_input, sizeof(audio_stereo_input), &pulse_error) < 0) {
+		if((pulse_error = read_PulseInputDevice(&input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
 			fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
 		}
 		uninterleave(audio_stereo_input, left, right, BUFFER_SIZE*2);
 		if(mpx_on) {
-			if (pa_simple_read(mpx_device, mpx_in, sizeof(mpx_in), &pulse_error) < 0) {
+			if((pulse_error = read_PulseInputDevice(&mpx_device, mpx_in, sizeof(mpx_in)))) {
 				fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
 		}
 		if(rds_on) {
-			if (pa_simple_read(rds_device, rds1_rds2_in, sizeof(rds1_rds2_in), &pulse_error) < 0) {
+			if((pulse_error = read_PulseInputDevice(&rds_device, rds1_rds2_in, sizeof(rds1_rds2_in)))) {
 				fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
@@ -497,7 +432,7 @@ int main(int argc, char **argv) {
 			uninterleave(rds1_rds2_in, rds1_in, rds2_in, BUFFER_SIZE*2);
 		}
 		if(sca_on) {
-			if (pa_simple_read(sca_device, sca_in, sizeof(sca_in), &pulse_error) < 0) {
+			if((pulse_error = read_PulseInputDevice(&sca_device, sca_in, sizeof(sca_in)))) {
 				fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
@@ -561,17 +496,17 @@ int main(int argc, char **argv) {
 			if(rds_on || stereo) advance_oscillator(&osc);
 		}
 
-		if (pa_simple_write(output_device, output, sizeof(output), &pulse_error) < 0) {
+		if(write_PulseOutputDevice(&output_device, output, sizeof(output))) {
 			fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
 		}
 	}
 	printf("Cleaning up...\n");
-	pa_simple_free(input_device);
-	if(mpx_on) pa_simple_free(mpx_device);
-	if(rds_on) pa_simple_free(rds_device);
-	if(sca_on) pa_simple_free(sca_device);
-	pa_simple_free(output_device);
+	free_PulseInputDevice(&input_device);
+	if(mpx_on) free_PulseInputDevice(&mpx_device);
+	if(rds_on) free_PulseInputDevice(&rds_device);
+	if(sca_on) free_PulseInputDevice(&sca_device);
+	free_PulseOutputDevice(&output_device);
 	return 0;
 }
