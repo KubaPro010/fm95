@@ -100,7 +100,7 @@ int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels
 int write_PulseOutputDevice(PulseOutputDevice* dev, float* buffer, size_t size) {
 	if (!dev->initialized) return -1;
 	int error;
-	if (pa_simple_write(dev->dev, buffer, size * sizeof(float), &error) < 0) return error;
+	if (pa_simple_write(dev->dev, buffer, size, &error) < 0) return error;
 	return 0;
 }
 
