@@ -1,10 +1,10 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <time.h>
 #include <signal.h>
 #include <string.h>
-#include <math.h>
 
 #define buffer_maxlength 2048
 #define buffer_tlength_fragsize 2048
@@ -12,8 +12,8 @@
 
 // #define DEBUG
 
-#include "../lib/constants.h"
-#include "../lib/oscillator.h"
+#include "../dsp/constants.h"
+#include "../dsp/oscillator.h"
 
 #define DEFAULT_FREQ 77500.0f
 #define DEFAULT_SAMPLE_RATE 192000
@@ -55,17 +55,12 @@ static void stop(int signum) {
 
 unsigned int generate_chip() {
 	unsigned int chip = lfsr & 1;
-
 	lfsr >>= 1;
-	if (chip || !lfsr)
-		lfsr ^= 0x110;
-
+	if (chip || !lfsr)lfsr ^= 0x110;
 	return chip;
 }
 
-void reset_lfsr() {
-	lfsr = 0;
-}
+void reset_lfsr() { lfsr = 0; }
 
 int is_cet_dst(struct tm *tm_time) {
 	int month = tm_time->tm_mon + 1;
@@ -74,16 +69,11 @@ int is_cet_dst(struct tm *tm_time) {
 
 	if (month == 3) {
 		int last_sunday = 31 - ((5 + 31) % 7);
-		if ((day > last_sunday) || (day == last_sunday && hour >= 2)) {
-			return 1;
-		}
-	} else if (month > 3 && month < 10) {
-		return 1;
-	} else if (month == 10) {
+		if ((day > last_sunday) || (day == last_sunday && hour >= 2)) return 1;
+	} else if (month > 3 && month < 10) return 1;
+	else if (month == 10) {
 		int last_sunday = 31 - ((5 + 31) % 7);
-		if ((day < last_sunday) || (day == last_sunday && hour < 3)) {
-			return 1;
-		}
+		if ((day < last_sunday) || (day == last_sunday && hour < 3)) return 1;
 	}
 
 	return 0;
@@ -132,41 +122,25 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 	bits[20] = 1;
 
 	int minutes = t->tm_min;
-	for (int i = 0; i < 4; i++) {
-		bits[21 + i] = (minutes % 10 >> i) & 1;
-	}
-	for (int i = 0; i < 3; i++) {
-		bits[25 + i] = (minutes / 10 >> i) & 1;
-	}
+	for (int i = 0; i < 4; i++) bits[21 + i] = (minutes % 10 >> i) & 1;
+	for (int i = 0; i < 3; i++) bits[25 + i] = (minutes / 10 >> i) & 1;
 
 	int minute_parity = 0;
-	for (int i = 21; i <= 27; i++) {
-		minute_parity ^= bits[i];
-	}
+	for (int i = 21; i <= 27; i++) minute_parity ^= bits[i];
 	bits[28] = minute_parity;
 
 	int hours = t->tm_hour;
 	if(cest) hours += 1;
-	for (int i = 0; i < 4; i++) {
-		bits[29 + i] = (hours % 10 >> i) & 1;
-	}
-	for (int i = 0; i < 2; i++) {
-		bits[33 + i] = (hours / 10 >> i) & 1;
-	}
+	for (int i = 0; i < 4; i++) bits[29 + i] = (hours % 10 >> i) & 1;
+	for (int i = 0; i < 2; i++) bits[33 + i] = (hours / 10 >> i) & 1;
 
 	int hour_parity = 0;
-	for (int i = 29; i <= 34; i++) {
-		hour_parity ^= bits[i];
-	}
+	for (int i = 29; i <= 34; i++) hour_parity ^= bits[i];
 	bits[35] = hour_parity;
 
 	int day = t->tm_mday;
-	for (int i = 0; i < 4; i++) {
-		bits[36 + i] = (day % 10 >> i) & 1;
-	}
-	for (int i = 0; i < 2; i++) {
-		bits[40 + i] = (day / 10 >> i) & 1;
-	}
+	for (int i = 0; i < 4; i++) bits[36 + i] = (day % 10 >> i) & 1;
+	for (int i = 0; i < 2; i++) bits[40 + i] = (day / 10 >> i) & 1;
 
 	int dow = t->tm_wday == 0 ? 7 : t->tm_wday;
 	bits[42] = dow & 0x01;
@@ -174,23 +148,15 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 	bits[44] = (dow >> 2) & 0x01;
 
 	int month = t->tm_mon + 1;
-	for (int i = 0; i < 4; i++) {
-		bits[45 + i] = (month % 10 >> i) & 1;
-	}
+	for (int i = 0; i < 4; i++) bits[45 + i] = (month % 10 >> i) & 1;
 	bits[49] = (month / 10) & 0x01;
 
 	int year = t->tm_year % 100;
-	for (int i = 0; i < 4; i++) {
-		bits[50 + i] = (year % 10 >> i) & 1;
-	}
-	for (int i = 0; i < 4; i++) {
-		bits[54 + i] = (year / 10 >> i) & 1;
-	}
+	for (int i = 0; i < 4; i++) bits[50 + i] = (year % 10 >> i) & 1;
+	for (int i = 0; i < 4; i++) bits[54 + i] = (year / 10 >> i) & 1;
 
 	int year_parity = 0;
-	for (int i = 36; i <= 57; i++) {
-		year_parity ^= bits[i];
-	}
+	for (int i = 36; i <= 57; i++) year_parity ^= bits[i];
 	bits[58] = year_parity;
 
 	bits[59] = 2;
@@ -200,7 +166,7 @@ void print_dcf77_bits(const int *bits) {
 	printf("DCF77 Bit Pattern: ");
 	for (int i = 0; i < 60; i++) {
 		printf("%d", bits[i]);
-		if ((i+1) % 10 == 0) printf(" ");
+		if ((i+1) % 8 == 0) printf(" ");
 	}
 	printf("\n");
 }
@@ -237,10 +203,10 @@ int main(int argc, char **argv) {
 
 	float master_volume = DEFAULT_MASTER_VOLUME;
 	float freq = DEFAULT_FREQ;
-	int sample_rate = DEFAULT_SAMPLE_RATE;
-	int offset = DEFAULT_OFFSET;
-	int test_mode = 0;
-	int no_phase = 0;
+	uint32_t sample_rate = DEFAULT_SAMPLE_RATE;
+	uint8_t offset = DEFAULT_OFFSET;
+	uint8_t test_mode = 0;
+	uint8_t no_phase = 0;
 
 	// #region Parse Arguments
 	int opt;
@@ -298,16 +264,13 @@ int main(int argc, char **argv) {
 	}
 
 	printf("Configuration:\n");
-	printf("  Output device: %s\n", audio_output_device);
-	printf("  Frequency: %.1f Hz\n", freq);
-	printf("  Sample rate: %d Hz\n", sample_rate);
-	printf("  Volume: %.2f\n", master_volume);
-	printf("  Time offset: %d seconds\n", offset);
-	if (no_phase) {
-		printf("  Phase modulation: Disabled\n");
-	} else {
-		printf("  Phase modulation: +/- %.1f degrees\n", PHASE_SHIFT);
-	}
+	printf("\tOutput device: %s\n", audio_output_device);
+	printf("\tFrequency: %.1f Hz\n", freq);
+	printf("\tSample rate: %d Hz\n", sample_rate);
+	printf("\tVolume: %.2f\n", master_volume);
+	printf("\tTime offset: %d seconds\n", offset);
+	if (no_phase) printf("\tPhase modulation: Disabled\n");
+	else printf("\tPhase modulation: +/- %.1f degrees\n", PHASE_SHIFT);
 
 	// #region Setup devices
 	pa_buffer_attr output_buffer_atr = {
@@ -416,11 +379,8 @@ int main(int argc, char **argv) {
 
 						unsigned int modulated_chip = chip ^ dcf77_bits[current_bit];
 
-						if (modulated_chip == 0) {
-							phase_offset = phase_shift_rad;
-						} else {
-							phase_offset = -phase_shift_rad;
-						}
+						if (modulated_chip == 0) phase_offset = phase_shift_rad;
+						else phase_offset = -phase_shift_rad;
 
 						current_chip_count++;
 					}
@@ -437,12 +397,8 @@ int main(int argc, char **argv) {
 				if ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) ||
 					(dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION)) {
 					output[i] = carrier * master_volume * REDUCED_AMPLITUDE;
-				} else {
-					output[i] = carrier * master_volume;
-				}
-			} else {
-				output[i] = carrier * master_volume;
-			}
+				} else output[i] = carrier * master_volume;
+			} else output[i] = carrier * master_volume;
 
 			elapsed_samples++;
 		}

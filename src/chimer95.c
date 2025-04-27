@@ -9,8 +9,8 @@
 #define buffer_tlength_fragsize 1024
 #define buffer_prebuf 0
 
-#include "../lib/constants.h"
-#include "../lib/oscillator.h"
+#include "../dsp/constants.h"
+#include "../dsp/oscillator.h"
 #include "../lib/optimization.h"
 
 #define DEFAULT_FREQ 1000.0f
@@ -143,9 +143,7 @@ int check_time_for_sequence(int test_mode, int offset) {
 	static int last_minute = -1;
 
 	time_t now = time(NULL);
-	if (now == last_check) {
-		return SEQ_NONE;
-	}
+	if (now == last_check) return SEQ_NONE;
 
 	last_check = now;
 	struct tm *utc_time = gmtime(&now);
@@ -229,12 +227,12 @@ int main(int argc, char **argv) {
 	}
 
 	printf("Configuration:\n");
-	printf("  Output device: %s\n", audio_output_device);
-	printf("  Frequency: %.1f Hz\n", freq);
-	printf("  Sample rate: %d Hz\n", sample_rate);
-	printf("  Volume: %.2f\n", master_volume);
-	printf("  Time offset: %d seconds\n", offset);
-	printf("  Test mode: %s\n", test_mode ? "Enabled" : "Disabled");
+	printf("\tOutput device: %s\n", audio_output_device);
+	printf("\tFrequency: %.1f Hz\n", freq);
+	printf("\tSample rate: %d Hz\n", sample_rate);
+	printf("\tVolume: %.2f\n", master_volume);
+	printf("\tTime offset: %d seconds\n", offset);
+	printf("\tTest mode: %s\n", test_mode ? "Enabled" : "Disabled");
 
 	// Setup PulseAudio
 	pa_buffer_attr output_buffer_atr = {
@@ -288,11 +286,8 @@ int main(int argc, char **argv) {
 				elapsed_samples = 0;
 				sequence_completed = 0;
 
-				if (new_sequence == SEQ_29_56) {
-					total_sequence_samples = samples_29_56;
-				} else {
-					total_sequence_samples = samples_59_55;
-				}
+				if (new_sequence == SEQ_29_56) total_sequence_samples = samples_29_56;
+				else total_sequence_samples = samples_59_55;
 
 				memset(output, 0, sizeof(output));
 			} else {
@@ -313,9 +308,7 @@ int main(int argc, char **argv) {
 					   &elapsed_samples, total_sequence_samples,
 					   pip_samples, pause_samples, beep_samples, num_pips);
 
-		if (!playing_sequence && !sequence_completed) {
-			sequence_completed = 1;
-		}
+		if (!playing_sequence && !sequence_completed) sequence_completed = 1;
 
 		if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) {
 			fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));

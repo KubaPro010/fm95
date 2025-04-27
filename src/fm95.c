@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <getopt.h>
 
 #define buffer_maxlength 12288
@@ -16,12 +17,12 @@
 #define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
 #define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
 
-#include "../lib/oscillator.h"
-#include "../lib/filters.h"
-#include "../lib/fm_modulator.h"
+#include "../dsp/oscillator.h"
+#include "../dsp/filters.h"
+#include "../dsp/fm_modulator.h"
 #include "../lib/optimization.h"
-#include "../lib/bs412.h"
-#include "../lib/gain_control.h"
+#include "../dsp/bs412.h"
+#include "../dsp/gain_control.h"
 
 #define DEFAULT_SAMPLE_RATE 192000
 
@@ -29,7 +30,7 @@
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define RDS_DEVICE "RDS.monitor"
 #define MPX_DEVICE "FM_MPX.monitor"
-// #define SCA_DEVICE ""
+#define SCA_DEVICE "\0" // Disabled
 
 #define BUFFER_SIZE 2048
 
@@ -76,7 +77,7 @@ static void stop(int signum) {
 }
 
 void show_version() {
-	printf("fm95 (an FM Processor by radio95) version 1.5\n");
+	printf("fm95 (an FM Processor by radio95) version 1.6\n");
 }
 void show_help(char *name) {
 	printf(
@@ -139,8 +140,8 @@ int main(int argc, char **argv) {
 	PulseOutputDevice output_device;
 
 	float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
-	int stereo = DEFAULT_STEREO;
-	int polar_stereo = DEFAULT_STEREO_POLAR;
+	uint8_t stereo = DEFAULT_STEREO;
+	uint8_t polar_stereo = DEFAULT_STEREO_POLAR;
 
 	float sca_frequency = DEFAULT_SCA_FREQUENCY;
 	float sca_deviation = DEFAULT_SCA_DEVIATION;
@@ -148,30 +149,18 @@ int main(int argc, char **argv) {
 
 	char audio_input_device[64] = INPUT_DEVICE;
 	char audio_output_device[64] = OUTPUT_DEVICE;
-#ifndef MPX_DEVICE
-	char audio_mpx_device[64] = "\0";
-#else
 	char audio_mpx_device[64] = MPX_DEVICE;
-#endif
-#ifndef RDS_DEVICE
-	char audio_rds_device[64] = "\0";
-#else
 	char audio_rds_device[64] = RDS_DEVICE;
-#endif
-#ifndef SCA_DEVICE
-	char audio_sca_device[64] = "\0";
-#else
 	char audio_sca_device[64] = SCA_DEVICE;
-#endif
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
-	int calibration_mode = 0;
+	uint8_t calibration_mode = 0;
 	float mpx_power = DEFAULT_MPX_POWER;
 	float mpx_deviation = DEFAULT_MPX_DEVIATION;
 	float master_volume = DEFAULT_MASTER_VOLUME;
 	float audio_volume = DEFAULT_AUDIO_VOLUME;
 
-	int sample_rate = DEFAULT_SAMPLE_RATE;
+	uint32_t sample_rate = DEFAULT_SAMPLE_RATE;
 
 	// #region Parse Arguments
 	int opt;
@@ -203,11 +192,8 @@ int main(int argc, char **argv) {
 	while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
 		switch(opt) {
 			case 's': // Stereo
-				if(optarg) {
-					stereo = atoi(optarg);
-				} else {
-					stereo = 1;
-				}
+				if(optarg) stereo = atoi(optarg);
+				else stereo = 1;
 				break;
 			case 'i': // Input Device
 				memcpy(audio_input_device, optarg, 63);
@@ -237,11 +223,8 @@ int main(int argc, char **argv) {
 				clipper_threshold = strtof(optarg, NULL);
 				break;
 			case 'P': //Polar
-				if(optarg) {
-					polar_stereo = atoi(optarg);
-				} else {
-					polar_stereo = 1;
-				}
+				if(optarg) polar_stereo = atoi(optarg);
+				else polar_stereo = 1;
 				break;
 			case 'R': // Preemp
 				preemphasis_tau = strtof(optarg, NULL)*0.000001;
@@ -356,9 +339,7 @@ int main(int argc, char **argv) {
 		float output[BUFFER_SIZE];
 
 		while(to_run) {
-			for (int i = 0; i < BUFFER_SIZE; i++) {
-				output[i] = get_oscillator_sin_sample(&osc)*master_volume;
-			}
+			for (int i = 0; i < BUFFER_SIZE; i++) output[i] = get_oscillator_sin_sample(&osc)*master_volume;
 			if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
 				fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
@@ -463,9 +444,8 @@ int main(int argc, char **argv) {
 				float stereo = (ready_l - ready_r) / 2.0f;
 				stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8);
 
-				if(polar_stereo) {
-					audio += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
-				} else {
+				if(polar_stereo) audio += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
+				else {
 					float pilot = get_oscillator_sin_multiplier_ni(&osc, 4);
 					mpx += pilot*PILOT_VOLUME;
 					audio += (stereo*stereo_carrier)*STEREO_VOLUME;
@@ -484,13 +464,12 @@ int main(int argc, char **argv) {
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation);
-			mpower = deviation_to_dbr(dbr_to_deviation(mpower) - dbr_to_deviation(mpx_only));
 			if (mpower > mpx_power) {
-				float excess_power = mpower - mpx_power;
-				audio *= (dbr_to_deviation(-excess_power)/mpx_deviation);
+				float excess_power = mpower - mpx_only - mpx_power; // Make sure that MPX doesn't affect the audio
+				audio *= (dbr_to_deviation(-excess_power)/mpx_deviation); // This should be more dynamic, but too bad
 			}
 
-			audio = hard_clip(audio, 1-mpx);
+			audio = hard_clip(audio, 1-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
 
 			output[i] = (audio+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);

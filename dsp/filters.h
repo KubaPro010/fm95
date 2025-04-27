@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "constants.h"
-#include "optimization.h"
+#include "../lib/optimization.h"
 #include "oscillator.h"
 
 typedef struct

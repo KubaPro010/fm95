@@ -23,7 +23,8 @@
         "bs412.h": "c",
         "gain_control.h": "c",
         "optimization.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "getopt.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
