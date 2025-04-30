@@ -22,12 +22,12 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
 	float modulation_power = deviation_to_dbr(avg_deviation);
 
 	#ifdef BS412_DEBUG
-	if(mpx->i % mpx->sample_rate == 0) {
+	if(mpx->sample_counter % mpx->sample_rate == 0) {
 		debug_printf("MPX power: %f dBr\n", modulation_power);
 	}
 	#endif
 
-	if (mpx->i >= mpx->sample_rate * 60) {
+	if (mpx->sample_counter >= mpx->sample_rate * 60) {
 		#ifdef BS412_DEBUG
 		debug_printf("Resetting MPX power measurement\n");
 		#endif
