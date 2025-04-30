@@ -41,10 +41,10 @@ int read_PulseInputDevice(PulseInputDevice* dev, float* buffer, size_t size) {
 
 void free_PulseInputDevice(PulseInputDevice* dev) {
 	if (dev->dev && dev->initialized) pa_simple_free(dev->dev);
-    free(dev->app_name);
-    free(dev->stream_name);
-    free(dev->device);
-    dev->initialized = 0;
+	free(dev->app_name);
+	free(dev->stream_name);
+	free(dev->device);
+	dev->initialized = 0;
 }
 
 int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr) {
@@ -88,8 +88,8 @@ int write_PulseOutputDevice(PulseOutputDevice* dev, float* buffer, size_t size) 
 
 void free_PulseOutputDevice(PulseOutputDevice* dev) {
 	if (dev->dev && dev->initialized) pa_simple_free(dev->dev);
-    free(dev->app_name);
-    free(dev->stream_name);
-    free(dev->device);
-    dev->initialized = 0;
+	free(dev->app_name);
+	free(dev->stream_name);
+	free(dev->device);
+	dev->initialized = 0;
 }

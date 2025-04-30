@@ -237,10 +237,6 @@ int main(int argc, char **argv) {
 				break;
 			case 'd': // MPX deviation
 				mpx_deviation = strtof(optarg, NULL);
-				if (mpx_deviation < 38000) {
-					fprintf(stderr, "Warning: MPX deviation cannot be lower than 38000. Setting to 38000.\n");
-					mpx_deviation = 38000;
-				}
 				break;
 			case 'A': // Master vol
 				master_volume = strtof(optarg, NULL);
@@ -370,6 +366,8 @@ int main(int argc, char **argv) {
 	MPXPowerMeasurement mpx_only_power;
 	init_modulation_power_measure(&mpx_only_power, sample_rate);
 
+	float bs412_audio_gain = 1.0f;
+
 	AGC agc;
 	//            fs          target   min    max   attack  relese
 	initAGC(&agc, sample_rate, 0.625f, 0.0f, 1.25f, 0.025f, 0.25f);
@@ -463,13 +461,17 @@ int main(int argc, char **argv) {
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
-			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation);
+			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
 			if (mpower > mpx_power) {
-				float excess_power = mpower - mpx_only - mpx_power; // Make sure that MPX doesn't affect the audio
-				audio *= (dbr_to_deviation(-excess_power)/mpx_deviation); // This should be more dynamic, but too bad
+				float excess_power = mpower - mpx_power;
+				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpx_only)); // make sure mpx is not included in the power to attenuate, because we'd be attuating the mpx signal for audio
+
+				float target_gain = dbr_to_deviation(-excess_power)/mpx_deviation;
+				bs412_audio_gain = 0.9f * bs412_audio_gain + 0.1f * target_gain;
+				audio *= bs412_audio_gain;
 			}
 
-			audio = hard_clip(audio, 1-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
+			audio = hard_clip(audio, 1.0f-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
 
 			output[i] = (audio+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);

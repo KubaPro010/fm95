@@ -1,9 +1,10 @@
 #pragma once
 #include <math.h>
+#include "../lib/debug.h"
 
 typedef struct
 {
-	int i;
+	int sample_counter;
 	int sample_rate;
 	double sample;
 } MPXPowerMeasurement;

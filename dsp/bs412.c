@@ -9,21 +9,30 @@ float deviation_to_dbr(float deviation) {
 }
 
 void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
-	mpx->i = 0;
+	mpx->sample_counter = 0;
 	mpx->sample = 0;
 	mpx->sample_rate = sample_rate;
 }
 
 float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
 	mpx->sample += deviation * deviation; // rmS
-	mpx->i++;
+	mpx->sample_counter++;
 
-	float avg_deviation = sqrtf(mpx->sample / mpx->i); // RMs
+	float avg_deviation = sqrtf(mpx->sample / mpx->sample_counter); // RMs
 	float modulation_power = deviation_to_dbr(avg_deviation);
 
+	#ifdef BS412_DEBUG
+	if(mpx->i % mpx->sample_rate == 0) {
+		debug_printf("MPX power: %f dBr\n", modulation_power);
+	}
+	#endif
+
 	if (mpx->i >= mpx->sample_rate * 60) {
+		#ifdef BS412_DEBUG
+		debug_printf("Resetting MPX power measurement\n");
+		#endif
 		mpx->sample = avg_deviation * avg_deviation;
-		mpx->i = 1;
+		mpx->sample_counter = 1;
 	}
 
 	return modulation_power;
