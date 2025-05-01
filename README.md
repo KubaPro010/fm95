@@ -3,6 +3,7 @@
 FM95 is a audio processor for FM, it does:
 
 - Pre-Emphasis
+- Low Pass Filtering
 - Stereo
 - Polar Stereo
 - SCA

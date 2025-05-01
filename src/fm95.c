@@ -450,23 +450,22 @@ int main(int argc, char **argv) {
 
 			float mono = (ready_l + ready_r) / 2.0f;
 			audio = mono*MONO_VOLUME;
-			float stereo_carrier = 0.0f;
 			if(stereo) {
 				float stereo = (ready_l - ready_r) / 2.0f;
-				stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8);
+				float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8); // 31.25 or 38 KHz
 
 				if(polar_stereo) audio += ((stereo+0.2)*stereo_carrier)*STEREO_VOLUME;
 				else {
-					float pilot = get_oscillator_sin_multiplier_ni(&osc, 4);
+					float pilot = get_oscillator_sin_multiplier_ni(&osc, 4); // 19 KHz
 					mpx += pilot*PILOT_VOLUME;
 					audio += (stereo*stereo_carrier)*STEREO_VOLUME;
 				}
 			}
 			if(rds_on && polar_stereo == 0) {
-				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12);
+				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
 				mpx += (current_rds_in*rds_carrier)*RDS_VOLUME;
 				if(!sca_on) {
-					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14);
+					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
 					mpx += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
 				}
 			}
@@ -502,6 +501,7 @@ int main(int argc, char **argv) {
 	iirfilt_rrrf_destroy(lpf_l);
 	iirfilt_rrrf_destroy(lpf_r);
 	iirfilt_rrrf_destroy(mpx_lpf);
+
 	free_PulseInputDevice(&input_device);
 	if(mpx_on) free_PulseInputDevice(&mpx_device);
 	if(rds_on) free_PulseInputDevice(&rds_device);
