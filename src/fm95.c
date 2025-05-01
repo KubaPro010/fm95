@@ -360,9 +360,11 @@ int main(int argc, char **argv) {
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
-	iirfilt_crcf lpf_l, lpf_r;
-	lpf_l = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
-	lpf_r = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
+	iirfilt_rrrf lpf_l, lpf_r;
+	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
+	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
+
+	iirfilt_rrrf mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 2, (polar_stereo ? (46250/sample_rate) : (53000/sample_rate)), 0.0f, 1.0f, 1.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
@@ -439,12 +441,8 @@ int main(int argc, char **argv) {
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
 
-			complex float temp_l = ready_l + ready_l * I;
-			iirfilt_crcf_execute(lpf_l, temp_l, &temp_l);
-			ready_l = creal(temp_l);
-			complex float temp_r = ready_r + ready_r * I;
-			iirfilt_crcf_execute(lpf_r, temp_r, &temp_r);
-			ready_r = creal(temp_r);
+			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
+			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
 
 			ready_l = process_agc_stereo(&agc, ready_l, ready_r, &ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
@@ -488,6 +486,8 @@ int main(int argc, char **argv) {
 
 			audio = hard_clip(audio, 1.0f-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
 
+			iirfilt_rrrf_execute(mpx_lpf, audio, &audio);
+
 			output[i] = (audio+mpx)*master_volume;
 			if(rds_on || stereo) advance_oscillator(&osc);
 		}
@@ -499,8 +499,9 @@ int main(int argc, char **argv) {
 		}
 	}
 	printf("Cleaning up...\n");
-	iirfilt_crcf_destroy(lpf_l);
-	iirfilt_crcf_destroy(lpf_r);
+	iirfilt_rrrf_destroy(lpf_l);
+	iirfilt_rrrf_destroy(lpf_r);
+	iirfilt_rrrf_destroy(mpx_lpf);
 	free_PulseInputDevice(&input_device);
 	if(mpx_on) free_PulseInputDevice(&mpx_device);
 	if(rds_on) free_PulseInputDevice(&rds_device);
