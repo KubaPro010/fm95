@@ -361,8 +361,8 @@ int main(int argc, char **argv) {
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
 	iirfilt_crcf lpf_l, lpf_r;
-	lpf_l = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 0.0f, 0.01f);
-	lpf_r = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 0.0f, 0.01f);
+	lpf_l = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 0.0f, 60.0f);
+	lpf_r = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 0.0f, 60.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
@@ -439,10 +439,10 @@ int main(int argc, char **argv) {
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
 
-			complex float temp_r = (complex float)(ready_r) + 0.0f * I;
+			complex float temp_r = ready_r + ready_r * I;
 			iirfilt_crcf_execute(lpf_l, temp_r, &temp_r);
 			ready_r = creal(temp_r);
-			complex float temp_l = (complex float)(ready_l) + 0.0f * I;
+			complex float temp_l = ready_l + ready_l * I;
 			iirfilt_crcf_execute(lpf_l, temp_l, &temp_l);
 			ready_l = creal(temp_l);
 
