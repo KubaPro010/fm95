@@ -438,8 +438,14 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
-			iirfilt_crcf_execute(lpf_l, (complex float)ready_l + 0.0f*I, &ready_l);
-			iirfilt_crcf_execute(lpf_l, (complex float)ready_r + 0.0f*I, &ready_r);
+
+			complex float temp_r = (complex float)(ready_r) + 0.0f * I;
+			iirfilt_crcf_execute(lpf_l, temp_r, &temp_r);
+			ready_r = creal(temp_r);
+			complex float temp_l = (complex float)(ready_l) + 0.0f * I;
+			iirfilt_crcf_execute(lpf_l, temp_l, &temp_l);
+			ready_l = creal(temp_l);
+
 			ready_l = process_agc_stereo(&agc, ready_l, ready_r, &ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
