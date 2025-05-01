@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <getopt.h>
+#include <liquid/liquid.h>
+
+#define LPF_ORDER 9
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
@@ -357,6 +360,10 @@ int main(int argc, char **argv) {
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
+	iirfilt_crcf lpf_l, lpf_r;
+	lpf_l = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 0.0f, 0.01f);
+	lpf_r = iirfilt_crcf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 0.0f, 0.01f);
+
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
@@ -431,6 +438,8 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
+			iirfilt_crcf_execute(lpf_l, (complex float)ready_l + 0.0f*I, &ready_l);
+			iirfilt_crcf_execute(lpf_l, (complex float)ready_r + 0.0f*I, &ready_r);
 			ready_l = process_agc_stereo(&agc, ready_l, ready_r, &ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
@@ -484,6 +493,8 @@ int main(int argc, char **argv) {
 		}
 	}
 	printf("Cleaning up...\n");
+	iirfilt_crcf_destroy(lpf_l);
+	iirfilt_crcf_destroy(lpf_r);
 	free_PulseInputDevice(&input_device);
 	if(mpx_on) free_PulseInputDevice(&mpx_device);
 	if(rds_on) free_PulseInputDevice(&rds_device);
