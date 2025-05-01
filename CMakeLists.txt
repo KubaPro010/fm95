@@ -19,7 +19,7 @@ add_library(libfmdsp OBJECT ${DSP_FILES})
 
 add_library(libfmio OBJECT ${IO_FILES})
 
-set(FM_LIBS  libfmio libfmdsp pulse pulse-simple m)
+set(FM_LIBS  libfmio libfmdsp pulse pulse-simple m liquid)
 
 foreach(SRC_FILE ${SRC_FILES})
     get_filename_component(EXEC_NAME ${SRC_FILE} NAME_WE)
