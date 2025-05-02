@@ -104,7 +104,7 @@ void show_help(char *name) {
 		"\t-d,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
 		"\t-A,--master_vol\tSet master volume [default: %.3f]\n"
 		"\t-v,--audio_vol\tSet audio volume [default: %.3f]\n"
-		"\t-D,--deviation\tSet audio volume, but with the deviation (100%% being 75000) [default: %d]\n"
+		"\t-D,--deviation\tSet audio volume, but with the deviation (100%% being 75000) [default: %.1f]\n"
 		,name
 		,DEFAULT_STEREO
 		,INPUT_DEVICE
@@ -253,7 +253,7 @@ int main(int argc, char **argv) {
 				audio_volume = strtof(optarg, NULL);
 				break;
 			case 'D': // Deviation
-				master_volume *= ((float)atoi(optarg)/75000.0f);
+				master_volume *= (strtof(optarg, NULL)/75000.0f);
 				break;
 			case 'h':
 				show_help(argv[0]);
