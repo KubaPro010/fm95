@@ -19,6 +19,7 @@
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
 #define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
 #define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
+#define DEFAULT_DEVIATION 75000.0f // another way to set the volume
 
 #include "../dsp/oscillator.h"
 #include "../dsp/filters.h"
@@ -42,12 +43,13 @@
 #define DEFAULT_MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
 #define DEFAULT_AUDIO_VOLUME 1.0f // Audio volume, before clipper
 
-#define MONO_VOLUME 0.45f
-#define PILOT_VOLUME 0.09f
-#define STEREO_VOLUME 0.3f
-#define RDS_VOLUME 0.06f
-#define RDS2_VOLUME 0.045f
-#define SCA_VOLUME 0.1f
+#define MONO_VOLUME 0.45f // 45%
+#define PILOT_VOLUME 0.09f // 9%
+#define STEREO_VOLUME 0.3f // 30%
+#define RDS_VOLUME 0.06f // 6%
+#define RDS2_VOLUME 0.045f // 4.5%
+#define SCA_VOLUME 0.1f // 10%, needs to be high because this is analog
+
 #define MPX_VOLUME 1.0f
 #define MPX_CLIPPER_THRESHOLD 1.0f
 
@@ -102,6 +104,7 @@ void show_help(char *name) {
 		"\t-d,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
 		"\t-A,--master_vol\tSet master volume [default: %.3f]\n"
 		"\t-v,--audio_vol\tSet audio volume [default: %.3f]\n"
+		"\t-D,--deviation\tSet audio volume, but with the deviation (100%% being 75000) [default: %d]\n"
 		,name
 		,DEFAULT_STEREO
 		,INPUT_DEVICE
@@ -131,6 +134,7 @@ void show_help(char *name) {
 		,DEFAULT_MPX_DEVIATION
 		,DEFAULT_MASTER_VOLUME
 		,DEFAULT_AUDIO_VOLUME
+		,DEFAULT_DEVIATION
 	);
 }
 
@@ -167,7 +171,7 @@ int main(int argc, char **argv) {
 
 	// #region Parse Arguments
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:C:f:F:L:c:P::R:Vp:d:A:v:h";
+	const char	*short_opt = "s::i:o:M:r:C:f:F:L:c:P::R:Vp:d:A:v:d:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -187,6 +191,7 @@ int main(int argc, char **argv) {
 		{"mpx_dev",     required_argument,       NULL, 'd'},
 		{"master_vol",     required_argument,       NULL, 'A'},
 		{"audio_vol",     required_argument,       NULL, 'v'},
+		{"deviation",     required_argument,       NULL, 'D'},
 
 		{"help",        no_argument,       NULL, 'h'},
 		{0,             0,                 0,    0}
@@ -230,7 +235,7 @@ int main(int argc, char **argv) {
 				else polar_stereo = 1;
 				break;
 			case 'R': // Preemp
-				preemphasis_tau = strtof(optarg, NULL)*0.000001;
+				preemphasis_tau = strtof(optarg, NULL)*1.0e-6f;
 				break;
 			case 'V': // Calibration
 				calibration_mode = 1;
@@ -246,6 +251,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'v': // Audio Volume
 				audio_volume = strtof(optarg, NULL);
+				break;
+			case 'D': // Deviation
+				master_volume *= ((float)atoi(optarg)/75000.0f);
 				break;
 			case 'h':
 				show_help(argv[0]);
