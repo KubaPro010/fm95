@@ -239,8 +239,8 @@ int main(int argc, char *argv[]) {
                 vban_frame = data.packet_data.frame_num;
             }
 
-            if(data.packet_data.frame_num != vban_frame) {
-                uint32_t expected_frame = vban_frame + 1;
+            uint32_t expected_frame = vban_frame + 1;
+            if(data.packet_data.frame_num != expected_frame) {
 
                 if (data.packet_data.frame_num > expected_frame) {
                     // Packets dropped
