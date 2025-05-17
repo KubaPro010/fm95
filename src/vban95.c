@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
                         // So we've got a higher count, must be out of order then
                         if(quiet == 0) printf("Packets received out of order (got:%d, expected:%d)\n", data.packet_data.frame_num, expected_frame);
                     }
-                    vban_frame = data.packet_data.frame_num; // Resync
+                    vban_frame = data.packet_data.frame_num - 1; // Resync, subract one do not domino error
                 } else vban_frame++;
             }
 
