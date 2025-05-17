@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
                 // This means either this is our first packet, if it is we'll sync to the sender and if it isn't we'll set to 0 from 0
                 vban_frame = data.packet_data.frame_num;
             } else {
-                uint32_t expected_frame = (vban_frame++) + 1;
+                uint32_t expected_frame = vban_frame + 1;
 
                 if (data.packet_data.frame_num != expected_frame) {
                     if (data.packet_data.frame_num > expected_frame) {
@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
                         if(quiet == 0) printf("Packets received out of order\n");
                     }
                     vban_frame = data.packet_data.frame_num; // Resync
-                }
+                } else vban_frame++;
             }
 
             if(vban_last_sr != data.packet_data.sample_rate_idx) {
