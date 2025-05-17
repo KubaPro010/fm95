@@ -24,7 +24,8 @@
         "gain_control.h": "c",
         "optimization.h": "c",
         "string.h": "c",
-        "getopt.h": "c"
+        "getopt.h": "c",
+        "audio.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
