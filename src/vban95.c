@@ -234,28 +234,24 @@ int main(int argc, char *argv[]) {
             if (memcmp(data.packet_data.vban, "VBAN", 4) != 0) continue; // Not VBAN
             if (memcmp(data.packet_data.streamname, stream_name, strlen(stream_name)) != 0) continue; // Not this
 
-            if (vban_frame == 0) {
-                // This means either this is our first packet, if it is we'll sync to the sender and if it isn't we'll set to 0 from 0
+            if (vban_frame == 0 && data.packet_data.frame_num != 0) {
+                // This means either this is our first packet, sync to the sender then
                 vban_frame = data.packet_data.frame_num;
-            } else {
-                uint32_t expected_frame = vban_frame + 1;
-                if(vban_frame == UINT32_MAX) {
-                    expected_frame = 1;
-                    vban_frame = 0;
-                }
+            }
 
-                if (data.packet_data.frame_num == expected_frame) {
-                    vban_frame++;
-                } else if (data.packet_data.frame_num > expected_frame) {
+            if(data.packet_data.frame_num != vban_frame) {
+                uint32_t expected_frame = vban_frame + 1;
+
+                if (data.packet_data.frame_num > expected_frame) {
                     // Packets dropped
                     uint32_t dropped_packets = data.packet_data.frame_num - expected_frame;
                     if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
-                    vban_frame = data.packet_data.frame_num;  // Resync to current frame
+                    vban_frame += dropped_packets;  // Resync to current frame
                 } else {
                     if (quiet == 0) printf("Packets received out of order\n");
-                    vban_frame = data.packet_data.frame_num + 1;  // Resync to current frame
                 }
             }
+            vban_frame++;
 
             if(vban_last_sr != data.packet_data.sample_rate_idx) {
                 vban_last_sr = data.packet_data.sample_rate_idx;
