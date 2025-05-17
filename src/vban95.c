@@ -241,15 +241,12 @@ int main(int argc, char *argv[]) {
             }
 
             if(data.packet_data.frame_num != vban_frame) {
-                debug_printf("sender: %u client: %u\n", data.packet_data.frame_num, vban_frame);
-                // if (data.packet_data.frame_num > vban_frame) {
-                //     uint32_t dropped_packets = data.packet_data.frame_num - vban_frame;
-                //     if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
-                //     vban_frame -= dropped_packets;
-                // } else {
-                //     if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", data.packet_data.frame_num, vban_frame);
-                // }
-                // vban_frame = data.packet_data.frame_num;
+                if (data.packet_data.frame_num > vban_frame) {
+                    if (quiet == 0) printf("Dropped %u packets\n", data.packet_data.frame_num - vban_frame);
+                } else {
+                    if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", data.packet_data.frame_num, vban_frame);
+                }
+                vban_frame = data.packet_data.frame_num;
             }
 
             if(vban_last_sr != data.packet_data.sample_rate_idx) {
