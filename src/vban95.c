@@ -7,6 +7,10 @@
 #include <sys/socket.h>
 #include <signal.h>
 
+#define buffer_maxlength 12288
+#define buffer_tlength_fragsize 12288
+#define buffer_prebuf 8
+
 #define VBAN_SR_MAXNUMBER 21
 static long VBAN_SRList[VBAN_SR_MAXNUMBER] = {
     6000, 12000, 24000, 48000, 96000, 192000, 384000,
@@ -40,7 +44,7 @@ static char VBAN_TextBITList[VBAN_BIT_MAXNUMBER][4] = {
 
 #define BUF_SIZE 2048
 #define MAX_AUDIO_DATA_SIZE (BUF_SIZE - sizeof(VBANHeader))
-#define MAX_BUFFER_PACKETS 64
+#define MAX_BUFFER_PACKETS 128
 
 #pragma pack(1)
 typedef struct {
@@ -132,6 +136,7 @@ void process_audio_buffer(AudioBuffer* buffer, PulseOutputDevice* output_device)
     }
     
     for(int i = 0; i < buffer->count; i++) {
+        // this function internally checks for initialization so no issues here, if not initialized then the data is discarded
         write_PulseOutputDevicef(&output, buffer->packets[i].data, buffer->packets[i].size);
     }
     
@@ -202,7 +207,7 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, stop);
 
     while (to_run) {
-        ssize_t recv_len = recvfrom(sockfd, buffer, BUF_SIZE - 1, 0,
+        ssize_t recv_len = recvfrom(sockfd, buffer, BUF_SIZE, 0,
                                     (struct sockaddr *)&sender_addr, &sender_len);
         if (recv_len < 0) {
             perror("recvfrom");
@@ -228,12 +233,11 @@ int main(int argc, char *argv[]) {
                 uint32_t expected_frame = vban_frame + 1;
 
                 if (data.packet_data.frame_num != expected_frame) {
-                    uint32_t diff = data.packet_data.frame_num - expected_frame;
-
-                    if (diff < 0x80000000) {
-                        printf("Dropped %u packet(s)\n", diff);
-                    } else {
-                        printf("Packet out of order (late or duplicate)\n");
+                    int32_t diff = (int32_t)(data.packet_data.frame_num - expected_frame);
+                    if (diff > 0) {
+                        printf("Dropped %d packet(s)\n", diff);
+                    } else if (diff < 0) {
+                        printf("Late or duplicate packet\n");
                     }
 
                     vban_frame = data.packet_data.frame_num;
@@ -265,27 +269,30 @@ int main(int argc, char *argv[]) {
 
             // Handle audio reset if needed
             if(vban_audio_reset) {
+                if (vban_last_sr >= VBAN_SR_MAXNUMBER || vban_last_format >= VBAN_BIT_MAXNUMBER) {
+                    fprintf(stderr, "Unsupported sample rate or format\n");
+                    continue;
+                }
+
                 if (output.initialized) {
                     free_PulseOutputDevice(&output);
                 }
                 
                 pa_buffer_attr buffer_attr = {
-                    .maxlength = (uint32_t) -1,
-                    .tlength = (uint32_t) -1,
-                    .prebuf = (uint32_t) -1,
-                    .minreq = (uint32_t) -1,
-                    .fragsize = (uint32_t) -1
+                    .maxlength = buffer_maxlength,
+                    .tlength = buffer_tlength_fragsize,
+                    .prebuf = buffer_prebuf
                 };
                 
                 int result = init_PulseOutputDevicef(
                     &output, 
-                    VBAN_SRList[vban_last_sr % VBAN_SR_MAXNUMBER], 
+                    VBAN_SRList[vban_last_sr], 
                     vban_last_channels + 1, // Add 1 because VBAN channels are 0-based
                     "vban95", 
                     stream_name, 
                     pulse_device, 
                     &buffer_attr,
-                    VBAN_BITList[vban_last_format % VBAN_BIT_MAXNUMBER]
+                    VBAN_BITList[vban_last_format]
                 );
                 
                 if (result != 0) {
@@ -293,6 +300,7 @@ int main(int argc, char *argv[]) {
                 }
                 
                 vban_audio_reset = 0;
+                continue;
             }
 
             char* audio_data = buffer + sizeof(VBANHeader);

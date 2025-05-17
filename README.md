@@ -39,7 +39,7 @@ Should run completly fine on a pi 5, fine on a pi 3b (30% cpu, 45% with lpf)
 
 ## Other Apps
 
-FM95 also includes some other apps, such as chimer95 which generates GTS tones each half hour, and dcf95 which creates a DCF77 compatible signal
+FM95 also includes some other apps, such as chimer95 which generates GTS tones each half hour, and dcf95 which creates a DCF77 compatible signal, and vban95 now which is a buffered VBAN receiver
 
 ## FM95 Calibration
 
