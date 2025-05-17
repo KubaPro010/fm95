@@ -239,6 +239,11 @@ int main(int argc, char *argv[]) {
                 vban_frame = data.packet_data.frame_num;
             } else {
                 uint32_t expected_frame = vban_frame + 1;
+                if(vban_frame == UINT32_MAX) {
+                    expected_frame = 1;
+                    vban_frame = 0;
+                }
+
                 if (data.packet_data.frame_num == expected_frame) {
                     vban_frame++;
                 } else if (data.packet_data.frame_num > expected_frame) {
@@ -248,6 +253,7 @@ int main(int argc, char *argv[]) {
                     vban_frame = data.packet_data.frame_num;  // Resync to current frame
                 } else {
                     if (quiet == 0) printf("Packets received out of order\n");
+                    vban_frame = data.packet_data.frame_num;  // Resync to current frame
                 }
             }
 
