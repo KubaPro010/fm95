@@ -240,17 +240,14 @@ int main(int argc, char *argv[]) {
             } else {
                 uint32_t expected_frame = vban_frame + 1;
                 if (data.packet_data.frame_num == expected_frame) {
-                    // Normal, next expected frame
-                    vban_frame = data.packet_data.frame_num;
+                    vban_frame++;
                 } else if (data.packet_data.frame_num > expected_frame) {
                     // Packets dropped
                     uint32_t dropped_packets = data.packet_data.frame_num - expected_frame;
                     if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
                     vban_frame = data.packet_data.frame_num;  // Resync to current frame
                 } else {
-                    // Out of order packet (frame_num < expected_frame)
                     if (quiet == 0) printf("Packets received out of order\n");
-                    // Don't update vban_frame — keep last valid frame
                 }
             }
 
