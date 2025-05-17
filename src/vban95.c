@@ -239,18 +239,19 @@ int main(int argc, char *argv[]) {
                 vban_frame = data.packet_data.frame_num;
             } else {
                 uint32_t expected_frame = vban_frame + 1;
-
-                if (data.packet_data.frame_num != expected_frame) {
-                    if (data.packet_data.frame_num > expected_frame) {
-                        // We receiver a higher counter than expected? Must be a dropped packet
-                        uint8_t dropped_packets = (data.packet_data.frame_num - expected_frame); // The offset probably is how many packets we've missed
-                        if(quiet == 0) printf("Dropped %d packets (got:%d, expected:%d)\n", dropped_packets, data.packet_data.frame_num, expected_frame);
-                    } else {
-                        // So we've got a higher count, must be out of order then
-                        if(quiet == 0) printf("Packets received out of order (got:%d, expected:%d)\n", data.packet_data.frame_num, expected_frame);
-                    }
-                    vban_frame = data.packet_data.frame_num - 1; // Resync, subract one do not domino error
-                } else vban_frame++;
+                if (data.packet_data.frame_num == expected_frame) {
+                    // Normal, next expected frame
+                    vban_frame = data.packet_data.frame_num;
+                } else if (data.packet_data.frame_num > expected_frame) {
+                    // Packets dropped
+                    uint32_t dropped_packets = data.packet_data.frame_num - expected_frame;
+                    if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
+                    vban_frame = data.packet_data.frame_num;  // Resync to current frame
+                } else {
+                    // Out of order packet (frame_num < expected_frame)
+                    if (quiet == 0) printf("Packets received out of order\n");
+                    // Don't update vban_frame — keep last valid frame
+                }
             }
 
             if(vban_last_sr != data.packet_data.sample_rate_idx) {
