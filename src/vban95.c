@@ -144,8 +144,8 @@ void process_audio_buffer(AudioBuffer* buffer, PulseOutputDevice* output_device)
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 6) {
-        fprintf(stderr, "Usage: %s <remote_ip> <port> <streamname> <buffer_size> <pulse_device>\n", argv[0]);
+    if (argc < 6) {
+        fprintf(stderr, "Usage: %s <remote_ip> <port> <streamname> <buffer_size> <pulse_device> <optional: quiet>\n", argv[0]);
         return 1;
     }
 
@@ -154,6 +154,7 @@ int main(int argc, char *argv[]) {
     char *stream_name = argv[3];
     int buffer_size = atoi(argv[4]);
     char *pulse_device = argv[5];
+    int quiet = (argc == 7);
 
     if (buffer_size <= 0 || buffer_size > MAX_BUFFER_PACKETS) {
         fprintf(stderr, "Buffer size must be between 1 and %d\n", MAX_BUFFER_PACKETS);
@@ -219,7 +220,6 @@ int main(int argc, char *argv[]) {
             memcpy(&data.raw_data, buffer, sizeof(VBANHeader));
 
             if (memcmp(data.packet_data.vban, "VBAN", 4) != 0) {
-                fprintf(stderr, "Invalid VBAN header\n");
                 continue;
             }
             
@@ -235,9 +235,9 @@ int main(int argc, char *argv[]) {
                 if (data.packet_data.frame_num != expected_frame) {
                     int32_t diff = (int32_t)(data.packet_data.frame_num - expected_frame);
                     if (diff > 0) {
-                        printf("Dropped %d packet(s)\n", diff);
+                        if(quiet == 0) printf("Dropped %d packet(s)\n", diff);
                     } else if (diff < 0) {
-                        printf("Late or duplicate packet\n");
+                        if(quiet == 0) printf("Late or duplicate packet\n");
                     }
 
                     vban_frame = data.packet_data.frame_num;
@@ -248,21 +248,21 @@ int main(int argc, char *argv[]) {
 
             if(vban_last_sr != data.packet_data.sample_rate_idx) {
                 vban_last_sr = data.packet_data.sample_rate_idx;
-                printf("New sample rate of %ld\n", VBAN_SRList[vban_last_sr % VBAN_SR_MAXNUMBER]);
+                if(quiet == 0) printf("New sample rate of %ld\n", VBAN_SRList[vban_last_sr % VBAN_SR_MAXNUMBER]);
                 vban_audio_reset = 1;
                 audio_buffer->count = 0;
             }
             
             if(vban_last_format != data.packet_data.format_type) {
                 vban_last_format = data.packet_data.format_type;
-                printf("New data format of %s\n", VBAN_TextBITList[vban_last_format % VBAN_BIT_MAXNUMBER]);
+                if(quiet == 0) printf("New data format of %s\n", VBAN_TextBITList[vban_last_format % VBAN_BIT_MAXNUMBER]);
                 vban_audio_reset = 1;
                 audio_buffer->count = 0;
             }
             
             if(vban_last_channels != data.packet_data.sample_channels) {
                 vban_last_channels = data.packet_data.sample_channels;
-                printf("New channel count of %d\n", vban_last_channels + 1); // Add 1 because VBAN channels are 0-based
+                if(quiet == 0) printf("New channel count of %d\n", vban_last_channels + 1); // Add 1 because VBAN channels are 0-based
                 vban_audio_reset = 1;
                 audio_buffer->count = 0;
             }
