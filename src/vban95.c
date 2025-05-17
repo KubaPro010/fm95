@@ -19,6 +19,7 @@ static long VBAN_SRList[VBAN_SR_MAXNUMBER] = {
 };
 
 #include "../io/audio.h"
+#include "../lib/debug.h"
 #include <pulse/simple.h>
 
 #define VBAN_BIT_MAXNUMBER 5 // 7 in the standard but pa does these 5
@@ -240,6 +241,7 @@ int main(int argc, char *argv[]) {
             }
 
             if(data.packet_data.frame_num != vban_frame) {
+                debug_printf("sender: %u client: %u\n", data.packet_data.frame_num, vban_frame);
                 if (data.packet_data.frame_num > vban_frame) {
                     uint32_t dropped_packets = data.packet_data.frame_num - vban_frame;
                     if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
