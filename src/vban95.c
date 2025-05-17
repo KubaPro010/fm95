@@ -71,6 +71,8 @@ typedef struct {
 typedef struct {
     AudioPacket* packets;
     int capacity;
+    int head;
+    int tail;
     int count;
     VBANHeader header;
 } AudioBuffer;
@@ -90,6 +92,8 @@ AudioBuffer* create_audio_buffer(int capacity) {
     }
 
     buffer->capacity = capacity;
+    buffer->head = 0;
+    buffer->tail = 0;
     buffer->count = 0;
 
     return buffer;
@@ -103,22 +107,27 @@ void destroy_audio_buffer(AudioBuffer* buffer) {
 }
 
 int add_to_buffer(AudioBuffer* buffer, const char* data, size_t size, const VBANHeader* header) {
-    if (buffer->count >= buffer->capacity) {
-        return 0;
-    }
-
     if (size > MAX_AUDIO_DATA_SIZE) {
         fprintf(stderr, "Audio data too large for buffer\n");
         return -1;
     }
 
-    memcpy(buffer->packets[buffer->count].data, data, size);
-    buffer->packets[buffer->count].size = size;
+    if (buffer->count == buffer->capacity) {
+        buffer->tail = (buffer->tail + 1) % buffer->capacity;
+        buffer->count--;
+    }
+
+    AudioPacket* pkt = &buffer->packets[buffer->head];
+    memcpy(pkt->data, data, size);
+    pkt->size = size;
     memcpy(&buffer->header, header, sizeof(VBANHeader));
+
+    buffer->head = (buffer->head + 1) % buffer->capacity;
     buffer->count++;
 
     return 1;
 }
+
 
 volatile uint8_t to_run = 1;
 
@@ -131,15 +140,18 @@ static void stop(int signum) {
 static PulseOutputDevice output = {0};
 
 void process_audio_buffer(AudioBuffer* buffer, PulseOutputDevice* output_device) {
-    if (buffer->count == 0) {
-        return;
+    while (buffer->count > 0) {
+        AudioPacket* pkt = &buffer->packets[buffer->tail];
+        write_PulseOutputDevicef(output_device, pkt->data, pkt->size);
+
+        buffer->tail = (buffer->tail + 1) % buffer->capacity;
+        buffer->count--;
     }
-    
-    for(int i = 0; i < buffer->count; i++) {
-        // this function internally checks for initialization so no issues here, if not initialized then the data is discarded
-        write_PulseOutputDevicef(&output, buffer->packets[i].data, buffer->packets[i].size);
-    }
-    
+}
+
+void reset_audio_buffer(AudioBuffer* buffer) {
+    buffer->head = 0;
+    buffer->tail = 0;
     buffer->count = 0;
 }
 
@@ -215,34 +227,29 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (sender_addr.sin_addr.s_addr == remote_addr_bin.s_addr || strcmp(remote_ip, "0.0.0.0") == 0) {
+        if (sender_addr.sin_addr.s_addr == remote_addr_bin.s_addr || remote_addr_bin.s_addr == 0) {
             VBANHeaderUnion data;
             memcpy(&data.raw_data, buffer, sizeof(VBANHeader));
 
-            if (memcmp(data.packet_data.vban, "VBAN", 4) != 0) {
-                continue;
-            }
-            
-            if (memcmp(data.packet_data.streamname, stream_name, strlen(stream_name)) != 0) {
-                continue;
-            }
+            if (memcmp(data.packet_data.vban, "VBAN", 4) != 0) continue; // Not VBAN
+            if (memcmp(data.packet_data.streamname, stream_name, strlen(stream_name)) != 0) continue; // Not this
 
             if (vban_frame == 0) {
+                // This means either this is our first packet, if it is we'll sync to the sender and if it isn't we'll set to 0 from 0
                 vban_frame = data.packet_data.frame_num;
             } else {
-                uint32_t expected_frame = vban_frame + 1;
+                uint32_t expected_frame = vban_frame++;
 
                 if (data.packet_data.frame_num != expected_frame) {
-                    int32_t diff = (int32_t)(data.packet_data.frame_num - expected_frame);
-                    if (diff > 0) {
-                        if(quiet == 0) printf("Dropped %d packet(s)\n", diff);
-                    } else if (diff < 0) {
-                        if(quiet == 0) printf("Late or duplicate packet\n");
+                    if (data.packet_data.frame_num > expected_frame) {
+                        // We receiver a higher counter than expected? Must be a dropped packet
+                        uint8_t dropped_packets = (data.packet_data.frame_num - expected_frame); // The offset probably is how many packets we've missed
+                        if(quiet == 0) printf("Dropped %d packets\n", dropped_packets);
+                    } else {
+                        // So we've got a higher count, must be out of order then
+                        if(quiet == 0) printf("Packets received out of order\n");
                     }
-
-                    vban_frame = data.packet_data.frame_num;
-                } else {
-                    vban_frame = expected_frame;
+                    vban_frame = data.packet_data.frame_num; // Resync
                 }
             }
 
@@ -250,21 +257,21 @@ int main(int argc, char *argv[]) {
                 vban_last_sr = data.packet_data.sample_rate_idx;
                 if(quiet == 0) printf("New sample rate of %ld\n", VBAN_SRList[vban_last_sr % VBAN_SR_MAXNUMBER]);
                 vban_audio_reset = 1;
-                audio_buffer->count = 0;
+                reset_audio_buffer(audio_buffer);
             }
             
             if(vban_last_format != data.packet_data.format_type) {
                 vban_last_format = data.packet_data.format_type;
-                if(quiet == 0) printf("New data format of %s\n", VBAN_TextBITList[vban_last_format % VBAN_BIT_MAXNUMBER]);
+                if(quiet == 0) printf("New data format of %s\n", VBAN_TextBITList[vban_last_format % VBAN_BIT_MAXNUMBER]); // Here it should be fine to use the modulo, as during the reset we point out the idx may be shit
                 vban_audio_reset = 1;
-                audio_buffer->count = 0;
+                reset_audio_buffer(audio_buffer);
             }
             
             if(vban_last_channels != data.packet_data.sample_channels) {
                 vban_last_channels = data.packet_data.sample_channels;
                 if(quiet == 0) printf("New channel count of %d\n", vban_last_channels + 1); // Add 1 because VBAN channels are 0-based
                 vban_audio_reset = 1;
-                audio_buffer->count = 0;
+                reset_audio_buffer(audio_buffer);
             }
 
             // Handle audio reset if needed
