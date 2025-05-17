@@ -244,10 +244,10 @@ int main(int argc, char *argv[]) {
                     if (data.packet_data.frame_num > expected_frame) {
                         // We receiver a higher counter than expected? Must be a dropped packet
                         uint8_t dropped_packets = (data.packet_data.frame_num - expected_frame); // The offset probably is how many packets we've missed
-                        if(quiet == 0) printf("Dropped %d packets\n", dropped_packets);
+                        if(quiet == 0) printf("Dropped %d packets (got:%d, expected:%d)\n", dropped_packets, data.packet_data.frame_num, expected_frame);
                     } else {
                         // So we've got a higher count, must be out of order then
-                        if(quiet == 0) printf("Packets received out of order\n");
+                        if(quiet == 0) printf("Packets received out of order (got:%d, expected:%d)\n", data.packet_data.frame_num, expected_frame);
                     }
                     vban_frame = data.packet_data.frame_num; // Resync
                 } else vban_frame++;
