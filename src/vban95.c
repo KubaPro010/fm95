@@ -244,7 +244,7 @@ int main(int argc, char *argv[]) {
                     uint32_t dropped_packets = data.packet_data.frame_num - vban_frame;
                     if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
                 } else {
-                    if (quiet == 0) printf("Packets received out of order (got:%d, expected:%d)\n", data.packet_data.frame_num, vban_frame);
+                    if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", data.packet_data.frame_num, vban_frame);
                 }
                 vban_frame = data.packet_data.frame_num;
             }
