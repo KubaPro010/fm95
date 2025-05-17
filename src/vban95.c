@@ -239,16 +239,14 @@ int main(int argc, char *argv[]) {
                 vban_frame = data.packet_data.frame_num;
             }
 
-            uint32_t expected_frame = vban_frame + 1;
-            if(data.packet_data.frame_num != expected_frame) {
-
-                if (data.packet_data.frame_num > expected_frame) {
+            if(data.packet_data.frame_num != vban_frame) {
+                if (data.packet_data.frame_num > vban_frame) {
                     // Packets dropped
-                    uint32_t dropped_packets = data.packet_data.frame_num - expected_frame;
+                    uint32_t dropped_packets = data.packet_data.frame_num - vban_frame;
                     if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
                     vban_frame = data.packet_data.frame_num;
                 } else {
-                    if (quiet == 0) printf("Packets received out of order (got:%d, expected:%d)\n", data.packet_data.frame_num, expected_frame);
+                    if (quiet == 0) printf("Packets received out of order (got:%d, expected:%d)\n", data.packet_data.frame_num, vban_frame);
                     vban_frame = data.packet_data.frame_num;
                 }
             }
