@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
                     if (quiet == 0) printf("Dropped %u packets\n", dropped_packets);
                     vban_frame += dropped_packets;  // Resync to current frame
                 } else {
-                    if (quiet == 0) printf("Packets received out of order\n");
+                    if (quiet == 0) printf("Packets received out of order (got:%d, expected:%d)\n", data.packet_data.frame_num, expected_frame);
                 }
             }
             vban_frame++;
