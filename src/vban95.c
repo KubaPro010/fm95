@@ -330,7 +330,6 @@ int main(int argc, char *argv[]) {
             if (vban_frame == 0) {
                 vban_frame = data.packet_data.frame_num;
             } else {
-                vban_frame++;
                 uint32_t diff = data.packet_data.frame_num - vban_frame;
                 if(diff != 0) {
                     if(diff == 0) {
@@ -351,12 +350,13 @@ int main(int argc, char *argv[]) {
                             temp.packet_data.frame_num = i;
                             add_to_buffer(audio_buffer, blank_packet.data, blank_packet.size, &temp.packet_data);
                         }
-                    } else {
+                    } else if (diff < 1) {
                         if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", 
                                             data.packet_data.frame_num, vban_frame);
                     }
                     vban_frame = data.packet_data.frame_num;
                 }
+                vban_frame++;
             }
 
             if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
