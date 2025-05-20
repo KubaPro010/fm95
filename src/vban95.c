@@ -331,11 +331,11 @@ int main(int argc, char *argv[]) {
                 // First packet we receive, just accept whatever frame number it has
                 vban_frame = data.packet_data.frame_num;
             } else {
-                // Normal packet processing
-                uint32_t expected_frame = vban_frame + 1;
-
-                if(data.packet_data.frame_num != expected_frame) {
-                    if (data.packet_data.frame_num > expected_frame) {
+                uint32_t diff = data.packet_data.frame_num - vban_frame;
+                if(diff != 0) {
+                    if(diff == 0) {
+                        if (quiet == 0) printf("Duplicate packet received\n");
+                    } else if (diff > 1) {
                         if (quiet == 0) printf("Dropped %u packets\n", data.packet_data.frame_num - expected_frame);
                         
                         AudioPacket blank_packet;
