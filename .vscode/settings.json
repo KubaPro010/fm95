@@ -26,7 +26,8 @@
         "string.h": "c",
         "getopt.h": "c",
         "audio.h": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "debug.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }
