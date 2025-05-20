@@ -412,7 +412,7 @@ int main(int argc, char *argv[]) {
             size_t audio_data_size = recv_len - sizeof(VBANHeader);
 
             if (add_to_buffer(audio_buffer, audio_data, audio_data_size, &data.packet_data) > 0) {
-                if (audio_buffer->count >= audio_buffer->capacity) process_audio_buffer(audio_buffer, &output);
+                process_audio_buffer(audio_buffer, &output);
             }
         }
     }
