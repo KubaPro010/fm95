@@ -330,7 +330,7 @@ int main(int argc, char *argv[]) {
             if (vban_frame == 0) {
                 vban_frame = data.packet_data.frame_num;
             } else {
-                int32_t diff = (int32_t)(data.packet_data.frame_num - (vban_frame++));
+                int32_t diff = (int32_t)(data.packet_data.frame_num - (vban_frame++) - 1);
                 if(diff != 0) {
                     debug_printf("Frame number diff: %d\n", diff);
                     if(diff == 0) {
