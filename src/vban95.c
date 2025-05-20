@@ -229,7 +229,7 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in sender_addr;
     socklen_t sender_len = sizeof(sender_addr);
 
-    uint32_t vban_frame = 0;
+    // uint32_t vban_frame = 0;
     uint8_t vban_last_sr = 0;
     uint8_t vban_last_format = 0;
     uint8_t vban_last_channels = 0;
