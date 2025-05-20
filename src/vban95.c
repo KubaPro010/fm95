@@ -329,33 +329,32 @@ int main(int argc, char *argv[]) {
             
             if (vban_frame == 0) {
                 vban_frame = data.packet_data.frame_num;
-            } else {
-                uint32_t diff = data.packet_data.frame_num - (vban_frame++);
-                if(diff != 0) {
-                    if(diff == 0) {
-                        if (quiet == 0) printf("Duplicate packet received\n");
-                    } else if (diff > 1) {
-                        if (quiet == 0) printf("Dropped %u packets\n", diff);
-                        
-                        AudioPacket blank_packet;
-                        uint8_t fill_value = (data.packet_data.format_type == 0) ? 0 : 128;
-                        memset(blank_packet.data, fill_value, recv_len - sizeof(VBANHeader));
-                        blank_packet.size = recv_len - sizeof(VBANHeader);
+            } else if (vban_frame != data.packet_data.frame_num) {
+                int32_t diff = (int32_t)(data.packet_data.frame_num - vban_frame);
 
-                        VBANHeaderUnion temp;
-                        memset(blank_packet.data, 0, blank_packet.size);
-                        memcpy(&temp.raw_data, buffer, sizeof(VBANHeader));
+                if (diff > 0) {
+                    if (quiet == 0) printf("Dropped %d packets\n", diff);
 
-                        for (uint32_t i = diff; i < temp.packet_data.frame_num; i++) {
-                            temp.packet_data.frame_num = i;
-                            add_to_buffer(audio_buffer, blank_packet.data, blank_packet.size, &temp.packet_data);
-                        }
-                    } else if (diff < 1) {
-                        if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", 
-                                            data.packet_data.frame_num, vban_frame);
+                    // Fill with silence packets if needed
+                    AudioPacket blank_packet;
+                    uint8_t fill_value = (data.packet_data.format_type == 0) ? 0 : 128;
+                    size_t blank_size = recv_len - sizeof(VBANHeader);
+                    memset(blank_packet.data, fill_value, blank_size);
+                    blank_packet.size = blank_size;
+
+                    for (int32_t i = 0; i < diff; i++) {
+                        VBANHeader temp = data.packet_data;
+                        temp.frame_num = vban_frame + i;
+                        add_to_buffer(audio_buffer, blank_packet.data, blank_packet.size, &temp);
                     }
-                    vban_frame = data.packet_data.frame_num;
+                } else if (diff < 0) {
+                    if (quiet == 0) {
+                        printf("Packets received out of order (got:%u, expected:%u)\n", 
+                            data.packet_data.frame_num, vban_frame);
+                    }
                 }
+
+                vban_frame = data.packet_data.frame_num + 1;
             }
 
             if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
