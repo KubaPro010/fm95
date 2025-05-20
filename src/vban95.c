@@ -336,7 +336,7 @@ int main(int argc, char *argv[]) {
                     if(diff == 0) {
                         if (quiet == 0) printf("Duplicate packet received\n");
                     } else if (diff > 1) {
-                        if (quiet == 0) printf("Dropped %u packets\n", data.packet_data.frame_num - expected_frame);
+                        if (quiet == 0) printf("Dropped %u packets\n", diff);
                         
                         AudioPacket blank_packet;
                         uint8_t fill_value = (data.packet_data.format_type == 0) ? 0 : 128;
@@ -347,13 +347,13 @@ int main(int argc, char *argv[]) {
                         memset(blank_packet.data, 0, blank_packet.size);
                         memcpy(&temp.raw_data, buffer, sizeof(VBANHeader));
 
-                        for (uint32_t i = expected_frame; i < temp.packet_data.frame_num; i++) {
+                        for (uint32_t i = diff; i < temp.packet_data.frame_num; i++) {
                             temp.packet_data.frame_num = i;
                             add_to_buffer(audio_buffer, blank_packet.data, blank_packet.size, &temp.packet_data);
                         }
                     } else {
                         if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", 
-                                            data.packet_data.frame_num, expected_frame);
+                                            data.packet_data.frame_num, vban_frame);
                     }
                 }
                 
