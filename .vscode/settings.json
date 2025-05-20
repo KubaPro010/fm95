@@ -25,7 +25,8 @@
         "optimization.h": "c",
         "string.h": "c",
         "getopt.h": "c",
-        "audio.h": "c"
+        "audio.h": "c",
+        "signal.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

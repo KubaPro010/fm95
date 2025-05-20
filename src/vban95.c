@@ -6,6 +6,14 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <stdbool.h>
+#include <getopt.h>
+#include <stdio.h>
+#include <pwd.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
@@ -43,25 +51,83 @@ static char VBAN_TextBITList[VBAN_BIT_MAXNUMBER][4] = {
 #define VBAN_PROTOCOL_TXT 0x40
 #define VBAN_PROTOCOL_SERVICE 0x60
 
+#define VBAN_SERVICE_IDENTIFICATION 0
+#define VBAN_SERVICE_CHATUTF8 1
+#define VBAN_SERVICE_RTPACKETREGISTER 32
+#define VBAN_SERVICE_RTPACKET 33
+
+#define VBANPING_TYPE_RECEPTOR 0x00000001 // Simple receptor
+#define VBANPING_TYPE_TRANSMITTER 0x00000002 // Simple Transmitter
+#define VBANPING_TYPE_RECEPTORSPOT 0x00000004 // SPOT receptor (able to receive several streams)
+#define VBANPING_TYPE_TRANSMITTERSPOT 0x00000008 // SPOT transmitter (able to send several streams)
+#define VBANPING_TYPE_VIRTUALDEVICE 0x00000010 // Virtual Device
+#define VBANPING_TYPE_VIRTUALMIXER 0x00000020 // Virtual Mixer
+#define VBANPING_TYPE_MATRIX 0x00000040 // MATRIX
+#define VBANPING_TYPE_DAW 0x00000080 // Workstation
+#define VBANPING_TYPE_SERVER 0x01000000 // VBAN SERVER 
+
+#define VBANPING_FEATURE_AUDIO 0x00000001
+#define VBANPING_FEATURE_AOIP 0x00000002
+#define VBANPING_FEATURE_VOIP 0x00000004
+#define VBANPING_FEATURE_SERIAL 0x00000100
+#define VBANPING_FEATURE_MIDI 0x00000300
+#define VBANPING_FEATURE_FRAME 0x00001000
+#define VBANPING_FEATURE_TXT 0x00010000 
+
 #define BUF_SIZE 2048
 #define MAX_AUDIO_DATA_SIZE (BUF_SIZE - sizeof(VBANHeader))
 #define MAX_BUFFER_PACKETS 128
 
+#define POLL_TIMEOUT_MS 100
+
 #pragma pack(1)
 typedef struct {
     char vban[4];
-    uint8_t sample_rate_idx;
-    uint8_t samples_per_frame;
-    uint8_t sample_channels;
-    uint8_t format_type;
+    uint8_t protocol_sample_rate_idx; // format_SR
+    uint8_t samples_per_frame; // format_nbs
+    uint8_t sample_channels; // format_nbc
+    uint8_t format_type; // format_bit
     char streamname[16];
-    uint32_t frame_num;
+    uint32_t frame_num; // nuFrame
 } VBANHeader;
 
 typedef union {
     VBANHeader packet_data;
     char raw_data[sizeof(VBANHeader)];
 } VBANHeaderUnion;
+
+typedef struct {
+    uint32_t bitType; // device type
+    uint32_t bitfeature;
+    uint32_t bitfeatureEx;
+    uint32_t PreferredRate;
+    uint32_t MinRate;
+    uint32_t MaxRate;
+    uint32_t colorRGB;
+    uint8_t nVersion[4];
+    
+    char GPS_Position[8];
+    char USER_Position[8];
+    char LangCode_ascii[8];
+    char reserved_ascii[8];
+
+    char reservedEx[64];
+    char DistantIP_ascii[32];
+    uint16_t DistantPort;
+    uint16_t DistantReserved;
+
+    char DeviceName_ascii[64];
+    char ManufacturerName_ascii[64];
+    char ApplicationName_ascii[64];
+    char HostName_ascii[64];
+    char UserName_utf8[128];
+    char UserComment_utf8[128];
+} VBANPing0Data;
+
+typedef union {
+    VBANPing0Data data;
+    char raw_data[sizeof(VBANPing0Data)];
+} VBANPing0DataUnion;
 #pragma pack()
 
 typedef struct {
@@ -129,7 +195,6 @@ int add_to_buffer(AudioBuffer* buffer, const char* data, size_t size, const VBAN
     return 1;
 }
 
-
 volatile uint8_t to_run = 1;
 
 static void stop(int signum) {
@@ -156,18 +221,72 @@ void reset_audio_buffer(AudioBuffer* buffer) {
     buffer->count = 0;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 6) {
-        fprintf(stderr, "Usage: %s <remote_ip> <port> <streamname> <buffer_size> <pulse_device> <optional: quiet>\n", argv[0]);
-        return 1;
-    }
+void show_version() {
+	printf("vban95 (a VBAN AOIP receiver by radio95) version 1.1\n");
+}
+void show_help(char *name) {
+    printf(
+        "Usage: \t%s\n"
+        "\t-i,--ip\t\tOverride remote IP address\n"
+        "\t-p,--port\tOverride listen port\n"
+        "\t-s,--stream\tOverride stream name\n"
+        "\t-b,--buffer\tOverride buffer size (1 to %d)\n"
+        "\t-d,--device\tOverride PulseAudio device\n"
+        "\t-q,--quiet\tSuppress output messages\n",
+        name, MAX_BUFFER_PACKETS
+    );
+}
 
-    char *remote_ip = argv[1];
-    int listen_port = atoi(argv[2]);
-    char *stream_name = argv[3];
-    int buffer_size = atoi(argv[4]);
-    char *pulse_device = argv[5];
-    int quiet = (argc == 7);
+int main(int argc, char *argv[]) {
+    show_version();
+
+    char *remote_ip = "0.0.0.0";
+    int listen_port = 6980;
+    char *stream_name = "VBAN";
+    int buffer_size = 1;
+    char *pulse_device = "";
+    int quiet = 0;
+    
+    int opt;
+    const char *short_opt = "i:p:s:b:d:qh";
+    const struct option long_opt[] = {
+        {"ip", required_argument, NULL, 'i'},
+        {"port", required_argument, NULL, 'p'},
+        {"stream", required_argument, NULL, 's'},
+        {"buffer", required_argument, NULL, 'b'},
+        {"device", required_argument, NULL, 'd'},
+        {"quiet", no_argument, NULL, 'q'},
+        {"help", no_argument, NULL, 'h'},
+        {NULL, 0, NULL, 0}
+    };
+    while ((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
+        switch (opt) {
+            case 'i':
+                remote_ip = optarg;
+                break;
+            case 'p':
+                listen_port = atoi(optarg);
+                break;
+            case 's':
+                stream_name = optarg;
+                break;
+            case 'b':
+                buffer_size = atoi(optarg);
+                break;
+            case 'd':
+                pulse_device = optarg;
+                break;
+            case 'q':
+                quiet = 1;
+                break;
+            case 'h':
+                show_help(argv[0]);
+                return 0;
+            default:
+                show_help(argv[0]);
+                return 1;
+        }
+    }
 
     if (buffer_size <= 0 || buffer_size > MAX_BUFFER_PACKETS) {
         fprintf(stderr, "Buffer size must be between 1 and %d\n", MAX_BUFFER_PACKETS);
@@ -180,6 +299,17 @@ int main(int argc, char *argv[]) {
     if (sockfd < 0) {
         perror("socket");
         return 1;
+    }
+
+    int flags = fcntl(sockfd, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl(F_GETFL)");
+        return -1;
+    }
+
+    if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("fcntl(F_SETFL)");
+        return -1;
     }
 
     struct sockaddr_in local_addr;
@@ -217,40 +347,116 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    pa_buffer_attr buffer_attr = {
+        .maxlength = buffer_maxlength,
+        .tlength = buffer_tlength_fragsize,
+        .prebuf = buffer_prebuf
+    };
+
     signal(SIGINT, stop);
     signal(SIGTERM, stop);
 
     while (to_run) {
         ssize_t recv_len = recvfrom(sockfd, buffer, BUF_SIZE, 0,
-                                    (struct sockaddr *)&sender_addr, &sender_len);
+                                   (struct sockaddr *)&sender_addr, &sender_len);
+        
         if (recv_len < 0) {
-            perror("recvfrom");
-            break;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                // No data available, just continue with the loop
+                // Add a small sleep to avoid consuming too much CPU
+                usleep(POLL_TIMEOUT_MS * 1000); // Convert ms to microseconds
+                continue;
+            } else {
+                perror("recvfrom error");
+                break;
+            }
         }
+
+        if ((size_t)recv_len < sizeof(VBANHeader)) continue;
 
         if (sender_addr.sin_addr.s_addr == remote_addr_bin.s_addr || remote_addr_bin.s_addr == 0) {
             VBANHeaderUnion data;
             memcpy(&data.raw_data, buffer, sizeof(VBANHeader));
 
-            if (memcmp(data.packet_data.vban, "VBAN", 4) != 0) continue; // Not VBAN
-            if (memcmp(data.packet_data.streamname, stream_name, strlen(stream_name)) != 0) continue; // Not this
+            if (memcmp(data.packet_data.vban, "VBAN", 4) != 0) continue;
 
-            if (vban_frame == 0 && data.packet_data.frame_num != 0) {
-                // This means either this is our first packet, sync to the sender then
-                vban_frame = data.packet_data.frame_num;
-            }
+            uint8_t protocol = data.packet_data.protocol_sample_rate_idx & 0xe0;
+            if(protocol != VBAN_PROTOCOL_AUDIO) {
+                if(protocol == VBAN_PROTOCOL_SERVICE) {
+                    // Handle Service protocol
+                    uint8_t service_type = data.packet_data.sample_channels;
+                    uint8_t service_function = data.packet_data.samples_per_frame; // 0 if ping, 80 if reply
 
-            if(data.packet_data.frame_num != vban_frame) {
-                if (data.packet_data.frame_num > vban_frame) {
-                    if (quiet == 0) printf("Dropped %u packets\n", data.packet_data.frame_num - vban_frame);
-                } else {
-                    if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", data.packet_data.frame_num, vban_frame);
+                    if(service_type == VBAN_SERVICE_IDENTIFICATION) {
+                        if(service_function == 0) {
+                            // Handle ping
+                            VBANPing0DataUnion ping_data;
+                            memset(&ping_data, 0, sizeof(VBANPing0Data));
+
+                            ping_data.data.bitType = VBANPING_TYPE_RECEPTOR;
+                            ping_data.data.bitfeature = VBANPING_FEATURE_AUDIO | VBANPING_FEATURE_AOIP;
+                            ping_data.data.nVersion[0] = 1;
+                            ping_data.data.nVersion[1] = 1;
+
+                            snprintf(ping_data.data.DistantIP_ascii, sizeof(ping_data.data.DistantIP_ascii), "%s", inet_ntoa(sender_addr.sin_addr));
+                            ping_data.data.DistantPort = htons(listen_port);
+                            strncpy(ping_data.data.ApplicationName_ascii, "vban95", sizeof(ping_data.data.ApplicationName_ascii));
+
+                            uid_t uid = getuid();
+                            struct passwd *pw = getpwuid(uid);
+                            if (pw != NULL) snprintf(ping_data.data.UserName_utf8, sizeof(ping_data.data.UserName_utf8), "%s", pw->pw_name);
+
+                            gethostname(ping_data.data.HostName_ascii, sizeof(ping_data.data.HostName_ascii));
+
+                            VBANHeaderUnion reply_header;
+                            memset(&reply_header, 0, sizeof(VBANHeader));
+
+                            memcpy(reply_header.packet_data.vban, "VBAN", 4);
+                            reply_header.packet_data.protocol_sample_rate_idx = VBAN_PROTOCOL_SERVICE;
+                            reply_header.packet_data.sample_channels = VBAN_SERVICE_IDENTIFICATION;
+                            reply_header.packet_data.samples_per_frame = 0x80; // reply
+                            reply_header.packet_data.frame_num = data.packet_data.frame_num;
+
+                            char reply_buffer[sizeof(VBANHeader) + sizeof(VBANPing0Data)];
+                            memcpy(reply_buffer, &reply_header.raw_data, sizeof(VBANHeader));
+                            memcpy(reply_buffer + sizeof(VBANHeader), &ping_data.raw_data, sizeof(VBANPing0Data));
+                            ssize_t sent_len = sendto(sockfd, reply_buffer, sizeof(reply_buffer), 0,
+                                                      (struct sockaddr *)&sender_addr, sender_len);
+                            if (sent_len < 0) {
+                                perror("sendto");
+                            } else {
+                                if (quiet == 0) printf("Sent VBAN ping reply to %s:%d\n", inet_ntoa(sender_addr.sin_addr), ntohs(sender_addr.sin_port));
+                            }
+                        }
+                    }
                 }
+                continue;
+            }
+            
+            if (vban_frame == 0) {
+                // First packet we receive, just accept whatever frame number it has
+                vban_frame = data.packet_data.frame_num;
+            } else {
+                // Normal packet processing
+                uint32_t expected_frame = vban_frame + 1;
+
+                if(data.packet_data.frame_num != expected_frame) {
+                    if (data.packet_data.frame_num > expected_frame) {
+                        if (quiet == 0) printf("Dropped %u packets\n", data.packet_data.frame_num - expected_frame);
+                    } else {
+                        if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", 
+                                            data.packet_data.frame_num, expected_frame);
+                    }
+                }
+                
                 vban_frame = data.packet_data.frame_num;
             }
 
-            if(vban_last_sr != data.packet_data.sample_rate_idx) {
-                vban_last_sr = data.packet_data.sample_rate_idx;
+            if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
+
+            uint8_t actual_sr_idx = data.packet_data.protocol_sample_rate_idx & 0x1f;
+            if(vban_last_sr != actual_sr_idx) {
+                vban_last_sr = actual_sr_idx;
                 if(quiet == 0) printf("New sample rate of %ld\n", VBAN_SRList[vban_last_sr % VBAN_SR_MAXNUMBER]);
                 vban_audio_reset = 1;
                 reset_audio_buffer(audio_buffer);
@@ -270,24 +476,15 @@ int main(int argc, char *argv[]) {
                 reset_audio_buffer(audio_buffer);
             }
 
-            // Handle audio reset if needed
             if(vban_audio_reset) {
                 if (vban_last_sr >= VBAN_SR_MAXNUMBER || vban_last_format >= VBAN_BIT_MAXNUMBER) {
                     fprintf(stderr, "Unsupported sample rate or format\n");
                     continue;
                 }
 
-                if (output.initialized) {
-                    free_PulseOutputDevice(&output);
-                }
+                if (output.initialized) free_PulseOutputDevice(&output);
                 
-                pa_buffer_attr buffer_attr = {
-                    .maxlength = buffer_maxlength,
-                    .tlength = buffer_tlength_fragsize,
-                    .prebuf = buffer_prebuf
-                };
-                
-                int result = init_PulseOutputDevicef(
+                int result = init_PulseOutputDevicef( // the f suffix is to specify the format, because without f it defaults to float
                     &output, 
                     VBAN_SRList[vban_last_sr], 
                     vban_last_channels + 1, // Add 1 because VBAN channels are 0-based
@@ -298,9 +495,7 @@ int main(int argc, char *argv[]) {
                     VBAN_BITList[vban_last_format]
                 );
                 
-                if (result != 0) {
-                    fprintf(stderr, "Failed to initialize PulseAudio output device: %s\n", pa_strerror(result));
-                }
+                if (result != 0) fprintf(stderr, "Failed to initialize PulseAudio output device: %s\n", pa_strerror(result));
                 
                 vban_audio_reset = 0;
                 continue;
@@ -310,19 +505,14 @@ int main(int argc, char *argv[]) {
             size_t audio_data_size = recv_len - sizeof(VBANHeader);
 
             if (add_to_buffer(audio_buffer, audio_data, audio_data_size, &data.packet_data) > 0) {
-                if (audio_buffer->count >= audio_buffer->capacity) {
-                    process_audio_buffer(audio_buffer, &output);
-                }
+                if (audio_buffer->count >= audio_buffer->capacity) process_audio_buffer(audio_buffer, &output);
             }
-            vban_frame++;
         }
     }
 
     // Clean up
     printf("Cleaning up...\n");
-    if (output.initialized) {
-        free_PulseOutputDevice(&output);
-    }
+    if (output.initialized) free_PulseOutputDevice(&output);
     destroy_audio_buffer(audio_buffer);
     close(sockfd);
     
