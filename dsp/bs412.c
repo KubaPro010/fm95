@@ -5,7 +5,8 @@ float dbr_to_deviation(float dbr) {
 }
 
 float deviation_to_dbr(float deviation) {
-	return 10 * log10f((deviation + 1e-6f) / 19000.0f);
+	if(deviation == 0.0f) return -100.0f;
+	return 10 * log10f(deviation / 19000.0f);
 }
 
 void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {

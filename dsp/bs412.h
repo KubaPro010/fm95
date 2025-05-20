@@ -1,6 +1,8 @@
 #pragma once
 #include <math.h>
+#ifdef BS412_DEBUG
 #include "../lib/debug.h"
+#endif
 
 typedef struct
 {

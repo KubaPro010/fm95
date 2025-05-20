@@ -1,6 +1,4 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -8,12 +6,9 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <getopt.h>
-#include <stdio.h>
 #include <pwd.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <unistd.h>
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288

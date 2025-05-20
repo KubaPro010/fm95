@@ -17,7 +17,9 @@ typedef struct
 } PulseInputDevice;
 
 int init_PulseInputDevice(PulseInputDevice *dev, int sample_rate, int channels, char *app_name, char *stream_name, char *device, pa_buffer_attr *buffer_attr);
+int init_PulseInputDevicef(PulseInputDevice *dev, int sample_rate, int channels, char *app_name, char *stream_name, char *device, pa_buffer_attr *buffer_attr, pa_sample_format_t format);
 int read_PulseInputDevice(PulseInputDevice *dev, float *buffer, size_t size);
+int read_PulseInputDevicef(PulseInputDevice *dev, void *buffer, size_t size);
 void free_PulseInputDevice(PulseInputDevice *dev);
 
 typedef PulseInputDevice PulseOutputDevice;

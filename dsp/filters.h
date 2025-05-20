@@ -1,11 +1,7 @@
 #pragma once
 
-#include <string.h>
-#include <stdlib.h>
 #include <math.h>
-#include "constants.h"
 #include "../lib/optimization.h"
-#include "oscillator.h"
 
 typedef struct
 {
