@@ -332,6 +332,7 @@ int main(int argc, char *argv[]) {
             } else {
                 int32_t diff = (int32_t)(data.packet_data.frame_num - (vban_frame++));
                 if(diff != 0) {
+                    debug_printf("Frame number diff: %d\n", diff);
                     if(diff == 0) {
                         if (quiet == 0) printf("Duplicate packet received\n");
                     } else if (diff > 1) {
