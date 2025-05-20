@@ -326,7 +326,7 @@ int main(int argc, char *argv[]) {
                 }
                 continue;
             }
-            
+#if 0
             if (vban_frame == 0) {
                 vban_frame = data.packet_data.frame_num;
             } else {
@@ -358,6 +358,7 @@ int main(int argc, char *argv[]) {
                     vban_frame = data.packet_data.frame_num;
                 }
             }
+#endif
 
             if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
 
