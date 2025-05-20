@@ -330,7 +330,7 @@ int main(int argc, char *argv[]) {
             if (vban_frame == 0) {
                 vban_frame = data.packet_data.frame_num;
             } else {
-                uint32_t diff = data.packet_data.frame_num - vban_frame;
+                uint32_t diff = data.packet_data.frame_num - (vban_frame++);
                 if(diff != 0) {
                     if(diff == 0) {
                         if (quiet == 0) printf("Duplicate packet received\n");
@@ -356,7 +356,6 @@ int main(int argc, char *argv[]) {
                     }
                     vban_frame = data.packet_data.frame_num;
                 }
-                vban_frame++;
             }
 
             if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
