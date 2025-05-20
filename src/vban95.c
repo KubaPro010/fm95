@@ -328,9 +328,9 @@ int main(int argc, char *argv[]) {
             }
             
             if (vban_frame == 0) {
-                // First packet we receive, just accept whatever frame number it has
                 vban_frame = data.packet_data.frame_num;
             } else {
+                vban_frame++;
                 uint32_t diff = data.packet_data.frame_num - vban_frame;
                 if(diff != 0) {
                     if(diff == 0) {
@@ -355,9 +355,8 @@ int main(int argc, char *argv[]) {
                         if (quiet == 0) printf("Packets received out of order (got:%u, expected:%u)\n", 
                                             data.packet_data.frame_num, vban_frame);
                     }
+                    vban_frame = data.packet_data.frame_num;
                 }
-                
-                vban_frame = data.packet_data.frame_num;
             }
 
             if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
