@@ -5,6 +5,13 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef DEBUG
+#define PULSE_DEBUG
+#endif
+#ifdef PULSE_DEBUG
+#include "../lib/debug.h"
+#endif
+
 typedef struct
 {
 	pa_simple* dev;

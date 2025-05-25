@@ -13,6 +13,9 @@ void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
 	mpx->sample_counter = 0;
 	mpx->sample = 0;
 	mpx->sample_rate = sample_rate;
+	#ifdef BS412_DEBUG
+	debug_printf("Initialized MPX power measurement with sample rate: %d\n", sample_rate);
+	#endif
 }
 
 float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {

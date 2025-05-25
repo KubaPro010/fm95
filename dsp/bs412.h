@@ -1,4 +1,9 @@
 #pragma once
+
+#ifdef DEBUG
+#define BS412_DEBUG
+#endif
+
 #include <math.h>
 #ifdef BS412_DEBUG
 #include "../lib/debug.h"

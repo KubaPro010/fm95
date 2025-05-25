@@ -19,4 +19,4 @@ typedef struct
 	Oscillator* osc;
 } RefrencedFMModulator;
 void init_refrenced_fm_modulator(RefrencedFMModulator *fm, Oscillator *osc, float deviation);
-float refrenced_modulate_fm(RefrencedFMModulator *fm, float sample);
+float refrenced_modulate_fm(RefrencedFMModulator *fm, float sample, float phase_multiplier);

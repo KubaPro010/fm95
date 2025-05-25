@@ -27,7 +27,10 @@
         "getopt.h": "c",
         "audio.h": "c",
         "signal.h": "c",
-        "debug.h": "c"
+        "debug.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

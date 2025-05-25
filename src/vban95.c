@@ -22,7 +22,7 @@
 #define MAX_AUDIO_DATA_SIZE (BUF_SIZE - sizeof(VBANHeader))
 #define MAX_BUFFER_PACKETS 128
 
-#define POLL_TIMEOUT_MS 100
+#define POLL_TIMEOUT_MS 75
 
 typedef struct {
     char data[MAX_AUDIO_DATA_SIZE];
@@ -326,6 +326,11 @@ int main(int argc, char *argv[]) {
                 }
                 continue;
             }
+
+            if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
+            
+            char* audio_data = buffer + sizeof(VBANHeader);
+            size_t audio_data_size = recv_len - sizeof(VBANHeader);
 #if 0
             if (vban_frame == 0) {
                 vban_frame = data.packet_data.frame_num;
@@ -340,8 +345,8 @@ int main(int argc, char *argv[]) {
                         
                         AudioPacket blank_packet;
                         uint8_t fill_value = (data.packet_data.format_type == 0) ? 0 : 128;
-                        memset(blank_packet.data, fill_value, recv_len - sizeof(VBANHeader));
-                        blank_packet.size = recv_len - sizeof(VBANHeader);
+                        memset(blank_packet.data, fill_value, audio_data_size);
+                        blank_packet.size = audio_data_size;
 
                         VBANHeaderUnion temp;
                         memset(blank_packet.data, 0, blank_packet.size);
@@ -359,8 +364,6 @@ int main(int argc, char *argv[]) {
                 }
             }
 #endif
-
-            if (strncmp(data.packet_data.streamname, stream_name, sizeof(data.packet_data.streamname)) != 0) continue;
 
             uint8_t actual_sr_idx = data.packet_data.protocol_sample_rate_idx & 0x1f;
             if(vban_last_sr != actual_sr_idx) {
@@ -409,12 +412,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            char* audio_data = buffer + sizeof(VBANHeader);
-            size_t audio_data_size = recv_len - sizeof(VBANHeader);
-
-            if (add_to_buffer(audio_buffer, audio_data, audio_data_size, &data.packet_data) > 0) {
-                process_audio_buffer(audio_buffer, &output);
-            }
+            if (add_to_buffer(audio_buffer, audio_data, audio_data_size, &data.packet_data) > 0) process_audio_buffer(audio_buffer, &output);
         }
     }
 

@@ -19,9 +19,9 @@ void init_refrenced_fm_modulator(RefrencedFMModulator* fm, Oscillator* osc, floa
 	fm->osc = osc;
 }
 
-float refrenced_modulate_fm(RefrencedFMModulator* fm, float sample) {
+float refrenced_modulate_fm(RefrencedFMModulator* fm, float sample, float phase_multiplier) {
     float inst_freq = sample * fm->deviation;
-    float phase = fm->osc->phase + ((M_2PI * inst_freq) / fm->osc->sample_rate);
+    float phase = (fm->osc->phase * phase_multiplier) + ((M_2PI * inst_freq) / fm->osc->sample_rate);
     
     if (phase >= M_2PI) {
         phase -= M_2PI;
