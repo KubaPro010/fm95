@@ -34,6 +34,7 @@
 #define RDS_DEVICE "RDS.monitor"
 #define MPX_DEVICE "FM_MPX.monitor"
 #define SCA_DEVICE "\0" // Disabled
+#define DARC_DEVICE "\0" // Disabled
 
 #define BUFFER_SIZE 2048
 
@@ -50,7 +51,6 @@
 #define SCA_VOLUME 0.1f // 10%, needs to be high because this is analog
 
 #define MPX_VOLUME 1.0f
-#define MPX_CLIPPER_THRESHOLD 1.0f
 
 static volatile sig_atomic_t to_run = 1;
 
@@ -74,6 +74,17 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
 #endif
 }
 
+float compute_darc_amplitude(float stereo_injection_percent) {
+    if (stereo_injection_percent <= 0.025f) {
+        return 0.04f;
+    } else if (stereo_injection_percent <= 0.05f) {
+        float slope = (0.1f - 0.04f) / (0.05f - 0.025f);
+        return 0.04f + slope * (stereo_injection_percent - 0.025f);
+    } else {
+        return 0.1f;
+    }
+}
+
 static void stop(int signum) {
 	(void)signum;
 	printf("\nReceived stop signal.\n");
@@ -91,16 +102,17 @@ void show_help(char *name) {
 		"\t-o,--output\tOverride output device [default: %s]\n"
 		"\t-M,--mpx\tOverride MPX input device [default: %s]\n"
 		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
-		"\t-C,--sca\tOverride the SCA input device [default: %s]\n"
+		"\t-S,--sca\tOverride the SCA input device [default: %s]\n"
+		"\t-d,--darc\tOverride the DARC input device [default: %s]\n"
 		"\t-f,--sca_freq\tOverride the SCA frequency [default: %.1f]\n"
 		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
-		"\t-L,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
+		"\t-C,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
 		"\t-c,--clipper\tOverride the clipper threshold [default: %.2f]\n"
 		"\t-P,--polar\tForce Polar Stereo (does not take effect with -m%s)\n"
 		"\t-R,--preemp\tOverride preemphasis [default: %.2f µs]\n"
 		"\t-V,--calibrate\tEnable Calibration mode [default: off]\n"
 		"\t-p,--power\tSet the MPX power [default: %.1f]\n"
-		"\t-d,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
+		"\t-P,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
 		"\t-A,--master_vol\tSet master volume [default: %.3f]\n"
 		"\t-v,--audio_vol\tSet audio volume [default: %.3f]\n"
 		"\t-D,--deviation\tSet audio volume, but with the deviation (100%% being 75000) [default: %.1f]\n"
@@ -123,6 +135,11 @@ void show_help(char *name) {
 		#else
 		,"not set"
 		#endif
+		#ifdef DARC_DEVICE
+		,DARC_DEVICE
+		#else
+		,"not set"
+		#endif
 		,DEFAULT_SCA_FREQUENCY
 		,DEFAULT_SCA_DEVIATION
 		,DEFAULT_SCA_CLIPPER_THRESHOLD
@@ -140,7 +157,7 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
 	show_version();
 
-	PulseInputDevice mpx_device, rds_device, sca_device;
+	PulseInputDevice mpx_device, rds_device, sca_device, darc_device;
 
 	PulseInputDevice input_device;
 	PulseOutputDevice output_device;
@@ -158,6 +175,7 @@ int main(int argc, char **argv) {
 	char audio_mpx_device[64] = MPX_DEVICE;
 	char audio_rds_device[64] = RDS_DEVICE;
 	char audio_sca_device[64] = SCA_DEVICE;
+	char audio_darc_device[64] = DARC_DEVICE;
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
 	uint8_t calibration_mode = 0;
@@ -170,7 +188,7 @@ int main(int argc, char **argv) {
 
 	// #region Parse Arguments
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:C:f:F:L:c:P::R:Vp:d:A:v:D:h";
+	const char	*short_opt = "s::i:o:M:r:S:d:f:F:C:c:P::R:Vp:P:A:v:D:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -178,16 +196,17 @@ int main(int argc, char **argv) {
 		{"output",      required_argument, NULL, 'o'},
 		{"mpx",         required_argument, NULL, 'M'},
 		{"rds",         required_argument, NULL, 'r'},
-		{"sca",         required_argument, NULL, 'C'},
+		{"sca",         required_argument, NULL, 'S'},
+		{"darc",        required_argument, NULL, 'd'},
 		{"sca_freq",    required_argument, NULL, 'f'},
 		{"sca_dev",     required_argument, NULL, 'F'},
-		{"sca_clip",    required_argument, NULL, 'L'},
+		{"sca_clip",    required_argument, NULL, 'C'},
 		{"clipper",     required_argument, NULL, 'c'},
 		{"polar",       optional_argument,       NULL, 'P'},
 		{"preemp",      required_argument,       NULL, 'R'},
 		{"calibrate",     no_argument,       NULL, 'V'},
 		{"power",     required_argument,       NULL, 'p'},
-		{"mpx_dev",     required_argument,       NULL, 'd'},
+		{"mpx_dev",     required_argument,       NULL, 'P'},
 		{"master_vol",     required_argument,       NULL, 'A'},
 		{"audio_vol",     required_argument,       NULL, 'v'},
 		{"deviation",     required_argument,       NULL, 'D'},
@@ -214,8 +233,11 @@ int main(int argc, char **argv) {
 			case 'r': // RDS in
 				memcpy(audio_rds_device, optarg, 63);
 				break;
-			case 'C': //SCA in
+			case 'S': //SCA in
 				memcpy(audio_sca_device, optarg, 63);
+				break;
+			case 'd': //DARC in
+				memcpy(audio_darc_device, optarg, 63);
 				break;
 			case 'f': //SCA freq
 				sca_frequency = strtof(optarg, NULL);
@@ -223,7 +245,7 @@ int main(int argc, char **argv) {
 			case 'F': //SCA deviation
 				sca_deviation = strtof(optarg, NULL);
 				break;
-			case 'L': //SCA clip
+			case 'C': //SCA clip
 				sca_clipper_threshold = strtof(optarg, NULL);
 				break;
 			case 'c': //Clipper
@@ -242,7 +264,7 @@ int main(int argc, char **argv) {
 			case 'p': // Power
 				mpx_power = strtof(optarg, NULL);
 				break;
-			case 'd': // MPX deviation
+			case 'P': // MPX deviation
 				mpx_deviation = strtof(optarg, NULL);
 				break;
 			case 'A': // Master vol
@@ -264,6 +286,7 @@ int main(int argc, char **argv) {
 	int mpx_on = (strlen(audio_mpx_device) != 0);
 	int rds_on = (strlen(audio_rds_device) != 0);
 	int sca_on = (strlen(audio_sca_device) != 0);
+	int darc_on = (strlen(audio_darc_device) != 0);
 
 	// #region Setup devices
 
@@ -322,6 +345,20 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	if(darc_on) {
+		printf("Connecting to DARC device... (%s)\n", audio_darc_device);
+
+		opentime_pulse_error = init_PulseInputDevice(&darc_device, sample_rate, 2, "fm95", "DARC Input", audio_darc_device, &input_buffer_atr); // data and clock
+		if (opentime_pulse_error) {
+			fprintf(stderr, "Error: cannot open DARC device: %s\n", pa_strerror(opentime_pulse_error));
+			free_PulseInputDevice(&input_device);
+			if(mpx_on) free_PulseInputDevice(&mpx_device);
+			if(rds_on) free_PulseInputDevice(&rds_device);
+			if(sca_on) free_PulseInputDevice(&sca_device);
+			return 1;
+		}
+	}
+
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
 	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr);
@@ -331,6 +368,7 @@ int main(int argc, char **argv) {
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
+		if(darc_on) free_PulseInputDevice(&darc_device);
 		return 1;
 	}
 	// #endregion
@@ -357,6 +395,7 @@ int main(int argc, char **argv) {
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
+		if(darc_on) free_PulseInputDevice(&darc_device);
 		free_PulseOutputDevice(&output_device);
 		return 0;
 	}
@@ -382,6 +421,9 @@ int main(int argc, char **argv) {
 	MPXPowerMeasurement mpx_only_power;
 	init_modulation_power_measure(&mpx_only_power, sample_rate);
 
+	RefrencedFMModulator darc_modulator;
+	init_refrenced_fm_modulator(&darc_modulator, &osc, 4000.0f);
+
 	float bs412_audio_gain = 1.0f;
 
 	AGC agc;
@@ -399,10 +441,17 @@ int main(int argc, char **argv) {
 	float rds1_in[BUFFER_SIZE] = {0};
 	float rds2_in[BUFFER_SIZE] = {0};
 
+	float darc_data[BUFFER_SIZE*2] = {0}; // DARC data and clock
+	float darc_clock[BUFFER_SIZE] = {0};
+	float darc_data_out[BUFFER_SIZE] = {0};
+
 	float mpx_in[BUFFER_SIZE] = {0};
 	float sca_in[BUFFER_SIZE] = {0};
 	float left[BUFFER_SIZE], right[BUFFER_SIZE];
 	float output[BUFFER_SIZE];
+
+	float last_darc_clock = 0.0f;
+	float last_darc_data = 0.0f;
 
 	while (to_run) {
 		if((pulse_error = read_PulseInputDevice(&input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
@@ -433,6 +482,14 @@ int main(int argc, char **argv) {
 				break;
 			}
 		}
+		if(darc_on) {
+			if((pulse_error = read_PulseInputDevice(&darc_device, darc_data, sizeof(darc_data)))) {
+				fprintf(stderr, "Error reading from DARC device: %s\n", pa_strerror(pulse_error));
+				to_run = 0;
+				break;
+			}
+			uninterleave(darc_data, darc_clock, darc_data_out, BUFFER_SIZE*2);
+		}
 
 		for (int i = 0; i < BUFFER_SIZE; i++) {
 			float mpx = 0.0f;
@@ -444,6 +501,11 @@ int main(int argc, char **argv) {
 			float current_rds_in = rds1_in[i];
 			float current_rds2_in = rds2_in[i];
 			float current_sca_in = sca_in[i];
+
+			if(darc_clock[i] != last_darc_clock) {
+				last_darc_clock = darc_clock[i];
+				last_darc_data = darc_data_out[i];
+			}
 
 			float ready_l = apply_preemphasis(&preemp_l, l_in);
 			float ready_r = apply_preemphasis(&preemp_r, r_in);
@@ -471,13 +533,14 @@ int main(int argc, char **argv) {
 			if(rds_on && polar_stereo == 0) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
 				mpx += (current_rds_in*rds_carrier)*RDS_VOLUME;
-				if(!sca_on) {
+				if(!darc_on) { // DARC is hardcoded into 76 khz, according to a screenshot of a fm mpx with darc in it, it takes like 65 to 85 khz
 					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
 					mpx += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
 				}
 			}
-			if(mpx_on) mpx += hard_clip(current_mpx_in, MPX_CLIPPER_THRESHOLD)*MPX_VOLUME;
+			if(mpx_on) mpx += hard_clip(current_mpx_in, 1.0f)*MPX_VOLUME;
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+			if(darc_on) mpx += hard_clip(refrenced_modulate_fm(&darc_modulator, last_darc_data, 16.0f)*compute_darc_amplitude(stereo*STEREO_VOLUME), 0.1f); // should never be over 10%
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
