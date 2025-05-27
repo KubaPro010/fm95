@@ -108,9 +108,9 @@ void show_help(char *name) {
 		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
 		"\t-C,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
 		"\t-c,--clipper\tOverride the clipper threshold [default: %.2f]\n"
-		"\t-P,--polar\tForce Polar Stereo (does not take effect with -m%s)\n"
+		"\t-O,--polar\tForce Polar Stereo (does not take effect with -m%s)\n"
 		"\t-R,--preemp\tOverride preemphasis [default: %.2f µs]\n"
-		"\t-V,--calibrate\tEnable Calibration mode [default: off]\n"
+		"\t-V,--calibrate\tEnable Calibration mode [default: off, option 2 enables a 60 hz square wave instead of the 400 hz sine wave]\n"
 		"\t-p,--power\tSet the MPX power [default: %.1f]\n"
 		"\t-P,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
 		"\t-A,--master_vol\tSet master volume [default: %.3f]\n"
@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
 
 	// #region Parse Arguments
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:S:d:f:F:C:c:P::R:Vp:P:A:v:D:h";
+	const char	*short_opt = "s::i:o:M:r:S:d:f:F:C:c:O::R:V::p:P:A:v:D:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -202,9 +202,9 @@ int main(int argc, char **argv) {
 		{"sca_dev",     required_argument, NULL, 'F'},
 		{"sca_clip",    required_argument, NULL, 'C'},
 		{"clipper",     required_argument, NULL, 'c'},
-		{"polar",       optional_argument,       NULL, 'P'},
+		{"polar",       optional_argument,       NULL, 'O'},
 		{"preemp",      required_argument,       NULL, 'R'},
-		{"calibrate",     no_argument,       NULL, 'V'},
+		{"calibrate",     optional_argument,       NULL, 'V'},
 		{"power",     required_argument,       NULL, 'p'},
 		{"mpx_dev",     required_argument,       NULL, 'P'},
 		{"master_vol",     required_argument,       NULL, 'A'},
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
 			case 'c': //Clipper
 				clipper_threshold = strtof(optarg, NULL);
 				break;
-			case 'P': //Polar
+			case 'O': //Polar
 				if(optarg) polar_stereo = atoi(optarg);
 				else polar_stereo = 1;
 				break;
@@ -259,7 +259,8 @@ int main(int argc, char **argv) {
 				preemphasis_tau = strtof(optarg, NULL)*1.0e-6f;
 				break;
 			case 'V': // Calibration
-				calibration_mode = 1;
+				if(optarg) calibration_mode = atoi(optarg);
+				else calibration_mode = 1;
 				break;
 			case 'p': // Power
 				mpx_power = strtof(optarg, NULL);
@@ -373,9 +374,9 @@ int main(int argc, char **argv) {
 	}
 	// #endregion
 
-	if(calibration_mode) {
+	if(calibration_mode != 0) {
 		Oscillator osc;
-		init_oscillator(&osc, 400, sample_rate);
+		init_oscillator(&osc, (calibration_mode == 2) ? 60 : 400, sample_rate);
 
 		signal(SIGINT, stop);
 		signal(SIGTERM, stop);
@@ -383,7 +384,11 @@ int main(int argc, char **argv) {
 		float output[BUFFER_SIZE];
 
 		while(to_run) {
-			for (int i = 0; i < BUFFER_SIZE; i++) output[i] = get_oscillator_sin_sample(&osc)*master_volume;
+			for (int i = 0; i < BUFFER_SIZE; i++) {
+				float sample = get_oscillator_sin_sample(&osc);
+				if(calibration_mode == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f;
+				output[i] = sample*master_volume;
+			}
 			if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
 				fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
