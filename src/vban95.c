@@ -20,7 +20,7 @@
 
 #define BUF_SIZE 1500
 #define MAX_AUDIO_DATA_SIZE (BUF_SIZE - sizeof(VBANHeader))
-#define MAX_BUFFER_PACKETS 128
+#define MAX_BUFFER_PACKETS 16
 
 #define POLL_TIMEOUT_MS 75
 
@@ -251,14 +251,10 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, stop);
 
     while (to_run) {
-        ssize_t recv_len = recvfrom(sockfd, buffer, BUF_SIZE, 0,
-                                   (struct sockaddr *)&sender_addr, &sender_len);
-        
+        ssize_t recv_len = recvfrom(sockfd, buffer, BUF_SIZE, 0, (struct sockaddr *)&sender_addr, &sender_len);
         if (recv_len < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // No data available, just continue with the loop
-                // Add a small sleep to avoid consuming too much CPU
-                usleep(POLL_TIMEOUT_MS * 1000); // Convert ms to microseconds
+                usleep(POLL_TIMEOUT_MS * 1000);
                 continue;
             } else {
                 perror("recvfrom error");

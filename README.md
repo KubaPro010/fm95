@@ -14,6 +14,7 @@ Supports these inputs:
 - Audio (via Pulse)
 - MPX (via Pulse, basically passthrough, i don't recommend this unless you have something else than rds or sca to modulate, you could run chimer95 via here)
 - RDS (via Pulse, expects unmodulated RDS, stereo, left channel on 57 KHz, right on 66.5, rds95 is recommended here, in modulation this is inphase to the pilot)
+- RDS2 (via Pulse, expects unmodulated RDS, stereo, left channel on 71.25 KHz, rigth on 76 KHz)
 - SCA (via Pulse, by default on 67 khz with a 7 khz deviation)
 - DARC (via Pulse, stereo, with one left clock channel [change when data is changed] and other one is data which is expected to be nrzi with bit 1 being 1 here, and bit 0 being -1)
 

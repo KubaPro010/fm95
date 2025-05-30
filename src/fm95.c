@@ -32,6 +32,7 @@
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define RDS_DEVICE "RDS.monitor"
+#define RDS2_DEVICE "\0" // Disabled, this is for the additional two RDS channels, 71.25 and 76 khz
 #define MPX_DEVICE "FM_MPX.monitor"
 #define SCA_DEVICE "\0" // Disabled
 #define DARC_DEVICE "\0" // Disabled
@@ -46,8 +47,10 @@
 #define MONO_VOLUME 0.45f // 45%
 #define PILOT_VOLUME 0.09f // 9%
 #define STEREO_VOLUME 0.3f // 30%
-#define RDS_VOLUME 0.06f // 6%
-#define RDS2_VOLUME 0.045f // 4.5%
+#define RDS_VOLUME 0.0475f // 4.75%
+#define RDS2_VOLUME 0.04f // 4%
+#define RDS3_VOLUME 0.0375f // 3.75%
+#define RDS4_VOLUME 0.035f // 3.5%
 #define SCA_VOLUME 0.1f // 10%, needs to be high because this is analog
 
 #define MPX_VOLUME 1.0f
@@ -92,7 +95,7 @@ static void stop(int signum) {
 }
 
 void show_version() {
-	printf("fm95 (an FM Processor by radio95) version 1.6\n");
+	printf("fm95 (an FM Processor by radio95) version 1.7\n");
 }
 void show_help(char *name) {
 	printf(
@@ -102,14 +105,15 @@ void show_help(char *name) {
 		"\t-o,--output\tOverride output device [default: %s]\n"
 		"\t-M,--mpx\tOverride MPX input device [default: %s]\n"
 		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
+		"\t-R,--rds2\tOverride the RDS2 additional stream device [default: %s]\n"
 		"\t-S,--sca\tOverride the SCA input device [default: %s]\n"
 		"\t-d,--darc\tOverride the DARC input device [default: %s]\n"
 		"\t-f,--sca_freq\tOverride the SCA frequency [default: %.1f]\n"
 		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
 		"\t-C,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
 		"\t-c,--clipper\tOverride the clipper threshold [default: %.2f]\n"
-		"\t-O,--polar\tForce Polar Stereo (does not take effect with -m%s)\n"
-		"\t-R,--preemp\tOverride preemphasis [default: %.2f µs]\n"
+		"\t-O,--polar\tForce Polar Stereo (does not take effect with -s0%s)\n"
+		"\t-e,--preemp\tOverride preemphasis [default: %.2f µs]\n"
 		"\t-V,--calibrate\tEnable Calibration mode [default: off, option 2 enables a 60 hz square wave instead of the 400 hz sine wave]\n"
 		"\t-p,--power\tSet the MPX power [default: %.1f]\n"
 		"\t-P,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
@@ -120,26 +124,11 @@ void show_help(char *name) {
 		,DEFAULT_STEREO
 		,INPUT_DEVICE
 		,OUTPUT_DEVICE
-		#ifdef MPX_DEVICE
 		,MPX_DEVICE
-		#else
-		,"not set"
-		#endif
-		#ifdef RDS_DEVICE
 		,RDS_DEVICE
-		#else
-		,"not set"
-		#endif
-		#ifdef SCA_DEVICE
+		,RDS2_DEVICE
 		,SCA_DEVICE
-		#else
-		,"not set"
-		#endif
-		#ifdef DARC_DEVICE
 		,DARC_DEVICE
-		#else
-		,"not set"
-		#endif
 		,DEFAULT_SCA_FREQUENCY
 		,DEFAULT_SCA_DEVIATION
 		,DEFAULT_SCA_CLIPPER_THRESHOLD
@@ -157,7 +146,7 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
 	show_version();
 
-	PulseInputDevice mpx_device, rds_device, sca_device, darc_device;
+	PulseInputDevice mpx_device, rds_device, rds2_device, sca_device, darc_device;
 
 	PulseInputDevice input_device;
 	PulseOutputDevice output_device;
@@ -174,6 +163,7 @@ int main(int argc, char **argv) {
 	char audio_output_device[64] = OUTPUT_DEVICE;
 	char audio_mpx_device[64] = MPX_DEVICE;
 	char audio_rds_device[64] = RDS_DEVICE;
+	char audio_rds2_device[64] = RDS2_DEVICE;
 	char audio_sca_device[64] = SCA_DEVICE;
 	char audio_darc_device[64] = DARC_DEVICE;
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
@@ -188,7 +178,7 @@ int main(int argc, char **argv) {
 
 	// #region Parse Arguments
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:S:d:f:F:C:c:O::R:V::p:P:A:v:D:h";
+	const char	*short_opt = "s::i:o:M:r:R:S:d:f:F:C:c:O::e:V::p:P:A:v:D:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -196,6 +186,7 @@ int main(int argc, char **argv) {
 		{"output",      required_argument, NULL, 'o'},
 		{"mpx",         required_argument, NULL, 'M'},
 		{"rds",         required_argument, NULL, 'r'},
+		{"rds2",        required_argument, NULL, 'R'},
 		{"sca",         required_argument, NULL, 'S'},
 		{"darc",        required_argument, NULL, 'd'},
 		{"sca_freq",    required_argument, NULL, 'f'},
@@ -203,7 +194,7 @@ int main(int argc, char **argv) {
 		{"sca_clip",    required_argument, NULL, 'C'},
 		{"clipper",     required_argument, NULL, 'c'},
 		{"polar",       optional_argument,       NULL, 'O'},
-		{"preemp",      required_argument,       NULL, 'R'},
+		{"preemp",      required_argument,       NULL, 'e'},
 		{"calibrate",     optional_argument,       NULL, 'V'},
 		{"power",     required_argument,       NULL, 'p'},
 		{"mpx_dev",     required_argument,       NULL, 'P'},
@@ -233,6 +224,9 @@ int main(int argc, char **argv) {
 			case 'r': // RDS in
 				memcpy(audio_rds_device, optarg, 63);
 				break;
+			case 'R': // RDS2 in
+				memcpy(audio_rds2_device, optarg, 63);
+				break;
 			case 'S': //SCA in
 				memcpy(audio_sca_device, optarg, 63);
 				break;
@@ -255,7 +249,7 @@ int main(int argc, char **argv) {
 				if(optarg) polar_stereo = atoi(optarg);
 				else polar_stereo = 1;
 				break;
-			case 'R': // Preemp
+			case 'e': // Preemp
 				preemphasis_tau = strtof(optarg, NULL)*1.0e-6f;
 				break;
 			case 'V': // Calibration
@@ -286,6 +280,7 @@ int main(int argc, char **argv) {
 
 	int mpx_on = (strlen(audio_mpx_device) != 0);
 	int rds_on = (strlen(audio_rds_device) != 0);
+	int rds2_on = (strlen(audio_rds2_device) != 0);
 	int sca_on = (strlen(audio_sca_device) != 0);
 	int darc_on = (strlen(audio_darc_device) != 0);
 
@@ -332,6 +327,18 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 	}
+	if(rds2_on) {
+		printf("Connecting to RDS2 device... (%s)\n", audio_rds2_device);
+
+		opentime_pulse_error = init_PulseInputDevice(&rds2_device, sample_rate, 1, "fm95", "RDS2 Input", audio_rds2_device, &input_buffer_atr);
+		if (opentime_pulse_error) {
+			fprintf(stderr, "Error: cannot open RDS2 device: %s\n", pa_strerror(opentime_pulse_error));
+			free_PulseInputDevice(&input_device);
+			if(mpx_on) free_PulseInputDevice(&mpx_device);
+			if(rds_on) free_PulseInputDevice(&rds_device);
+			return 1;
+		}
+	}
 
 	if(sca_on) {
 		printf("Connecting to SCA device... (%s)\n", audio_sca_device);
@@ -342,6 +349,7 @@ int main(int argc, char **argv) {
 			free_PulseInputDevice(&input_device);
 			if(mpx_on) free_PulseInputDevice(&mpx_device);
 			if(rds_on) free_PulseInputDevice(&rds_device);
+			if(rds2_on) free_PulseInputDevice(&rds2_device);
 			return 1;
 		}
 	}
@@ -355,6 +363,7 @@ int main(int argc, char **argv) {
 			free_PulseInputDevice(&input_device);
 			if(mpx_on) free_PulseInputDevice(&mpx_device);
 			if(rds_on) free_PulseInputDevice(&rds_device);
+			if(rds2_on) free_PulseInputDevice(&rds2_device);
 			if(sca_on) free_PulseInputDevice(&sca_device);
 			return 1;
 		}
@@ -368,6 +377,7 @@ int main(int argc, char **argv) {
 		free_PulseInputDevice(&input_device);
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
+		if(rds2_on) free_PulseInputDevice(&rds2_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
 		if(darc_on) free_PulseInputDevice(&darc_device);
 		return 1;
@@ -399,6 +409,7 @@ int main(int argc, char **argv) {
 		free_PulseInputDevice(&input_device);
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
+		if(rds2_on) free_PulseInputDevice(&rds2_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
 		if(darc_on) free_PulseInputDevice(&darc_device);
 		free_PulseOutputDevice(&output_device);
@@ -415,7 +426,7 @@ int main(int argc, char **argv) {
 	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
 	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
 
-	iirfilt_rrrf mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 2, (polar_stereo ? (46250.0f/sample_rate) : (53000.0f/sample_rate)), 0.0f, 1.0f, 1.0f);
+	iirfilt_rrrf mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 1, (polar_stereo ? (46250.0f/sample_rate) : (53000.0f/sample_rate)), 0.0f, 1.0f, 1.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
@@ -432,8 +443,8 @@ int main(int argc, char **argv) {
 	float bs412_audio_gain = 1.0f;
 
 	AGC agc;
-	//            fs          target   min    max   attack  relese
-	initAGC(&agc, sample_rate, 0.625f, 0.0f, 1.25f, 0.025f, 0.25f);
+	//            fs           target   min   max   attack  release
+	initAGC(&agc, sample_rate, 0.7071f, 0.0f, 1.5f, 0.05f, 0.25f);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
@@ -445,6 +456,10 @@ int main(int argc, char **argv) {
 	float rds1_rds2_in[BUFFER_SIZE*2] = {0};
 	float rds1_in[BUFFER_SIZE] = {0};
 	float rds2_in[BUFFER_SIZE] = {0};
+
+	float rds3_rds4_in[BUFFER_SIZE*2] = {0};
+	float rds3_in[BUFFER_SIZE] = {0};
+	float rds4_in[BUFFER_SIZE] = {0};
 
 	float darc_data[BUFFER_SIZE*2] = {0}; // DARC data and clock
 	float darc_clock[BUFFER_SIZE] = {0};
@@ -480,6 +495,14 @@ int main(int argc, char **argv) {
 			}
 			uninterleave(rds1_rds2_in, rds1_in, rds2_in, BUFFER_SIZE*2);
 		}
+		if(rds2_on) {
+			if((pulse_error = read_PulseInputDevice(&rds2_device, rds3_rds4_in, sizeof(rds3_rds4_in)))) {
+				fprintf(stderr, "Error reading from RDS2 device: %s\n", pa_strerror(pulse_error));
+				to_run = 0;
+				break;
+			}
+			uninterleave(rds3_rds4_in, rds3_in, rds4_in, BUFFER_SIZE*2);
+		}
 		if(sca_on) {
 			if((pulse_error = read_PulseInputDevice(&sca_device, sca_in, sizeof(sca_in)))) {
 				fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
@@ -500,20 +523,13 @@ int main(int argc, char **argv) {
 			float mpx = 0.0f;
 			float audio = 0.0f;
 
-			float l_in = left[i];
-			float r_in = right[i];
-			float current_mpx_in = mpx_in[i];
-			float current_rds_in = rds1_in[i];
-			float current_rds2_in = rds2_in[i];
-			float current_sca_in = sca_in[i];
-
 			if(darc_clock[i] != last_darc_clock) {
 				last_darc_clock = darc_clock[i];
 				last_darc_data = darc_data_out[i];
 			}
 
-			float ready_l = apply_preemphasis(&preemp_l, l_in);
-			float ready_r = apply_preemphasis(&preemp_r, r_in);
+			float ready_l = apply_preemphasis(&preemp_l, left[i]);
+			float ready_r = apply_preemphasis(&preemp_r, right[i]);
 
 			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
 			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
@@ -522,29 +538,35 @@ int main(int argc, char **argv) {
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
-			float mono = (ready_l + ready_r) / 2.0f;
-			audio = mono*MONO_VOLUME;
+			float mid = (ready_l + ready_r) / 2.0f;
+			audio = mid*MONO_VOLUME;
 			if(stereo) {
-				float stereo_signal = (ready_l - ready_r) / 2.0f;
+				float side = (ready_l - ready_r) / 2.0f;
 				float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8); // 31.25 or 38 KHz
 
-				if(polar_stereo) audio += ((stereo_signal+0.2)*stereo_carrier)*STEREO_VOLUME;
+				if(polar_stereo) audio += ((side+0.2)*stereo_carrier)*STEREO_VOLUME; // 0.2 in polar stereo because it also includes a carrier wave, so we add a carrier wave via DC
 				else {
 					float pilot = get_oscillator_sin_multiplier_ni(&osc, 4); // 19 KHz
 					mpx += pilot*PILOT_VOLUME;
-					audio += (stereo_signal*stereo_carrier)*STEREO_VOLUME;
+					audio += (side*stereo_carrier)*STEREO_VOLUME;
 				}
 			}
 			if(rds_on && polar_stereo == 0) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
-				mpx += (current_rds_in*rds_carrier)*RDS_VOLUME;
+				mpx += (rds1_in[i]*rds_carrier)*RDS_VOLUME;
 				if(!darc_on) { // DARC is hardcoded into 76 khz, according to a screenshot of a fm mpx with darc in it, it takes like 65 to 85 khz
 					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
-					mpx += (current_rds2_in*rds2_carrier_66)*RDS2_VOLUME;
+					mpx += (rds2_in[i]*rds2_carrier_66)*RDS2_VOLUME;
+					if(rds2_on) {
+						float rds2_carrier_71 = get_oscillator_cos_multiplier_ni(&osc, 15); // 71.25 KHz
+						float rds2_carrier_76 = get_oscillator_cos_multiplier_ni(&osc, 16); // 76 KHz
+						mpx += (rds3_in[i]*rds2_carrier_71)*RDS3_VOLUME;
+						mpx += (rds4_in[i]*rds2_carrier_76)*RDS4_VOLUME;
+					}
 				}
 			}
-			if(mpx_on) mpx += hard_clip(current_mpx_in, 1.0f)*MPX_VOLUME;
-			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(current_sca_in, sca_clipper_threshold))*SCA_VOLUME;
+			if(mpx_on) mpx += hard_clip(mpx_in[i], 1.0f)*MPX_VOLUME;
+			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(sca_in[i], sca_clipper_threshold))*SCA_VOLUME;
 			if(darc_on && polar_stereo == 0) mpx += hard_clip(refrenced_modulate_fm(&darc_modulator, last_darc_data, 16.0f)*compute_darc_amplitude(stereo*STEREO_VOLUME), 0.1f); // should never be over 10%, the docs say so
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
@@ -558,11 +580,10 @@ int main(int argc, char **argv) {
 				audio *= bs412_audio_gain;
 			}
 
+			iirfilt_rrrf_execute(mpx_lpf, audio, &audio); // Should have no effect, as audio should be 0-15, and 23-53, this is a filter for 53, assuming the filter is good, this is precaution and recomendation
 			audio = hard_clip(audio, 1.0f-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
-
-			iirfilt_rrrf_execute(mpx_lpf, audio, &audio);
-
-			output[i] = (audio+mpx)*master_volume;
+			
+			output[i] = hard_clip((audio+mpx), 1.0f)*master_volume; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
 			if(rds_on || stereo || darc_on) advance_oscillator(&osc);
 		}
 
