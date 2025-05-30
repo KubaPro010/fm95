@@ -444,7 +444,7 @@ int main(int argc, char **argv) {
 
 	AGC agc;
 	//            fs           target   min   max   attack  release
-	initAGC(&agc, sample_rate, 0.7071f, 0.0f, 1.5f, 0.05f, 0.25f);
+	initAGC(&agc, sample_rate, 0.625f, 0.0f, 1.5f, 0.05f, 0.25f);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
