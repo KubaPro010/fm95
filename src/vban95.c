@@ -102,7 +102,7 @@ static PulseOutputDevice output = {0};
 void process_audio_buffer(AudioBuffer* buffer, PulseOutputDevice* output_device) {
     while (buffer->count > 0) {
         AudioPacket* pkt = &buffer->packets[buffer->tail];
-        write_PulseOutputDevicef(output_device, pkt->data, pkt->size);
+        write_PulseOutputDevice(output_device, pkt->data, pkt->size);
 
         buffer->tail = (buffer->tail + 1) % buffer->capacity;
         buffer->count--;

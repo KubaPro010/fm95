@@ -72,18 +72,18 @@ int init_PulseInputDevicef(PulseInputDevice* dev, int sample_rate, int channels,
 	return 0;
 }
 
-int read_PulseInputDevice(PulseInputDevice* dev, float* buffer, size_t size) {
+int read_PulseInputDevice(PulseInputDevice* dev, void* buffer, size_t size) {
 	if (!dev->initialized) return -1;
-	int error;
-	if (pa_simple_read(dev->dev, buffer, size, &error) < 0) return error;
-	return 0;
+	int error = 0;
+	pa_simple_read(dev->dev, buffer, size, &error);
+	return error;
 }
 
 int read_PulseInputDevicef(PulseInputDevice* dev, void* buffer, size_t size) {
 	if (!dev->initialized) return -1;
-	int error;
-	if (pa_simple_read(dev->dev, buffer, size, &error) < 0) return error;
-	return 0;
+	int error = 0;
+	pa_simple_read(dev->dev, buffer, size, &error);
+	return error;
 }
 
 void free_PulseInputDevice(PulseInputDevice* dev) {
@@ -162,18 +162,11 @@ int init_PulseOutputDevicef(PulseOutputDevice* dev, int sample_rate, int channel
 	return 0;
 }
 
-int write_PulseOutputDevice(PulseOutputDevice* dev, float* buffer, size_t size) {
+int write_PulseOutputDevice(PulseOutputDevice* dev, void* buffer, size_t size) {
 	if (!dev->initialized) return -1;
-	int error;
-	if (pa_simple_write(dev->dev, buffer, size, &error) < 0) return error;
-	return 0;
-}
-
-int write_PulseOutputDevicef(PulseOutputDevice* dev, void* buffer, size_t size) {
-	if (!dev->initialized) return -1;
-	int error;
-	if (pa_simple_write(dev->dev, buffer, size, &error) < 0) return error;
-	return 0;
+	int error = 0;
+	pa_simple_write(dev->dev, buffer, size, &error);
+	return error;
 }
 
 void free_PulseOutputDevice(PulseOutputDevice* dev) {
