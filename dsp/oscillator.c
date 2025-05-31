@@ -34,9 +34,7 @@ float get_oscillator_cos_multiplier_ni(Oscillator *osc, float multiplier) {
 	return cosf(new_phase);
 }
 
-void advance_oscillator(Oscillator *osc) {
+inline void advance_oscillator(Oscillator *osc) {
 	osc->phase += osc->phase_increment;
-	if (osc->phase >= M_2PI) {
-		osc->phase -= M_2PI;
-	}
+	if (osc->phase >= M_2PI) osc->phase -= M_2PI;
 }
