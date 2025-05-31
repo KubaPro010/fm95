@@ -3,12 +3,12 @@
 #define LOG2_19000 log2f(19000.0f)
 
 inline float dbr_to_deviation(float dbr) {
-	return 19000.0f * powf(2.0f, dbr * 0.332193f);
+	return 19000.0f * powf(10.0f, dbr / 20.0f);
 }
 
 inline float deviation_to_dbr(float deviation) {
 	if(deviation == 0.0f) return -100.0f;
-	return 10.0f * (log2f(deviation) - LOG2_19000) * 0.30103f;
+	return 20.0f * (log2f(deviation) - LOG2_19000) * 0.30103f;
 }
 
 void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
