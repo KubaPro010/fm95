@@ -578,13 +578,6 @@ int main(int argc, char **argv) {
 				float target_gain = dbr_to_deviation(-excess_power)/mpx_deviation;
 				bs412_audio_gain = 0.9f * bs412_audio_gain + 0.1f * target_gain;
 				audio *= bs412_audio_gain;
-			} else if (peak_mpower > (mpx_power + 0.1f)) {
-				float excess_power = peak_mpower - mpx_power - 0.1f;
-				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(peak_mpx_only));
-
-				float target_gain = dbr_to_deviation(-excess_power)/mpx_deviation;
-				bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
-				audio *= bs412_audio_gain;
 			}
 
 			iirfilt_rrrf_execute(mpx_lpf, audio, &audio); // Should have no effect, as audio should be 0-15, and 23-53, this is a filter for 53, assuming the filter is good, this is precaution and recomendation
