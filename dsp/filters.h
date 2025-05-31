@@ -12,5 +12,3 @@ typedef struct
 
 void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate);
 float apply_preemphasis(ResistorCapacitor *filter, float sample);
-
-float hard_clip(float sample, float threshold);

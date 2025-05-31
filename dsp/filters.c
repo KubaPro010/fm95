@@ -12,7 +12,3 @@ inline float apply_preemphasis(ResistorCapacitor *filter, float sample) {
 	filter->prev_sample = sample;
 	return out;
 }
-
-inline float hard_clip(float sample, float threshold) {
-	return fmaxf(-threshold, fminf(threshold, sample));
-}

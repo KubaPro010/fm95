@@ -78,14 +78,13 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
 }
 
 float compute_darc_amplitude(float stereo_injection_percent) {
-    if (stereo_injection_percent <= 0.025f) {
-        return 0.04f;
-    } else if (stereo_injection_percent <= 0.05f) {
-        float slope = (0.1f - 0.04f) / (0.05f - 0.025f);
-        return 0.04f + slope * (stereo_injection_percent - 0.025f);
-    } else {
-        return 0.1f;
-    }
+    if (stereo_injection_percent <= 0.025f) return 0.04f;
+    else if (stereo_injection_percent <= 0.05f) return 0.04f + ((0.1f - 0.04f) / (0.05f - 0.025f)) * (stereo_injection_percent - 0.025f);
+    else return 0.1f;
+}
+
+inline float hard_clip(float sample, float threshold) {
+	return fmaxf(-threshold, fminf(threshold, sample));
 }
 
 static void stop(int signum) {
@@ -530,18 +529,17 @@ int main(int argc, char **argv) {
 
 			float ready_l = apply_preemphasis(&preemp_l, left[i]);
 			float ready_r = apply_preemphasis(&preemp_r, right[i]);
-
 			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
 			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
-
 			ready_l = process_agc_stereo(&agc, ready_l, ready_r, &ready_r);
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
 			float mid = (ready_l + ready_r) / 2.0f;
+			float side = (ready_l - ready_r) / 2.0f;
+
 			audio = mid*MONO_VOLUME;
 			if(stereo) {
-				float side = (ready_l - ready_r) / 2.0f;
 				float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8); // 31.25 or 38 KHz
 
 				if(polar_stereo) audio += ((side+0.2)*stereo_carrier)*STEREO_VOLUME; // 0.2 in polar stereo because it also includes a carrier wave, so we add a carrier wave via DC
@@ -554,7 +552,7 @@ int main(int argc, char **argv) {
 			if(rds_on && polar_stereo == 0) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
 				mpx += (rds1_in[i]*rds_carrier)*RDS_VOLUME;
-				if(!darc_on) { // DARC is hardcoded into 76 khz, according to a screenshot of a fm mpx with darc in it, it takes like 65 to 85 khz
+				if(!darc_on) { // DARC is hardcoded into 76 khz, according to a screenshot of a fm mpx with darc in it, it takes like 65 to 85 khz, so all of RDS2
 					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
 					mpx += (rds2_in[i]*rds2_carrier_66)*RDS2_VOLUME;
 					if(rds2_on) {
@@ -565,9 +563,9 @@ int main(int argc, char **argv) {
 					}
 				}
 			}
-			if(mpx_on) mpx += hard_clip(mpx_in[i], 1.0f)*MPX_VOLUME;
+			if(mpx_on) mpx += mpx_in[i]*MPX_VOLUME;
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(sca_in[i], sca_clipper_threshold))*SCA_VOLUME;
-			if(darc_on && polar_stereo == 0) mpx += hard_clip(refrenced_modulate_fm(&darc_modulator, last_darc_data, 16.0f)*compute_darc_amplitude(stereo*STEREO_VOLUME), 0.1f); // should never be over 10%, the docs say so
+			if(darc_on && polar_stereo == 0) mpx += refrenced_modulate_fm(&darc_modulator, last_darc_data, 16.0f)*compute_darc_amplitude(side*STEREO_VOLUME);
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
