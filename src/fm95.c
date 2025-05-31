@@ -569,8 +569,6 @@ int main(int argc, char **argv) {
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
-			float peak_mpx_only = deviation_to_dbr(mpx * mpx_deviation);
-			float peak_mpower = deviation_to_dbr((audio+mpx) * mpx_deviation);
 			if (mpower > mpx_power) {
 				float excess_power = mpower - mpx_power;
 				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpx_only)); // make sure mpx is not included in the power to attenuate, because we'd be attuating the mpx signal for audio
