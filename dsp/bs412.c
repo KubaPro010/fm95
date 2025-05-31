@@ -1,12 +1,14 @@
 #include "bs412.h"
 
+#define LOG2_19000 log2f(19000.0f)
+
 inline float dbr_to_deviation(float dbr) {
 	return 19000.0f * powf(2.0f, dbr * 0.332193f);
 }
 
 inline float deviation_to_dbr(float deviation) {
 	if(deviation == 0.0f) return -100.0f;
-	return 10.0f * (log2f(deviation) - log2f(19000.0f)) * 0.30103f;
+	return 10.0f * (log2f(deviation) - LOG2_19000) * 0.30103f;
 }
 
 void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
@@ -22,7 +24,8 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
 	mpx->sample += deviation * deviation; // rmS
 	mpx->sample_counter++;
 
-	float avg_deviation = sqrtf(mpx->sample / mpx->sample_counter); // RMs
+	float inv_counter = 1.0f / mpx->sample_counter;
+	float avg_deviation = sqrtf(mpx->sample * inv_counter); // RMs
 	float modulation_power = deviation_to_dbr(avg_deviation);
 
 	#ifdef BS412_DEBUG
