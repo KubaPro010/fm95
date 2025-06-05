@@ -37,7 +37,7 @@
 #define SCA_DEVICE "\0" // Disabled
 #define DARC_DEVICE "\0" // Disabled
 
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 2048 // Make sure that this is divisible by two
 
 #include "../io/audio.h"
 
@@ -64,10 +64,6 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
 		float32x4x2_t input_vec = vld2q_f32(input + i * 2);
 		vst1q_f32(left + i, input_vec.val[0]);
 		vst1q_f32(right + i, input_vec.val[1]);
-	}
-	for (; i < num_samples / 2; i++) {
-		left[i] = input[i * 2];
-		right[i] = input[i * 2 + 1];
 	}
 #else
 	for (size_t i = 0; i < num_samples / 2; i++) {
