@@ -380,7 +380,7 @@ int main(int argc, char **argv) {
 	}
 
 	Oscillator osc;
-	init_oscillator(&osc, polar_stereo ? 31250.0 : 4750, sample_rate);
+	init_oscillator(&osc, polar_stereo ? 3906.25 : 4750, sample_rate); // 3906.25 * 8 = 31250.0
 
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
@@ -490,7 +490,7 @@ int main(int argc, char **argv) {
 
 			audio = mid*MONO_VOLUME;
 			if(stereo) {
-				float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, polar_stereo ? 1 : 8); // 31.25 or 38 KHz
+				float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 8); // 31.25 or 38 KHz
 
 				if(polar_stereo) audio += ((side+0.2)*stereo_carrier)*STEREO_VOLUME; // 0.2 in polar stereo because it also includes a carrier wave, so we add a carrier wave via DC
 				else {
@@ -499,10 +499,10 @@ int main(int argc, char **argv) {
 					audio += (side*stereo_carrier)*STEREO_VOLUME;
 				}
 			}
-			if(rds_on && polar_stereo == 0) {
+			if(rds_on && !polar_stereo) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
-				mpx += (rds1_in[i]*rds_carrier)*RDS_VOLUME;
 				float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
+				mpx += (rds1_in[i]*rds_carrier)*RDS_VOLUME;
 				mpx += (rds2_in[i]*rds2_carrier_66)*RDS2_VOLUME;
 				if(rds2_on) {
 					float rds2_carrier_71 = get_oscillator_cos_multiplier_ni(&osc, 15); // 71.25 KHz
