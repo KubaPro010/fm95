@@ -547,6 +547,7 @@ int main(int argc, char **argv) {
 	free_PulseInputDevice(&input_device);
 	if(mpx_on) free_PulseInputDevice(&mpx_device);
 	if(rds_on) free_PulseInputDevice(&rds_device);
+	if(rds2_on) free_PulseInputDevice(&rds2_device);
 	if(sca_on) free_PulseInputDevice(&sca_device);
 	free_PulseOutputDevice(&output_device);
 	return 0;
