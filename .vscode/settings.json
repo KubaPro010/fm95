@@ -32,7 +32,8 @@
         "string": "c",
         "string_view": "c",
         "version.h": "c",
-        "cdecl.h": "c"
+        "cdecl.h": "c",
+        "algorithm": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

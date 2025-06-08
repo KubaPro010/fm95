@@ -19,4 +19,4 @@ typedef struct {
 } AGC;
 
 void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime);
-float process_agc_stereo(AGC* agc, float left, float right, float *right_out);
+float process_agc(AGC* agc, float sidechain);

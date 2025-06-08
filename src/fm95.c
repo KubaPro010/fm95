@@ -477,12 +477,16 @@ int main(int argc, char **argv) {
 			float ready_r = apply_preemphasis(&preemp_r, right[i]);
 			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
 			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
-			ready_l = process_agc_stereo(&agc, ready_l, ready_r, &ready_r);
+
+			float agc_gain = process_agc(&agc, ((ready_l + ready_r) * 0.5f));
+			ready_l *= agc_gain;
+			ready_r *= agc_gain;
+
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
-			float mid = (ready_l + ready_r) / 2.0f;
-			float side = (ready_l - ready_r) / 2.0f;
+			float mid = (ready_l + ready_r) * 0.5f;
+			float side = (ready_l - ready_r) * 0.5f;
 
 			audio = mid*MONO_VOLUME;
 			if(stereo) {

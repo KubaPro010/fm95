@@ -17,10 +17,8 @@ void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float m
 	agc->rms_buffer = 0.0f;
 }
 
-float process_agc_stereo(AGC* agc, float left, float right, float *right_out) {
-	float sample = (left+right)/2;
-
-	float x2 = sample * sample;
+float process_agc(AGC* agc, float sidechain) {
+	float x2 = sidechain * sidechain;
 
 	float rmsAlpha = expf(-1.0f / (agc->sampleRate * 0.04));
 	agc->rms_buffer = rmsAlpha * agc->rms_buffer + (1.0f - rmsAlpha) * x2;
@@ -35,6 +33,5 @@ float process_agc_stereo(AGC* agc, float left, float right, float *right_out) {
 	float gainAlpha = (desiredGain > agc->currentGain) ? agc->attackCoef : agc->releaseCoef;
 	agc->currentGain = gainAlpha * agc->currentGain + (1.0f - gainAlpha) * desiredGain;
 
-	*right_out = right * agc->currentGain;
-	return left * agc->currentGain;
+	return agc->currentGain;
 }
