@@ -35,7 +35,6 @@
 #define RDS2_DEVICE "\0" // Disabled, this is for the additional two RDS channels, 71.25 and 76 khz
 #define MPX_DEVICE "FM_MPX.monitor"
 #define SCA_DEVICE "\0" // Disabled
-#define DARC_DEVICE "\0" // Disabled
 
 #define BUFFER_SIZE 2048 // Make sure that this is divisible by two
 
@@ -73,12 +72,6 @@ void uninterleave(const float *input, float *left, float *right, size_t num_samp
 #endif
 }
 
-float compute_darc_amplitude(float stereo_injection_percent) {
-    if (stereo_injection_percent <= 0.025f) return 0.04f;
-    else if (stereo_injection_percent <= 0.05f) return 0.04f + ((0.1f - 0.04f) / (0.05f - 0.025f)) * (stereo_injection_percent - 0.025f);
-    else return 0.1f;
-}
-
 inline float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
@@ -102,7 +95,6 @@ void show_help(char *name) {
 		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
 		"\t-R,--rds2\tOverride the RDS2 additional stream device [default: %s]\n"
 		"\t-S,--sca\tOverride the SCA input device [default: %s]\n"
-		"\t-d,--darc\tOverride the DARC input device [default: %s]\n"
 		"\t-f,--sca_freq\tOverride the SCA frequency [default: %.1f]\n"
 		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
 		"\t-C,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
@@ -123,7 +115,6 @@ void show_help(char *name) {
 		,RDS_DEVICE
 		,RDS2_DEVICE
 		,SCA_DEVICE
-		,DARC_DEVICE
 		,DEFAULT_SCA_FREQUENCY
 		,DEFAULT_SCA_DEVIATION
 		,DEFAULT_SCA_CLIPPER_THRESHOLD
@@ -141,7 +132,7 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
 	show_version();
 
-	PulseInputDevice mpx_device, rds_device, rds2_device, sca_device, darc_device;
+	PulseInputDevice mpx_device, rds_device, rds2_device, sca_device;
 
 	PulseInputDevice input_device;
 	PulseOutputDevice output_device;
@@ -160,7 +151,6 @@ int main(int argc, char **argv) {
 	char audio_rds_device[64] = RDS_DEVICE;
 	char audio_rds2_device[64] = RDS2_DEVICE;
 	char audio_sca_device[64] = SCA_DEVICE;
-	char audio_darc_device[64] = DARC_DEVICE;
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
 	uint8_t calibration_mode = 0;
@@ -173,7 +163,7 @@ int main(int argc, char **argv) {
 
 	// #region Parse Arguments
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:R:S:d:f:F:C:c:O::e:V::p:P:A:v:D:h";
+	const char	*short_opt = "s::i:o:M:r:R:S:f:F:C:c:O::e:V::p:P:A:v:D:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -183,7 +173,6 @@ int main(int argc, char **argv) {
 		{"rds",         required_argument, NULL, 'r'},
 		{"rds2",        required_argument, NULL, 'R'},
 		{"sca",         required_argument, NULL, 'S'},
-		{"darc",        required_argument, NULL, 'd'},
 		{"sca_freq",    required_argument, NULL, 'f'},
 		{"sca_dev",     required_argument, NULL, 'F'},
 		{"sca_clip",    required_argument, NULL, 'C'},
@@ -224,9 +213,6 @@ int main(int argc, char **argv) {
 				break;
 			case 'S': //SCA in
 				memcpy(audio_sca_device, optarg, 63);
-				break;
-			case 'd': //DARC in
-				memcpy(audio_darc_device, optarg, 63);
 				break;
 			case 'f': //SCA freq
 				sca_frequency = strtof(optarg, NULL);
@@ -277,7 +263,6 @@ int main(int argc, char **argv) {
 	int rds_on = (strlen(audio_rds_device) != 0);
 	int rds2_on = (strlen(audio_rds2_device) != 0);
 	int sca_on = (strlen(audio_sca_device) != 0);
-	int darc_on = (strlen(audio_darc_device) != 0);
 
 	// #region Setup devices
 
@@ -349,21 +334,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(darc_on) {
-		printf("Connecting to DARC device... (%s)\n", audio_darc_device);
-
-		opentime_pulse_error = init_PulseInputDevice(&darc_device, sample_rate, 2, "fm95", "DARC Input", audio_darc_device, &input_buffer_atr); // data and clock
-		if (opentime_pulse_error) {
-			fprintf(stderr, "Error: cannot open DARC device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&input_device);
-			if(mpx_on) free_PulseInputDevice(&mpx_device);
-			if(rds_on) free_PulseInputDevice(&rds_device);
-			if(rds2_on) free_PulseInputDevice(&rds2_device);
-			if(sca_on) free_PulseInputDevice(&sca_device);
-			return 1;
-		}
-	}
-
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
 	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr);
@@ -374,7 +344,6 @@ int main(int argc, char **argv) {
 		if(rds_on) free_PulseInputDevice(&rds_device);
 		if(rds2_on) free_PulseInputDevice(&rds2_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
-		if(darc_on) free_PulseInputDevice(&darc_device);
 		return 1;
 	}
 	// #endregion
@@ -406,7 +375,6 @@ int main(int argc, char **argv) {
 		if(rds_on) free_PulseInputDevice(&rds_device);
 		if(rds2_on) free_PulseInputDevice(&rds2_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
-		if(darc_on) free_PulseInputDevice(&darc_device);
 		free_PulseOutputDevice(&output_device);
 		return 0;
 	}
@@ -432,9 +400,6 @@ int main(int argc, char **argv) {
 	MPXPowerMeasurement mpx_only_power;
 	init_modulation_power_measure(&mpx_only_power, sample_rate);
 
-	RefrencedFMModulator darc_modulator;
-	init_refrenced_fm_modulator(&darc_modulator, &osc, 4000.0f);
-
 	float bs412_audio_gain = 1.0f;
 
 	AGC agc;
@@ -456,35 +421,31 @@ int main(int argc, char **argv) {
 	float rds3_in[BUFFER_SIZE] = {0};
 	float rds4_in[BUFFER_SIZE] = {0};
 
-	float darc_data[BUFFER_SIZE*2] = {0}; // DARC data and clock
-	float darc_clock[BUFFER_SIZE] = {0};
-	float darc_data_out[BUFFER_SIZE] = {0};
-
 	float mpx_in[BUFFER_SIZE] = {0};
 	float sca_in[BUFFER_SIZE] = {0};
 	float left[BUFFER_SIZE], right[BUFFER_SIZE];
 	float output[BUFFER_SIZE];
 
-	float last_darc_clock = 0.0f;
-	float last_darc_data = 0.0f;
-
 	while (to_run) {
 		if((pulse_error = read_PulseInputDevice(&input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
-			fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
+			if(pulse_error == -1) fprintf(stderr, "Main PulseInputDevice reported as uninitialized.");
+			else fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
 		}
 		uninterleave(audio_stereo_input, left, right, BUFFER_SIZE*2);
 		if(mpx_on) {
 			if((pulse_error = read_PulseInputDevice(&mpx_device, mpx_in, sizeof(mpx_in)))) {
-				fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
+				if(pulse_error == -1) fprintf(stderr, "MPX PulseInputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
 		}
 		if(rds_on) {
 			if((pulse_error = read_PulseInputDevice(&rds_device, rds1_rds2_in, sizeof(rds1_rds2_in)))) {
-				fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
+				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
@@ -492,7 +453,8 @@ int main(int argc, char **argv) {
 		}
 		if(rds2_on) {
 			if((pulse_error = read_PulseInputDevice(&rds2_device, rds3_rds4_in, sizeof(rds3_rds4_in)))) {
-				fprintf(stderr, "Error reading from RDS2 device: %s\n", pa_strerror(pulse_error));
+				if(pulse_error == -1) fprintf(stderr, "RDS2 PulseInputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error reading from RDS2 device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
@@ -500,28 +462,16 @@ int main(int argc, char **argv) {
 		}
 		if(sca_on) {
 			if((pulse_error = read_PulseInputDevice(&sca_device, sca_in, sizeof(sca_in)))) {
-				fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
+				if(pulse_error == -1) fprintf(stderr, "SCA PulseInputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
-		}
-		if(darc_on) {
-			if((pulse_error = read_PulseInputDevice(&darc_device, darc_data, sizeof(darc_data)))) {
-				fprintf(stderr, "Error reading from DARC device: %s\n", pa_strerror(pulse_error));
-				to_run = 0;
-				break;
-			}
-			uninterleave(darc_data, darc_clock, darc_data_out, BUFFER_SIZE*2);
 		}
 
 		for (int i = 0; i < BUFFER_SIZE; i++) {
 			float mpx = 0.0f;
 			float audio = 0.0f;
-
-			if(darc_clock[i] != last_darc_clock) {
-				last_darc_clock = darc_clock[i];
-				last_darc_data = darc_data_out[i];
-			}
 
 			float ready_l = apply_preemphasis(&preemp_l, left[i]);
 			float ready_r = apply_preemphasis(&preemp_r, right[i]);
@@ -548,20 +498,17 @@ int main(int argc, char **argv) {
 			if(rds_on && polar_stereo == 0) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
 				mpx += (rds1_in[i]*rds_carrier)*RDS_VOLUME;
-				if(!darc_on) { // DARC is hardcoded into 76 khz, according to a screenshot of a fm mpx with darc in it, it takes like 65 to 85 khz, so all of RDS2
-					float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
-					mpx += (rds2_in[i]*rds2_carrier_66)*RDS2_VOLUME;
-					if(rds2_on) {
-						float rds2_carrier_71 = get_oscillator_cos_multiplier_ni(&osc, 15); // 71.25 KHz
-						float rds2_carrier_76 = get_oscillator_cos_multiplier_ni(&osc, 16); // 76 KHz
-						mpx += (rds3_in[i]*rds2_carrier_71)*RDS3_VOLUME;
-						mpx += (rds4_in[i]*rds2_carrier_76)*RDS4_VOLUME;
-					}
+				float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
+				mpx += (rds2_in[i]*rds2_carrier_66)*RDS2_VOLUME;
+				if(rds2_on) {
+					float rds2_carrier_71 = get_oscillator_cos_multiplier_ni(&osc, 15); // 71.25 KHz
+					float rds2_carrier_76 = get_oscillator_cos_multiplier_ni(&osc, 16); // 76 KHz
+					mpx += (rds3_in[i]*rds2_carrier_71)*RDS3_VOLUME;
+					mpx += (rds4_in[i]*rds2_carrier_76)*RDS4_VOLUME;
 				}
 			}
 			if(mpx_on) mpx += mpx_in[i]*MPX_VOLUME;
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(sca_in[i], sca_clipper_threshold))*SCA_VOLUME;
-			if(darc_on && polar_stereo == 0) mpx += refrenced_modulate_fm(&darc_modulator, last_darc_data, 16.0f)*compute_darc_amplitude(side*STEREO_VOLUME);
 
 			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
@@ -578,11 +525,12 @@ int main(int argc, char **argv) {
 			audio = hard_clip(audio, 1.0f-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
 			
 			output[i] = hard_clip((audio+mpx), 1.0f)*master_volume; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
-			if(rds_on || stereo || darc_on) advance_oscillator(&osc);
+			if(rds_on || stereo) advance_oscillator(&osc);
 		}
 
-		if(write_PulseOutputDevice(&output_device, output, sizeof(output))) {
-			fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+		if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) {
+			if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
+			else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
 		}
