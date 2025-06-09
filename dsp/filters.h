@@ -10,5 +10,5 @@ typedef struct
 	float gain;
 } ResistorCapacitor;
 
-void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate);
+void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate, float ref_freq);
 float apply_preemphasis(ResistorCapacitor *filter, float sample);

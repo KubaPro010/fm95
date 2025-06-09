@@ -392,8 +392,8 @@ int main(int argc, char **argv) {
 	iirfilt_rrrf mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 1, (polar_stereo ? (46250.0f/sample_rate) : (53000.0f/sample_rate)), 0.0f, 1.0f, 1.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
-	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate);
-	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate);
+	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate, 15100.0f);
+	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate, 15100.0f);
 
 	MPXPowerMeasurement power;
 	init_modulation_power_measure(&power, sample_rate);
