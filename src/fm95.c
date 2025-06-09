@@ -261,7 +261,7 @@ int main(int argc, char **argv) {
 
 	int mpx_on = (strlen(audio_mpx_device) != 0);
 	int rds_on = (strlen(audio_rds_device) != 0);
-	int rds2_on = (strlen(audio_rds2_device) != 0);
+	int rds2_on = (rds_on && strlen(audio_rds2_device) != 0);
 	int sca_on = (strlen(audio_sca_device) != 0);
 
 	// #region Setup devices
