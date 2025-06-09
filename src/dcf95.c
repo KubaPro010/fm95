@@ -11,8 +11,7 @@
 
 // #define DEBUG
 
-#include "../dsp/constants.h"
-#include "../dsp/oscillator.h"
+#include "../lib/oscillator.h"
 
 #define DEFAULT_FREQ 77500.0f
 #define DEFAULT_SAMPLE_RATE 192000

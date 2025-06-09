@@ -20,7 +20,7 @@
 #define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
 #define DEFAULT_DEVIATION 75000.0f // another way to set the volume
 
-#include "../dsp/oscillator.h"
+#include "../lib/oscillator.h"
 #include "../dsp/filters.h"
 #include "../dsp/fm_modulator.h"
 #include "../lib/optimization.h"
