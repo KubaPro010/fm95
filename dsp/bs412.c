@@ -34,7 +34,7 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
 #ifdef BS412_RMS
 	float avg_deviation = sqrtf(mpx->sample * inv_counter); // RMs
 #else
-	float avg_deviation = mpx->sample * inv_counter; // RMs
+	float avg_deviation = mpx->sample * inv_counter;
 #endif
 	float modulation_power = deviation_to_dbr(avg_deviation);
 
