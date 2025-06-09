@@ -3,7 +3,7 @@
 #include <getopt.h>
 #include <liquid/liquid.h>
 
-#define LPF_ORDER 18
+#define LPF_ORDER 17
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
@@ -518,11 +518,18 @@ int main(int argc, char **argv) {
 			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
 			if (mpower > mpx_power) {
 				float excess_power = mpower - mpx_power;
-				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpx_only)); // make sure mpx is not included in the power to attenuate, because we'd be attuating the mpx signal for audio
-
-				float target_gain = dbr_to_deviation(-excess_power)/mpx_deviation;
-				bs412_audio_gain = 0.9f * bs412_audio_gain + 0.1f * target_gain;
-				audio *= bs412_audio_gain;
+				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpx_only));
+				
+				if (excess_power > 0.0f && excess_power < 10.0f) {
+					float target_gain = dbr_to_deviation(-excess_power) / mpx_deviation;
+					
+					target_gain = fmaxf(target_gain, 0.1f);
+					target_gain = fminf(target_gain, 1.0f);
+					
+					bs412_audio_gain = 0.9f * bs412_audio_gain + 0.1f * target_gain;
+				}
+			} else {
+				bs412_audio_gain = fminf(1.0f, bs412_audio_gain + 0.001f);
 			}
 
 			iirfilt_rrrf_execute(mpx_lpf, audio, &audio); // Should have no effect, as audio should be 0-15, and 23-53, this is a filter for 53, assuming the filter is good, this is precaution and recomendation
