@@ -66,10 +66,7 @@ static void stop(int signum) {
 	to_run = 0;
 }
 
-inline void show_version() {
-	printf("fm95 (an FM Processor by radio95) version 1.7\n");
-}
-inline void show_help(char *name) {
+void show_help(char *name) {
 	printf(
 		"Usage: \t%s\n"
 		"\t-s,--stereo\tForce Stereo [default: %d]\n"
@@ -114,7 +111,7 @@ inline void show_help(char *name) {
 }
 
 int main(int argc, char **argv) {
-	show_version();
+	printf("fm95 (an FM Processor by radio95) version 1.7\n");
 
 	PulseInputDevice mpx_device, rds_device, rds2_device, sca_device;
 
