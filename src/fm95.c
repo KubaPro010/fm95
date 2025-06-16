@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
 	uint8_t calibration_mode = 0;
-	float mpx_power = DEFAULT_MPX_POWER;
+	float max_mpx_power = DEFAULT_MPX_POWER;
 	float mpx_deviation = DEFAULT_MPX_DEVIATION;
 	float master_volume = DEFAULT_MASTER_VOLUME;
 	float audio_volume = DEFAULT_AUDIO_VOLUME;
@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
 				else calibration_mode = 1;
 				break;
 			case 'p': // Power
-				mpx_power = strtof(optarg, NULL);
+				max_mpx_power = strtof(optarg, NULL);
 				break;
 			case 'P': // MPX deviation
 				mpx_deviation = strtof(optarg, NULL);
@@ -490,8 +490,8 @@ int main(int argc, char **argv) {
 
 			float mpxonly_power = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
 			float mpx_power = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
-			if (mpx_power > mpx_power) {
-				float excess_power = mpx_power - mpx_power;
+			if (mpx_power > max_mpx_power) {
+				float excess_power = mpx_power - max_mpx_power;
 				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpxonly_power));
 				
 				if (excess_power > 0.0f && excess_power < 10.0f) {
