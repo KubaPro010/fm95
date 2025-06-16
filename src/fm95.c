@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdint.h>
 #include <getopt.h>
 #include <liquid/liquid.h>
 
@@ -15,7 +13,7 @@
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
 #define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
-#define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs
+#define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs (75e-6)
 #define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
 #define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
 #define DEFAULT_DEVIATION 75000.0f // another way to set the volume
@@ -36,7 +34,7 @@
 #define MPX_DEVICE "FM_MPX.monitor"
 #define SCA_DEVICE "\0" // Disabled
 
-#define BUFFER_SIZE 2048 // Make sure that this is divisible by two
+#define BUFFER_SIZE 2048
 
 #include "../io/audio.h"
 
@@ -113,9 +111,7 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
 	printf("fm95 (an FM Processor by radio95) version 1.7\n");
 
-	PulseInputDevice mpx_device, rds_device, rds2_device, sca_device;
-
-	PulseInputDevice input_device;
+	PulseInputDevice input_device, mpx_device, rds_device, rds2_device, sca_device;
 	PulseOutputDevice output_device;
 
 	float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
@@ -126,12 +122,12 @@ int main(int argc, char **argv) {
 	float sca_deviation = DEFAULT_SCA_DEVIATION;
 	float sca_clipper_threshold = DEFAULT_SCA_CLIPPER_THRESHOLD;
 
-	char audio_input_device[64] = INPUT_DEVICE;
-	char audio_output_device[64] = OUTPUT_DEVICE;
-	char audio_mpx_device[64] = MPX_DEVICE;
-	char audio_rds_device[64] = RDS_DEVICE;
-	char audio_rds2_device[64] = RDS2_DEVICE;
-	char audio_sca_device[64] = SCA_DEVICE;
+	char audio_input_device[48] = INPUT_DEVICE;
+	char audio_output_device[48] = OUTPUT_DEVICE;
+	char audio_mpx_device[48] = MPX_DEVICE;
+	char audio_rds_device[48] = RDS_DEVICE;
+	char audio_rds2_device[48] = RDS2_DEVICE;
+	char audio_sca_device[48] = SCA_DEVICE;
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
 	uint8_t calibration_mode = 0;
@@ -177,22 +173,22 @@ int main(int argc, char **argv) {
 				else stereo = 1;
 				break;
 			case 'i': // Input Device
-				memcpy(audio_input_device, optarg, 63);
+				memcpy(audio_input_device, optarg, 47);
 				break;
 			case 'o': // Output Device
-				memcpy(audio_output_device, optarg, 63);
+				memcpy(audio_output_device, optarg, 47);
 				break;;
 			case 'M': //MPX in
-				memcpy(audio_mpx_device, optarg, 63);
+				memcpy(audio_mpx_device, optarg, 47);
 				break;
 			case 'r': // RDS in
-				memcpy(audio_rds_device, optarg, 63);
+				memcpy(audio_rds_device, optarg, 47);
 				break;
 			case 'R': // RDS2 in
-				memcpy(audio_rds2_device, optarg, 63);
+				memcpy(audio_rds2_device, optarg, 47);
 				break;
 			case 'S': //SCA in
-				memcpy(audio_sca_device, optarg, 63);
+				memcpy(audio_sca_device, optarg, 47);
 				break;
 			case 'f': //SCA freq
 				sca_frequency = strtof(optarg, NULL);
@@ -260,7 +256,7 @@ int main(int argc, char **argv) {
 	int opentime_pulse_error;
 
 	printf("Connecting to input device... (%s)\n", audio_input_device);
-	opentime_pulse_error = init_PulseInputDevice(&input_device, sample_rate, 2, "fm95", "Main Audio Input", audio_input_device, &input_buffer_atr);
+	opentime_pulse_error = init_PulseInputDevice(&input_device, sample_rate, 2, "fm95", "Main Audio Input", audio_input_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open input device: %s\n", pa_strerror(opentime_pulse_error));
 		return 1;
@@ -269,7 +265,7 @@ int main(int argc, char **argv) {
 	if(mpx_on) {
 		printf("Connecting to MPX device... (%s)\n", audio_mpx_device);
 
-		opentime_pulse_error = init_PulseInputDevice(&mpx_device, sample_rate, 1, "fm95", "MPX Input", audio_mpx_device, &input_buffer_atr);
+		opentime_pulse_error = init_PulseInputDevice(&mpx_device, sample_rate, 1, "fm95", "MPX Input", audio_mpx_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open MPX device: %s\n", pa_strerror(opentime_pulse_error));
 			free_PulseInputDevice(&input_device);
@@ -279,7 +275,7 @@ int main(int argc, char **argv) {
 	if(rds_on) {
 		printf("Connecting to RDS95 device... (%s)\n", audio_rds_device);
 
-		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, 2, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr);
+		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, 2, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
 			free_PulseInputDevice(&input_device);
@@ -290,7 +286,7 @@ int main(int argc, char **argv) {
 	if(rds2_on) {
 		printf("Connecting to RDS2 device... (%s)\n", audio_rds2_device);
 
-		opentime_pulse_error = init_PulseInputDevice(&rds2_device, sample_rate, 1, "fm95", "RDS2 Input", audio_rds2_device, &input_buffer_atr);
+		opentime_pulse_error = init_PulseInputDevice(&rds2_device, sample_rate, 1, "fm95", "RDS2 Input", audio_rds2_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS2 device: %s\n", pa_strerror(opentime_pulse_error));
 			free_PulseInputDevice(&input_device);
@@ -303,7 +299,7 @@ int main(int argc, char **argv) {
 	if(sca_on) {
 		printf("Connecting to SCA device... (%s)\n", audio_sca_device);
 
-		opentime_pulse_error = init_PulseInputDevice(&sca_device, sample_rate, 1, "fm95", "SCA Input", audio_sca_device, &input_buffer_atr);
+		opentime_pulse_error = init_PulseInputDevice(&sca_device, sample_rate, 1, "fm95", "SCA Input", audio_sca_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open SCA device: %s\n", pa_strerror(opentime_pulse_error));
 			free_PulseInputDevice(&input_device);
@@ -316,7 +312,7 @@ int main(int argc, char **argv) {
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr);
+	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
 		free_PulseInputDevice(&input_device);
@@ -344,7 +340,8 @@ int main(int argc, char **argv) {
 				output[i] = sample*master_volume;
 			}
 			if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
-				fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+				if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
@@ -360,23 +357,21 @@ int main(int argc, char **argv) {
 	}
 
 	Oscillator osc;
-	init_oscillator(&osc, polar_stereo ? 3906.25 : 4750, sample_rate); // 3906.25 * 8 = 31250.0, this is to reduce branching
+	init_oscillator(&osc, polar_stereo ? 3906.25 : 4750, sample_rate); // 3906.25 * 8 = 31250.0, this is to reduce branching later on
 
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
-	iirfilt_rrrf lpf_l, lpf_r;
+	iirfilt_rrrf lpf_l, lpf_r, mpx_lpf;
 	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
 	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
-
-	iirfilt_rrrf mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 1, (polar_stereo ? (46250.0f/sample_rate) : (53000.0f/sample_rate)), 0.0f, 1.0f, 1.0f);
+	mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 1, (polar_stereo ? (46250.0f/sample_rate) : (53000.0f/sample_rate)), 0.0f, 1.0f, 1.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate, 15250.0f);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate, 15250.0f);
 
-	MPXPowerMeasurement power;
-	MPXPowerMeasurement mpx_only_power;
+	MPXPowerMeasurement power, mpx_only_power;
 	init_modulation_power_measure(&power, sample_rate);
 	init_modulation_power_measure(&mpx_only_power, sample_rate);
 

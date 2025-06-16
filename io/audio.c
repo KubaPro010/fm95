@@ -1,6 +1,6 @@
 #include "audio.h"
 
-int init_PulseInputDevicef(PulseInputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
+int init_PulseInputDevice(PulseInputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
 	#ifdef PULSE_DEBUG
 	debug_printf("Initializing PulseInputDevice format with app_name: %s, stream_name: %s, device: %s, sample_rate: %d, channels: %d, format: %d\n", app_name, stream_name, device, sample_rate, channels, format);
 	#endif
@@ -20,10 +20,6 @@ int init_PulseInputDevicef(PulseInputDevice* dev, int sample_rate, int channels,
 	if (!dev->dev) return error;
 	dev->initialized = 1;
 	return 0;
-}
-
-int init_PulseInputDevice(PulseInputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr) {
-	return init_PulseInputDevicef(dev, sample_rate, channels, app_name, stream_name, device, buffer_attr, PA_SAMPLE_FLOAT32NE);
 }
 
 int read_PulseInputDevice(PulseInputDevice* dev, void* buffer, size_t size) {
@@ -52,7 +48,7 @@ void free_PulseInputDevice(PulseInputDevice* dev) {
 	dev->initialized = 0;
 }
 
-int init_PulseOutputDevicef(PulseOutputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
+int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
 	#ifdef PULSE_DEBUG
 	debug_printf("Initializing PulseOutputDevice format with app_name: %s, stream_name: %s, device: %s, sample_rate: %d, channels: %d, format: %d\n", app_name, stream_name, device, sample_rate, channels, format);
 	#endif
@@ -86,10 +82,6 @@ int init_PulseOutputDevicef(PulseOutputDevice* dev, int sample_rate, int channel
 	if (!dev->dev) return error;
 	dev->initialized = 1;
 	return 0;
-}
-
-int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr) {
-	return init_PulseOutputDevicef(dev, sample_rate, channels, app_name, stream_name, device, buffer_attr, PA_SAMPLE_FLOAT32NE);
 }
 
 int write_PulseOutputDevice(PulseOutputDevice* dev, void* buffer, size_t size) {

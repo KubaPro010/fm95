@@ -1,10 +1,6 @@
-#include <stdint.h>
-#include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <signal.h>
-#include <stdbool.h>
 #include <getopt.h>
 #include <pwd.h>
 #include <fcntl.h>
@@ -20,7 +16,7 @@
 
 #define BUF_SIZE 1500
 #define MAX_AUDIO_DATA_SIZE (BUF_SIZE - sizeof(VBANHeader))
-#define MAX_BUFFER_PACKETS 16
+#define MAX_BUFFER_PACKETS 24
 
 #define POLL_TIMEOUT_MS 75
 
@@ -391,7 +387,7 @@ int main(int argc, char *argv[]) {
 
                 if (output.initialized) free_PulseOutputDevice(&output);
                 
-                int result = init_PulseOutputDevicef( // the f suffix is to specify the format, because without f it defaults to float
+                int result = init_PulseOutputDevice(
                     &output, 
                     VBAN_SRList[vban_last_sr], 
                     vban_last_channels + 1, // Add 1 because VBAN channels are 0-based

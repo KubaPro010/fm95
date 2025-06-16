@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdint.h>
 #include <getopt.h>
 #include <time.h>
 #include <signal.h>
@@ -281,7 +280,7 @@ int main(int argc, char **argv) {
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "dcf95", "Main Audio Output", audio_output_device, &output_buffer_atr);
+	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "dcf95", "Main Audio Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
 		return 1;

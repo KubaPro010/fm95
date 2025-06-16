@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "chimer95", "Main Audio Output", audio_output_device, &output_buffer_atr);
+	pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "chimer95", "Main Audio Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(pulse_error));
 		return 1;

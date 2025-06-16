@@ -1,7 +1,5 @@
 #include "bs412.h"
 
-#define BS412_RMS
-
 #define LOG2_19000 log2f(19000.0f)
 
 inline float dbr_to_deviation(float dbr) {
@@ -23,19 +21,11 @@ void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
 }
 
 float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
-#ifdef BS412_RMS
 	mpx->sample += deviation * deviation; // rmS
-#else
-	mpx->sample += fabsf(deviation);
-#endif
 	mpx->sample_counter++;
 
 	float inv_counter = 1.0f / mpx->sample_counter;
-#ifdef BS412_RMS
 	float avg_deviation = sqrtf(mpx->sample * inv_counter); // RMs
-#else
-	float avg_deviation = mpx->sample * inv_counter;
-#endif
 	float modulation_power = deviation_to_dbr(avg_deviation);
 
 	#ifdef BS412_DEBUG
@@ -48,7 +38,7 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
 		#ifdef BS412_DEBUG
 		debug_printf("Resetting MPX power measurement\n");
 		#endif
-		mpx->sample = deviation * deviation;
+		mpx->sample = avg_deviation * avg_deviation;
 		mpx->sample_counter = 1;
 	}
 
