@@ -56,22 +56,6 @@
 
 static volatile sig_atomic_t to_run = 1;
 
-void uninterleave(const float *input, float *left, float *right, size_t num_samples) {
-#if USE_NEON
-	size_t i = 0;
-	for (; i + 3 < num_samples / 2; i += 4) {
-		float32x4x2_t input_vec = vld2q_f32(input + i * 2);
-		vst1q_f32(left + i, input_vec.val[0]);
-		vst1q_f32(right + i, input_vec.val[1]);
-	}
-#else
-	for (size_t i = 0; i < num_samples / 2; i++) {
-		left[i] = input[i * 2];
-		right[i] = input[i * 2 + 1];
-	}
-#endif
-}
-
 inline float hard_clip(float sample, float threshold) {
 	return fmaxf(-threshold, fminf(threshold, sample));
 }
@@ -82,10 +66,10 @@ static void stop(int signum) {
 	to_run = 0;
 }
 
-void show_version() {
+inline void show_version() {
 	printf("fm95 (an FM Processor by radio95) version 1.7\n");
 }
-void show_help(char *name) {
+inline void show_help(char *name) {
 	printf(
 		"Usage: \t%s\n"
 		"\t-s,--stereo\tForce Stereo [default: %d]\n"
@@ -161,7 +145,6 @@ int main(int argc, char **argv) {
 
 	uint32_t sample_rate = DEFAULT_SAMPLE_RATE;
 
-	// #region Parse Arguments
 	int opt;
 	const char	*short_opt = "s::i:o:M:r:R:S:f:F:C:c:O::e:V::p:P:A:v:D:h";
 	struct option	long_opt[] =
@@ -360,7 +343,7 @@ int main(int argc, char **argv) {
 		while(to_run) {
 			for (int i = 0; i < BUFFER_SIZE; i++) {
 				float sample = get_oscillator_sin_sample(&osc);
-				if(calibration_mode == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f;
+				if(calibration_mode == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f; // Sine wave to square wave filter
 				output[i] = sample*master_volume;
 			}
 			if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
@@ -380,7 +363,7 @@ int main(int argc, char **argv) {
 	}
 
 	Oscillator osc;
-	init_oscillator(&osc, polar_stereo ? 3906.25 : 4750, sample_rate); // 3906.25 * 8 = 31250.0
+	init_oscillator(&osc, polar_stereo ? 3906.25 : 4750, sample_rate); // 3906.25 * 8 = 31250.0, this is to reduce branching
 
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
@@ -392,38 +375,32 @@ int main(int argc, char **argv) {
 	iirfilt_rrrf mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 1, (polar_stereo ? (46250.0f/sample_rate) : (53000.0f/sample_rate)), 0.0f, 1.0f, 1.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
-	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate, 15100.0f);
-	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate, 15100.0f);
+	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate, 15250.0f);
+	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate, 15250.0f);
 
 	MPXPowerMeasurement power;
-	init_modulation_power_measure(&power, sample_rate);
 	MPXPowerMeasurement mpx_only_power;
+	init_modulation_power_measure(&power, sample_rate);
 	init_modulation_power_measure(&mpx_only_power, sample_rate);
 
 	float bs412_audio_gain = 1.0f;
 
 	AGC agc;
 	//            fs           target   min   max   attack  release
-	initAGC(&agc, sample_rate, 0.625f, 0.0f, 1.5f, 0.05f, 0.25f);
+	initAGC(&agc, sample_rate, 0.65f, 0.0f, 1.75f, 0.03f, 0.225f);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
 
 	int pulse_error;
 
-	float audio_stereo_input[BUFFER_SIZE*2];
+	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
 
-	float rds1_rds2_in[BUFFER_SIZE*2] = {0};
-	float rds1_in[BUFFER_SIZE] = {0};
-	float rds2_in[BUFFER_SIZE] = {0};
-
-	float rds3_rds4_in[BUFFER_SIZE*2] = {0};
-	float rds3_in[BUFFER_SIZE] = {0};
-	float rds4_in[BUFFER_SIZE] = {0};
+	float rds1_rds2_in[BUFFER_SIZE*2] = {0}; // Stereo
+	float rds3_rds4_in[BUFFER_SIZE*2] = {0}; // Stereo
 
 	float mpx_in[BUFFER_SIZE] = {0};
 	float sca_in[BUFFER_SIZE] = {0};
-	float left[BUFFER_SIZE], right[BUFFER_SIZE];
 	float output[BUFFER_SIZE];
 
 	while (to_run) {
@@ -433,7 +410,6 @@ int main(int argc, char **argv) {
 			to_run = 0;
 			break;
 		}
-		uninterleave(audio_stereo_input, left, right, BUFFER_SIZE*2);
 		if(mpx_on) {
 			if((pulse_error = read_PulseInputDevice(&mpx_device, mpx_in, sizeof(mpx_in)))) {
 				if(pulse_error == -1) fprintf(stderr, "MPX PulseInputDevice reported as uninitialized.");
@@ -449,7 +425,6 @@ int main(int argc, char **argv) {
 				to_run = 0;
 				break;
 			}
-			uninterleave(rds1_rds2_in, rds1_in, rds2_in, BUFFER_SIZE*2);
 		}
 		if(rds2_on) {
 			if((pulse_error = read_PulseInputDevice(&rds2_device, rds3_rds4_in, sizeof(rds3_rds4_in)))) {
@@ -458,7 +433,6 @@ int main(int argc, char **argv) {
 				to_run = 0;
 				break;
 			}
-			uninterleave(rds3_rds4_in, rds3_in, rds4_in, BUFFER_SIZE*2);
 		}
 		if(sca_on) {
 			if((pulse_error = read_PulseInputDevice(&sca_device, sca_in, sizeof(sca_in)))) {
@@ -473,8 +447,8 @@ int main(int argc, char **argv) {
 			float mpx = 0.0f;
 			float audio = 0.0f;
 
-			float ready_l = apply_preemphasis(&preemp_l, left[i]);
-			float ready_r = apply_preemphasis(&preemp_r, right[i]);
+			float ready_l = apply_preemphasis(&preemp_l, audio_stereo_input[2*i+0]);
+			float ready_r = apply_preemphasis(&preemp_r, audio_stereo_input[2*i+1]);
 			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
 			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
 
@@ -502,23 +476,23 @@ int main(int argc, char **argv) {
 			if(rds_on && !polar_stereo) {
 				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
 				float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
-				mpx += (rds1_in[i]*rds_carrier)*RDS_VOLUME;
-				mpx += (rds2_in[i]*rds2_carrier_66)*RDS2_VOLUME;
+				mpx += (rds1_rds2_in[2*i+0]*rds_carrier)*RDS_VOLUME;
+				mpx += (rds1_rds2_in[2*i+1]*rds2_carrier_66)*RDS2_VOLUME;
 				if(rds2_on) {
 					float rds2_carrier_71 = get_oscillator_cos_multiplier_ni(&osc, 15); // 71.25 KHz
 					float rds2_carrier_76 = get_oscillator_cos_multiplier_ni(&osc, 16); // 76 KHz
-					mpx += (rds3_in[i]*rds2_carrier_71)*RDS3_VOLUME;
-					mpx += (rds4_in[i]*rds2_carrier_76)*RDS4_VOLUME;
+					mpx += (rds3_rds4_in[2*i+0]*rds2_carrier_71)*RDS3_VOLUME;
+					mpx += (rds3_rds4_in[2*i+1]*rds2_carrier_76)*RDS4_VOLUME;
 				}
 			}
 			if(mpx_on) mpx += mpx_in[i]*MPX_VOLUME;
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(sca_in[i], sca_clipper_threshold))*SCA_VOLUME;
 
-			float mpx_only = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
-			float mpower = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
-			if (mpower > mpx_power) {
-				float excess_power = mpower - mpx_power;
-				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpx_only));
+			float mpxonly_power = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
+			float mpx_power = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
+			if (mpx_power > mpx_power) {
+				float excess_power = mpx_power - mpx_power;
+				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpxonly_power));
 				
 				if (excess_power > 0.0f && excess_power < 10.0f) {
 					float target_gain = dbr_to_deviation(-excess_power) / mpx_deviation;
@@ -526,7 +500,7 @@ int main(int argc, char **argv) {
 					target_gain = fmaxf(target_gain, 0.1f);
 					target_gain = fminf(target_gain, 1.0f);
 					
-					bs412_audio_gain = 0.9f * bs412_audio_gain + 0.1f * target_gain;
+					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
 				}
 			} else {
 				bs412_audio_gain = fminf(1.0f, bs412_audio_gain + 0.001f);
