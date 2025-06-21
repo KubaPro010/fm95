@@ -68,7 +68,7 @@ void show_help(char *name) {
 		"\t-o,--output\tOverride output device [default: %s]\n"
 		"\t-M,--mpx\tOverride MPX input device [default: %s]\n"
 		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
-		"\t-R,--rds_streams\tSpecifies the number of the RDS streams provided by RDS95 [default: %d]\n"
+		"\t-R,--rds_strs\tSpecifies the number of the RDS streams provided by RDS95 [default: %d]\n"
 		"\t-S,--sca\tOverride the SCA input device [default: %s]\n"
 		"\t-f,--sca_freq\tOverride the SCA frequency [default: %.1f]\n"
 		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
 		{"output",      required_argument, NULL, 'o'},
 		{"mpx",         required_argument, NULL, 'M'},
 		{"rds",         required_argument, NULL, 'r'},
-		{"rds2",        required_argument, NULL, 'R'},
+		{"rds_strs",        required_argument, NULL, 'R'},
 		{"sca",         required_argument, NULL, 'S'},
 		{"sca_freq",    required_argument, NULL, 'f'},
 		{"sca_dev",     required_argument, NULL, 'F'},
@@ -370,6 +370,7 @@ int main(int argc, char **argv) {
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
 
 	float *rds_in = malloc(sizeof(float) * BUFFER_SIZE * rds_streams);
+	memset(&rds_in, 0, sizeof(rds_in));
 
 	float mpx_in[BUFFER_SIZE] = {0};
 	float sca_in[BUFFER_SIZE] = {0};
@@ -407,7 +408,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		for (int i = 0; i < BUFFER_SIZE; i++) {
+		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
 			float mpx = 0.0f;
 			float audio = 0.0f;
 
@@ -438,7 +439,7 @@ int main(int argc, char **argv) {
 				}
 			}
 			if(rds_on && !polar_stereo) {
-				for(int stream = 0; stream < rds_streams; stream++) {
+				for(uint8_t stream = 0; stream < rds_streams; stream++) {
 					uint8_t osc_stream = 12+stream;
 					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
 					mpx += (rds_in[rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream));
