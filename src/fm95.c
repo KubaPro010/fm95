@@ -392,7 +392,7 @@ int main(int argc, char **argv) {
 			}
 		}
 		if(rds_on) {
-			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(float) * BUFFER_SIZE * rds_streams);)) {
+			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(float) * BUFFER_SIZE * rds_streams))) {
 				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
 				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
