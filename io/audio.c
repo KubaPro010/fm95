@@ -29,13 +29,6 @@ int read_PulseInputDevice(PulseInputDevice* dev, void* buffer, size_t size) {
 	return error;
 }
 
-int read_PulseInputDevicef(PulseInputDevice* dev, void* buffer, size_t size) {
-	if (!dev->initialized) return -1;
-	int error = 0;
-	if(pa_simple_read(dev->dev, buffer, size, &error) == 0) return 0;
-	return error;
-}
-
 void free_PulseInputDevice(PulseInputDevice* dev) {
 	#ifdef PULSE_DEBUG
 	debug_printf("Freeing PulseInputDevice with app_name: %s, stream_name: %s, device: %s\n", dev->app_name, dev->stream_name, dev->device);

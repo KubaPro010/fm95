@@ -370,7 +370,7 @@ int main(int argc, char **argv) {
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
 
 	float *rds_in = malloc(sizeof(float) * BUFFER_SIZE * rds_streams);
-	memset(&rds_in, 0, sizeof(rds_in));
+	memset(rds_in, 0, sizeof(float) * BUFFER_SIZE * rds_streams);
 
 	float mpx_in[BUFFER_SIZE] = {0};
 	float sca_in[BUFFER_SIZE] = {0};
@@ -392,7 +392,7 @@ int main(int argc, char **argv) {
 			}
 		}
 		if(rds_on) {
-			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(rds_in)))) {
+			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(float) * BUFFER_SIZE * rds_streams);)) {
 				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
 				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
