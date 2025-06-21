@@ -1,7 +1,7 @@
 #include <getopt.h>
 #include <liquid/liquid.h>
 
-#define LPF_ORDER 21
+#define LPF_ORDER 17
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
