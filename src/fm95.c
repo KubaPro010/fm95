@@ -369,7 +369,7 @@ int main(int argc, char **argv) {
 
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
 
-	float rds_in[BUFFER_SIZE*rds_streams] = {0}; // multichannel
+	float *rds_in = malloc(sizeof(float) * BUFFER_SIZE * rds_streams);
 
 	float mpx_in[BUFFER_SIZE] = {0};
 	float sca_in[BUFFER_SIZE] = {0};
@@ -491,5 +491,6 @@ int main(int argc, char **argv) {
 	if(rds_on) free_PulseInputDevice(&rds_device);
 	if(sca_on) free_PulseInputDevice(&sca_device);
 	free_PulseOutputDevice(&output_device);
+	free(rds_in);
 	return 0;
 }
