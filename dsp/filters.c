@@ -5,11 +5,7 @@ void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate, f
     filter->alpha = tau / (tau + dt);
 
     float omega = M_2PI * ref_freq / sample_rate;
-    float cos_omega = cosf(omega);
-
-    float numerator = sqrtf(1.0f + filter->alpha * filter->alpha - 2.0f * filter->alpha * cos_omega);
-
-    filter->gain = 1.0f / numerator;
+    filter->gain = 1.0f / sqrtf(1.0f + filter->alpha * filter->alpha - 2.0f * filter->alpha * cosf(omega));
 
     filter->prev_sample = 0.0f;
 }

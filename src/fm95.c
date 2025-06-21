@@ -9,6 +9,7 @@
 
 #define DEFAULT_STEREO 1
 #define DEFAULT_STEREO_POLAR 0
+#define DEFAULT_RDS_STREAMS 2
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_SCA_FREQUENCY 67000.0f
 #define DEFAULT_SCA_DEVIATION 7000.0f
@@ -30,7 +31,6 @@
 #define INPUT_DEVICE "FM_Audio.monitor"
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define RDS_DEVICE "RDS.monitor"
-#define RDS2_DEVICE "\0" // Disabled, this is for the additional two RDS channels, 71.25 and 76 khz
 #define MPX_DEVICE "FM_MPX.monitor"
 #define SCA_DEVICE "\0" // Disabled
 
@@ -45,12 +45,8 @@
 #define PILOT_VOLUME 0.09f // 9%
 #define STEREO_VOLUME 0.3f // 30%
 #define RDS_VOLUME 0.0475f // 4.75%
-#define RDS2_VOLUME 0.04f // 4%
-#define RDS3_VOLUME 0.0375f // 3.75%
-#define RDS4_VOLUME 0.035f // 3.5%
-#define SCA_VOLUME 0.1f // 10%, needs to be high because this is analog
-
-#define MPX_VOLUME 1.0f
+#define RDS_VOLUME_STEP 0.9f // 90%, so RDS2 stream 4 is 90% of stream 3 which is 90% of stream 2, which again is 90% of stream 1...
+#define SCA_VOLUME 0.1f // 10%, needs to be high because this is analog. TODO: move sca to its own program (because then you can have as much scas as your computer allows to, here you have just one, and sca does not need any phase sync)
 
 static volatile sig_atomic_t to_run = 1;
 
@@ -72,7 +68,7 @@ void show_help(char *name) {
 		"\t-o,--output\tOverride output device [default: %s]\n"
 		"\t-M,--mpx\tOverride MPX input device [default: %s]\n"
 		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
-		"\t-R,--rds2\tOverride the RDS2 additional stream device [default: %s]\n"
+		"\t-R,--rds_streams\tSpecifies the number of the RDS streams provided by RDS95 [default: %d]\n"
 		"\t-S,--sca\tOverride the SCA input device [default: %s]\n"
 		"\t-f,--sca_freq\tOverride the SCA frequency [default: %.1f]\n"
 		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
@@ -92,7 +88,7 @@ void show_help(char *name) {
 		,OUTPUT_DEVICE
 		,MPX_DEVICE
 		,RDS_DEVICE
-		,RDS2_DEVICE
+		,DEFAULT_RDS_STREAMS
 		,SCA_DEVICE
 		,DEFAULT_SCA_FREQUENCY
 		,DEFAULT_SCA_DEVIATION
@@ -109,14 +105,15 @@ void show_help(char *name) {
 }
 
 int main(int argc, char **argv) {
-	printf("fm95 (an FM Processor by radio95) version 1.7\n");
+	printf("fm95 (an FM Processor by radio95) version 1.8\n");
 
-	PulseInputDevice input_device, mpx_device, rds_device, rds2_device, sca_device;
+	PulseInputDevice input_device, mpx_device, rds_device, sca_device;
 	PulseOutputDevice output_device;
 
 	float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
 	uint8_t stereo = DEFAULT_STEREO;
 	uint8_t polar_stereo = DEFAULT_STEREO_POLAR;
+	uint8_t rds_streams = DEFAULT_RDS_STREAMS;
 
 	float sca_frequency = DEFAULT_SCA_FREQUENCY;
 	float sca_deviation = DEFAULT_SCA_DEVIATION;
@@ -126,7 +123,6 @@ int main(int argc, char **argv) {
 	char audio_output_device[48] = OUTPUT_DEVICE;
 	char audio_mpx_device[48] = MPX_DEVICE;
 	char audio_rds_device[48] = RDS_DEVICE;
-	char audio_rds2_device[48] = RDS2_DEVICE;
 	char audio_sca_device[48] = SCA_DEVICE;
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
@@ -184,8 +180,12 @@ int main(int argc, char **argv) {
 			case 'r': // RDS in
 				memcpy(audio_rds_device, optarg, 47);
 				break;
-			case 'R': // RDS2 in
-				memcpy(audio_rds2_device, optarg, 47);
+			case 'R': // RDS Streams
+				rds_streams = atoi(optarg);
+				if(rds_streams > 4) {
+					printf("Can't do more RDS streams than 4 (why even?)\n");
+					exit(1);
+				}
 				break;
 			case 'S': //SCA in
 				memcpy(audio_sca_device, optarg, 47);
@@ -236,11 +236,8 @@ int main(int argc, char **argv) {
 	// #endregion
 
 	int mpx_on = (strlen(audio_mpx_device) != 0);
-	int rds_on = (strlen(audio_rds_device) != 0);
-	int rds2_on = (rds_on && strlen(audio_rds2_device) != 0);
+	int rds_on = (strlen(audio_rds_device) != 0 && rds_streams != 0);
 	int sca_on = (strlen(audio_sca_device) != 0);
-
-	// #region Setup devices
 
 	// Define formats and buffer atributes
 	pa_buffer_attr input_buffer_atr = {
@@ -275,23 +272,11 @@ int main(int argc, char **argv) {
 	if(rds_on) {
 		printf("Connecting to RDS95 device... (%s)\n", audio_rds_device);
 
-		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, 2, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, rds_streams, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
 			free_PulseInputDevice(&input_device);
 			if(mpx_on) free_PulseInputDevice(&mpx_device);
-			return 1;
-		}
-	}
-	if(rds2_on) {
-		printf("Connecting to RDS2 device... (%s)\n", audio_rds2_device);
-
-		opentime_pulse_error = init_PulseInputDevice(&rds2_device, sample_rate, 1, "fm95", "RDS2 Input", audio_rds2_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
-		if (opentime_pulse_error) {
-			fprintf(stderr, "Error: cannot open RDS2 device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&input_device);
-			if(mpx_on) free_PulseInputDevice(&mpx_device);
-			if(rds_on) free_PulseInputDevice(&rds_device);
 			return 1;
 		}
 	}
@@ -305,7 +290,6 @@ int main(int argc, char **argv) {
 			free_PulseInputDevice(&input_device);
 			if(mpx_on) free_PulseInputDevice(&mpx_device);
 			if(rds_on) free_PulseInputDevice(&rds_device);
-			if(rds2_on) free_PulseInputDevice(&rds2_device);
 			return 1;
 		}
 	}
@@ -318,11 +302,9 @@ int main(int argc, char **argv) {
 		free_PulseInputDevice(&input_device);
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
-		if(rds2_on) free_PulseInputDevice(&rds2_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
 		return 1;
 	}
-	// #endregion
 
 	if(calibration_mode != 0) {
 		Oscillator osc;
@@ -350,7 +332,6 @@ int main(int argc, char **argv) {
 		free_PulseInputDevice(&input_device);
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
-		if(rds2_on) free_PulseInputDevice(&rds2_device);
 		if(sca_on) free_PulseInputDevice(&sca_device);
 		free_PulseOutputDevice(&output_device);
 		return 0;
@@ -388,8 +369,7 @@ int main(int argc, char **argv) {
 
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
 
-	float rds1_rds2_in[BUFFER_SIZE*2] = {0}; // Stereo
-	float rds3_rds4_in[BUFFER_SIZE*2] = {0}; // Stereo
+	float rds_in[BUFFER_SIZE*rds_streams] = {0}; // multichannel
 
 	float mpx_in[BUFFER_SIZE] = {0};
 	float sca_in[BUFFER_SIZE] = {0};
@@ -411,17 +391,9 @@ int main(int argc, char **argv) {
 			}
 		}
 		if(rds_on) {
-			if((pulse_error = read_PulseInputDevice(&rds_device, rds1_rds2_in, sizeof(rds1_rds2_in)))) {
+			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(rds_in)))) {
 				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
 				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
-				to_run = 0;
-				break;
-			}
-		}
-		if(rds2_on) {
-			if((pulse_error = read_PulseInputDevice(&rds2_device, rds3_rds4_in, sizeof(rds3_rds4_in)))) {
-				if(pulse_error == -1) fprintf(stderr, "RDS2 PulseInputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error reading from RDS2 device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
@@ -466,18 +438,13 @@ int main(int argc, char **argv) {
 				}
 			}
 			if(rds_on && !polar_stereo) {
-				float rds_carrier = get_oscillator_cos_multiplier_ni(&osc, 12); // 57 KHz
-				float rds2_carrier_66 = get_oscillator_cos_multiplier_ni(&osc, 14); // 66.5 KHz
-				mpx += (rds1_rds2_in[2*i+0]*rds_carrier)*RDS_VOLUME;
-				mpx += (rds1_rds2_in[2*i+1]*rds2_carrier_66)*RDS2_VOLUME;
-				if(rds2_on) {
-					float rds2_carrier_71 = get_oscillator_cos_multiplier_ni(&osc, 15); // 71.25 KHz
-					float rds2_carrier_76 = get_oscillator_cos_multiplier_ni(&osc, 16); // 76 KHz
-					mpx += (rds3_rds4_in[2*i+0]*rds2_carrier_71)*RDS3_VOLUME;
-					mpx += (rds3_rds4_in[2*i+1]*rds2_carrier_76)*RDS4_VOLUME;
+				for(int stream = 0; stream < rds_streams; stream++) {
+					uint8_t osc_stream = 12+stream;
+					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
+					mpx += (rds_in[rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream - 1));
 				}
 			}
-			if(mpx_on) mpx += mpx_in[i]*MPX_VOLUME;
+			if(mpx_on) mpx += mpx_in[i];
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(sca_in[i], sca_clipper_threshold))*SCA_VOLUME;
 
 			float mpxonly_power = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
@@ -492,11 +459,13 @@ int main(int argc, char **argv) {
 					target_gain = fmaxf(target_gain, 0.1f);
 					target_gain = fminf(target_gain, 1.0f);
 					
-					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
+					bs412_audio_gain = 0.85f * bs412_audio_gain + 0.15f * target_gain;
 				}
 			} else {
 				bs412_audio_gain = fminf(1.0f, bs412_audio_gain + 0.001f);
 			}
+
+			audio *= bs412_audio_gain;
 
 			iirfilt_rrrf_execute(mpx_lpf, audio, &audio); // Should have no effect, as audio should be 0-15, and 23-53, this is a filter for 53, assuming the filter is good, this is precaution and recomendation
 			audio = hard_clip(audio, 1.0f-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
@@ -520,7 +489,6 @@ int main(int argc, char **argv) {
 	free_PulseInputDevice(&input_device);
 	if(mpx_on) free_PulseInputDevice(&mpx_device);
 	if(rds_on) free_PulseInputDevice(&rds_device);
-	if(rds2_on) free_PulseInputDevice(&rds2_device);
 	if(sca_on) free_PulseInputDevice(&sca_device);
 	free_PulseOutputDevice(&output_device);
 	return 0;

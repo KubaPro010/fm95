@@ -119,7 +119,7 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 	bits[20] = 1;
 
 	int minutes = t->tm_min;
-	for (int i = 0; i < 4; i++) bits[21 + i] = (minutes % 10 >> i) & 1;
+	for (int i = 0; i < 4; i++) bits[21 + i] = (minutes % 10 >> i) & 1; // BCD
 	for (int i = 0; i < 3; i++) bits[25 + i] = (minutes / 10 >> i) & 1;
 
 	int minute_parity = 0;
@@ -155,8 +155,6 @@ void calculate_dcf77_bits(time_t now, int *bits) {
 	int year_parity = 0;
 	for (int i = 36; i <= 57; i++) year_parity ^= bits[i];
 	bits[58] = year_parity;
-
-	bits[59] = 2;
 }
 
 void print_dcf77_bits(const int *bits) {
@@ -205,7 +203,6 @@ int main(int argc, char **argv) {
 	uint8_t test_mode = 0;
 	uint8_t no_phase = 0;
 
-	// #region Parse Arguments
 	int opt;
 	const char *short_opt = "o:F:s:v:t:Tnh";
 	struct option long_opt[] =
@@ -251,7 +248,6 @@ int main(int argc, char **argv) {
 				return 0;
 		}
 	}
-	// #endregion
 
 	if(test_mode) {
 		time_t now = time(NULL) + offset + 60;
@@ -364,17 +360,14 @@ int main(int argc, char **argv) {
 
 			int current_bit = bit_position > 0 ? bit_position - 1 : 59;
 
-			in_dsss_period = (elapsed_samples >= dsss_start_samples &&
-							  elapsed_samples < dsss_end_samples);
+			in_dsss_period = (elapsed_samples >= dsss_start_samples && elapsed_samples < dsss_end_samples);
 
 			float phase_offset = 0.0;
 
 			if (in_dsss_period && transmitting && !no_phase) {
 				if (current_cycle_count == 0) {
 					if (current_chip_count < CHIPS_PER_BIT) {
-						unsigned int chip = generate_chip();
-
-						unsigned int modulated_chip = chip ^ dcf77_bits[current_bit];
+						unsigned int modulated_chip = generate_chip() ^ dcf77_bits[current_bit];
 
 						if (modulated_chip == 0) phase_offset = phase_shift_rad;
 						else phase_offset = -phase_shift_rad;
@@ -386,12 +379,11 @@ int main(int argc, char **argv) {
 				current_cycle_count = (current_cycle_count + 1) % CHIP_CYCLES;
 			}
 
-			float t = osc.phase + phase_offset;
-			float carrier = sinf(t);
+			float carrier = sinf(osc.phase + phase_offset);
 			advance_oscillator(&osc);
 
 			if (transmitting) {
-				if ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) ||
+				if (current_bit != 59 && (dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) ||
 					(dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION)) {
 					output[i] = carrier * master_volume * REDUCED_AMPLITUDE;
 				} else output[i] = carrier * master_volume;

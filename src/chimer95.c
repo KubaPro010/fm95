@@ -44,10 +44,6 @@ static void stop(int signum) {
 	to_run = 0;
 }
 
-void show_version() {
-	printf("chimer95 (GTS time signal encoder by radio95) version 1.1\n");
-}
-
 void show_help(char *name) {
 	printf(
 		"Usage:\t%s\n"
@@ -66,50 +62,8 @@ void show_help(char *name) {
 	);
 }
 
-void generate_signal(float *output, int buffer_size, Oscillator *osc, float volume, int *elapsed_samples, int total_samples, int pip_samples, int pause_samples, int beep_samples, int num_pips) {
-#if USE_NEON
-	float32x4_t v_volume = vdupq_n_f32(volume);
-
-	for (int i = 0; i < buffer_size; i += 4) {
-		if (*elapsed_samples >= total_samples) {
-			vst1q_f32(&output[i], vdupq_n_f32(0.0f));
-			playing_sequence = 0;
-		} else {
-			int cycle_position = *elapsed_samples;
-			int pip_cycle = pip_samples + pause_samples;
-			float32x4_t v_samples;
-
-			if (cycle_position < num_pips * pip_cycle) {
-				int within_cycle = cycle_position % pip_cycle;
-				if (within_cycle < pip_samples) {
-					float samples[4] = {
-						get_oscillator_sin_sample(osc),
-						get_oscillator_sin_sample(osc),
-						get_oscillator_sin_sample(osc),
-						get_oscillator_sin_sample(osc),
-					};
-					v_samples = vmulq_f32(vld1q_f32(samples), v_volume);
-				} else {
-					v_samples = vdupq_n_f32(0.0f);
-				}
-			} else if (cycle_position < num_pips * pip_cycle + beep_samples) {
-				float samples[4] = {
-					get_oscillator_sin_sample(osc),
-					get_oscillator_sin_sample(osc),
-					get_oscillator_sin_sample(osc),
-					get_oscillator_sin_sample(osc),
-				};
-				v_samples = vmulq_f32(vld1q_f32(samples), v_volume);
-			} else {
-				v_samples = vdupq_n_f32(0.0f);
-			}
-
-			vst1q_f32(&output[i], v_samples);
-			(*elapsed_samples) += 4;
-		}
-	}
-#else
-	for (int i = 0; i < buffer_size; i++) {
+void generate_signal(float *output, Oscillator *osc, float volume, int *elapsed_samples, int total_samples, int pip_samples, int pause_samples, int beep_samples, int num_pips) {
+	for (int i = 0; i < BUFFER_SIZE; i++) {
 		if (*elapsed_samples >= total_samples) {
 			output[i] = 0;
 			playing_sequence = 0;
@@ -118,22 +72,14 @@ void generate_signal(float *output, int buffer_size, Oscillator *osc, float volu
 			int pip_cycle = pip_samples + pause_samples;
 
 			if (cycle_position < num_pips * pip_cycle) {
-				int within_cycle = cycle_position % pip_cycle;
-				if (within_cycle < pip_samples) {
-					output[i] = get_oscillator_sin_sample(osc) * volume;
-				} else {
-					output[i] = 0;
-				}
-			} else if (cycle_position < num_pips * pip_cycle + beep_samples) {
-				output[i] = get_oscillator_sin_sample(osc) * volume;
-			} else {
-				output[i] = 0;
-			}
+				if ((cycle_position % pip_cycle) < pip_samples) output[i] = get_oscillator_sin_sample(osc) * volume;
+				else output[i] = 0;
+			} else if (cycle_position < num_pips * pip_cycle + beep_samples) output[i] = get_oscillator_sin_sample(osc) * volume;
+			else output[i] = 0;
 
 			(*elapsed_samples)++;
 		}
 	}
-#endif
 }
 
 int check_time_for_sequence(int test_mode, int offset) {
@@ -152,19 +98,11 @@ int check_time_for_sequence(int test_mode, int offset) {
 		return SEQ_NONE;
 	}
 
-	if (minute == 29 && second == (56 + offset)) {
-		last_sequence_time = now;
-		return SEQ_29_56;
-	}
-
-	if (minute == 59 && second == (55 + offset)) {
-		last_sequence_time = now;
-		return SEQ_59_55;
-	}
-
+	last_sequence_time = now;
+	if (minute == 29 && second == (56 + offset)) return SEQ_29_56;
+	if (minute == 59 && second == (55 + offset)) return SEQ_59_55;
 	if (test_mode && second == (55 + offset) && minute != last_minute) {
 		last_minute = minute;
-		last_sequence_time = now;
 		return SEQ_TEST_HOUR;
 	}
 
@@ -172,7 +110,7 @@ int check_time_for_sequence(int test_mode, int offset) {
 }
 
 int main(int argc, char **argv) {
-	show_version();
+	printf("chimer95 (GTS time signal encoder by radio95) version 1.1\n");
 
 	PulseOutputDevice output_device;
 
@@ -266,9 +204,7 @@ int main(int argc, char **argv) {
 
 	printf("Ready to play time signals.\n");
 	printf("Will trigger at XX:29:%02d and XX:59:%02d\n", 56+offset, 55+offset);
-	if (test_mode) {
-		printf("TEST MODE: Will also play full hour signal at the end of every minute\n");
-	}
+	if (test_mode) printf("TEST MODE: Will also play full hour signal at the end of every minute\n");
 
 	int elapsed_samples = 0;
 	int total_sequence_samples = 0;
@@ -302,7 +238,7 @@ int main(int argc, char **argv) {
 		}
 
 		int num_pips = (sequence_type == SEQ_29_56) ? 4 : 5;
-		generate_signal(output, BUFFER_SIZE, &osc, master_volume,
+		generate_signal(output, &osc, master_volume,
 					   &elapsed_samples, total_sequence_samples,
 					   pip_samples, pause_samples, beep_samples, num_pips);
 
