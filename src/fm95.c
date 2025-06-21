@@ -11,9 +11,6 @@
 #define DEFAULT_STEREO_POLAR 0
 #define DEFAULT_RDS_STREAMS 2
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
-#define DEFAULT_SCA_FREQUENCY 67000.0f
-#define DEFAULT_SCA_DEVIATION 7000.0f
-#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs (75e-6)
 #define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
 #define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
@@ -33,7 +30,6 @@
 #define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
 #define RDS_DEVICE "RDS.monitor"
 #define MPX_DEVICE "FM_MPX.monitor"
-#define SCA_DEVICE "\0" // Disabled
 
 #define BUFFER_SIZE 2048
 
@@ -47,7 +43,6 @@
 #define STEREO_VOLUME 0.3f // 30%
 #define RDS_VOLUME 0.0475f // 4.75%
 #define RDS_VOLUME_STEP 0.9f // 90%, so RDS2 stream 4 is 90% of stream 3 which is 90% of stream 2, which again is 90% of stream 1...
-#define SCA_VOLUME 0.1f // 10%, needs to be high because this is analog. TODO: move sca to its own program (because then you can have as much scas as your computer allows to, here you have just one, and sca does not need any phase sync)
 
 static volatile sig_atomic_t to_run = 1;
 
@@ -70,10 +65,6 @@ void show_help(char *name) {
 		"\t-M,--mpx\tOverride MPX input device [default: %s]\n"
 		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
 		"\t-R,--rds_strs\tSpecifies the number of the RDS streams provided by RDS95 [default: %d]\n"
-		"\t-S,--sca\tOverride the SCA input device [default: %s]\n"
-		"\t-f,--sca_freq\tOverride the SCA frequency [default: %.1f]\n"
-		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
-		"\t-C,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
 		"\t-c,--clipper\tOverride the clipper threshold [default: %.2f]\n"
 		"\t-O,--polar\tForce Polar Stereo (does not take effect with -s0%s)\n"
 		"\t-e,--preemp\tOverride preemphasis [default: %.2f µs]\n"
@@ -90,10 +81,6 @@ void show_help(char *name) {
 		,MPX_DEVICE
 		,RDS_DEVICE
 		,DEFAULT_RDS_STREAMS
-		,SCA_DEVICE
-		,DEFAULT_SCA_FREQUENCY
-		,DEFAULT_SCA_DEVIATION
-		,DEFAULT_SCA_CLIPPER_THRESHOLD
 		,DEFAULT_CLIPPER_THRESHOLD
 		,(DEFAULT_STEREO_POLAR == 1) ? ", default" : ""
 		,DEFAULT_PREEMPHASIS_TAU/0.000001
@@ -108,7 +95,7 @@ void show_help(char *name) {
 int main(int argc, char **argv) {
 	printf("fm95 (an FM Processor by radio95) version 1.8\n");
 
-	PulseInputDevice input_device, mpx_device, rds_device, sca_device;
+	PulseInputDevice input_device, mpx_device, rds_device;
 	PulseOutputDevice output_device;
 
 	float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
@@ -116,15 +103,10 @@ int main(int argc, char **argv) {
 	uint8_t polar_stereo = DEFAULT_STEREO_POLAR;
 	uint8_t rds_streams = DEFAULT_RDS_STREAMS;
 
-	float sca_frequency = DEFAULT_SCA_FREQUENCY;
-	float sca_deviation = DEFAULT_SCA_DEVIATION;
-	float sca_clipper_threshold = DEFAULT_SCA_CLIPPER_THRESHOLD;
-
 	char audio_input_device[48] = INPUT_DEVICE;
 	char audio_output_device[48] = OUTPUT_DEVICE;
 	char audio_mpx_device[48] = MPX_DEVICE;
 	char audio_rds_device[48] = RDS_DEVICE;
-	char audio_sca_device[48] = SCA_DEVICE;
 	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
 
 	uint8_t calibration_mode = 0;
@@ -136,7 +118,7 @@ int main(int argc, char **argv) {
 	uint32_t sample_rate = DEFAULT_SAMPLE_RATE;
 
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:R:S:f:F:C:c:O::e:V::p:P:A:v:D:h";
+	const char	*short_opt = "s::i:o:M:r:R:c:O::e:V::p:P:A:v:D:h";
 	struct option	long_opt[] =
 	{
 		{"stereo",      optional_argument, NULL, 's'},
@@ -145,10 +127,6 @@ int main(int argc, char **argv) {
 		{"mpx",         required_argument, NULL, 'M'},
 		{"rds",         required_argument, NULL, 'r'},
 		{"rds_strs",        required_argument, NULL, 'R'},
-		{"sca",         required_argument, NULL, 'S'},
-		{"sca_freq",    required_argument, NULL, 'f'},
-		{"sca_dev",     required_argument, NULL, 'F'},
-		{"sca_clip",    required_argument, NULL, 'C'},
 		{"clipper",     required_argument, NULL, 'c'},
 		{"polar",       optional_argument,       NULL, 'O'},
 		{"preemp",      required_argument,       NULL, 'e'},
@@ -188,18 +166,6 @@ int main(int argc, char **argv) {
 					exit(1);
 				}
 				break;
-			case 'S': //SCA in
-				memcpy(audio_sca_device, optarg, 47);
-				break;
-			case 'f': //SCA freq
-				sca_frequency = strtof(optarg, NULL);
-				break;
-			case 'F': //SCA deviation
-				sca_deviation = strtof(optarg, NULL);
-				break;
-			case 'C': //SCA clip
-				sca_clipper_threshold = strtof(optarg, NULL);
-				break;
 			case 'c': //Clipper
 				clipper_threshold = strtof(optarg, NULL);
 				break;
@@ -238,7 +204,6 @@ int main(int argc, char **argv) {
 
 	int mpx_on = (strlen(audio_mpx_device) != 0);
 	int rds_on = (strlen(audio_rds_device) != 0 && rds_streams != 0);
-	int sca_on = (strlen(audio_sca_device) != 0);
 
 	// Define formats and buffer atributes
 	pa_buffer_attr input_buffer_atr = {
@@ -282,19 +247,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(sca_on) {
-		printf("Connecting to SCA device... (%s)\n", audio_sca_device);
-
-		opentime_pulse_error = init_PulseInputDevice(&sca_device, sample_rate, 1, "fm95", "SCA Input", audio_sca_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
-		if (opentime_pulse_error) {
-			fprintf(stderr, "Error: cannot open SCA device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&input_device);
-			if(mpx_on) free_PulseInputDevice(&mpx_device);
-			if(rds_on) free_PulseInputDevice(&rds_device);
-			return 1;
-		}
-	}
-
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
 	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
@@ -303,7 +255,6 @@ int main(int argc, char **argv) {
 		free_PulseInputDevice(&input_device);
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
-		if(sca_on) free_PulseInputDevice(&sca_device);
 		return 1;
 	}
 
@@ -333,16 +284,12 @@ int main(int argc, char **argv) {
 		free_PulseInputDevice(&input_device);
 		if(mpx_on) free_PulseInputDevice(&mpx_device);
 		if(rds_on) free_PulseInputDevice(&rds_device);
-		if(sca_on) free_PulseInputDevice(&sca_device);
 		free_PulseOutputDevice(&output_device);
 		return 0;
 	}
 
 	Oscillator osc;
-	init_oscillator(&osc, polar_stereo ? 3906.25 : 4750, sample_rate); // 3906.25 * 8 = 31250.0, this is to reduce branching later on
-
-	FMModulator sca_mod;
-	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
+	init_oscillator(&osc, polar_stereo ? 7812.5 : 4750, sample_rate);
 
 	iirfilt_rrrf lpf_l, lpf_r;
 	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
@@ -375,7 +322,6 @@ int main(int argc, char **argv) {
 	memset(rds_in, 0, sizeof(float) * BUFFER_SIZE * rds_streams);
 
 	float mpx_in[BUFFER_SIZE] = {0};
-	float sca_in[BUFFER_SIZE] = {0};
 	float output[BUFFER_SIZE];
 
 	while (to_run) {
@@ -397,14 +343,6 @@ int main(int argc, char **argv) {
 			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(float) * BUFFER_SIZE * rds_streams))) {
 				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
 				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
-				to_run = 0;
-				break;
-			}
-		}
-		if(sca_on) {
-			if((pulse_error = read_PulseInputDevice(&sca_device, sca_in, sizeof(sca_in)))) {
-				if(pulse_error == -1) fprintf(stderr, "SCA PulseInputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error reading from SCA device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
@@ -434,8 +372,6 @@ int main(int argc, char **argv) {
 					mpx += (rds_in[rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream));
 				}
 			}
-			if(mpx_on) mpx += mpx_in[i];
-			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(sca_in[i], sca_clipper_threshold))*SCA_VOLUME;
 
 			float mpx_power = measure_mpx(&power, mpx * mpx_deviation);
 			if (mpx_power > max_mpx_power) {
@@ -455,7 +391,7 @@ int main(int argc, char **argv) {
 
 			mpx *= bs412_audio_gain;
 			
-			output[i] = hard_clip(mpx, 1.0f)*master_volume; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
+			output[i] = hard_clip(mpx, 1.0f)*master_volume+mpx_in[i]; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
 			if(rds_on || stereo) advance_oscillator(&osc);
 		}
 
@@ -473,7 +409,6 @@ int main(int argc, char **argv) {
 	free_PulseInputDevice(&input_device);
 	if(mpx_on) free_PulseInputDevice(&mpx_device);
 	if(rds_on) free_PulseInputDevice(&rds_device);
-	if(sca_on) free_PulseInputDevice(&sca_device);
 	free_PulseOutputDevice(&output_device);
 	free(rds_in);
 	return 0;
