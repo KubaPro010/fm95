@@ -35,7 +35,8 @@
         "cdecl.h": "c",
         "algorithm": "c",
         "socket.h": "c",
-        "time.h": "c"
+        "time.h": "c",
+        "vban.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

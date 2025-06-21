@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../lib/oscillator.h"
+#include "../dsp/oscillator.h"
 
 typedef struct
 {

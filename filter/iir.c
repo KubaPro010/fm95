@@ -1,4 +1,4 @@
-#include "filters.h"
+#include "iir.h"
 
 void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate, float ref_freq) {
     float dt = 1.0f / sample_rate;

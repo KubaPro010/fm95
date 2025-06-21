@@ -12,13 +12,19 @@ endif()
 
 file(GLOB SRC_FILES "src/*.c")
 
-file(GLOB DSP_FILES "dsp/*.c")
+# file(GLOB LIB_FILES "lib/*.c")
 
-file(GLOB LIB_FILES "lib/*.c")
+file(GLOB FILTER_FILES "filter/*.c")
+file(GLOB MODULATION_FILES "modulation/*.c")
+
+file(GLOB DSP_FILES "dsp/*.c")
 
 file(GLOB IO_FILES "io/*.c")
 
-add_library(libfm OBJECT ${LIB_FILES})
+# add_library(libfm OBJECT ${LIB_FILES})
+
+add_library(libfmfilter OBJECT ${FILTER_FILES})
+add_library(libfmmodulation OBJECT ${MODULATION_FILES})
 
 add_library(libfmdsp OBJECT ${DSP_FILES})
 
@@ -26,12 +32,14 @@ add_library(libfmio OBJECT ${IO_FILES})
 
 # Define DEBUG macro for Debug builds on libraries
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(libfm PRIVATE DEBUG=1)
+    # target_compile_definitions(libfm PRIVATE DEBUG=1)
+    target_compile_definitions(libfmfilter PRIVATE DEBUG=1)
+    target_compile_definitions(libfmmodulation PRIVATE DEBUG=1)
     target_compile_definitions(libfmdsp PRIVATE DEBUG=1)
     target_compile_definitions(libfmio PRIVATE DEBUG=1)
 endif()
 
-set(FM_LIBS libfm libfmio libfmdsp pulse pulse-simple m liquid)
+set(FM_LIBS libfmfilter libfmmodulation libfmio libfmdsp pulse pulse-simple m liquid)
 
 foreach(SRC_FILE ${SRC_FILES})
     get_filename_component(EXEC_NAME ${SRC_FILE} NAME_WE)

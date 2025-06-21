@@ -19,12 +19,13 @@
 #define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
 #define DEFAULT_DEVIATION 75000.0f // another way to set the volume
 
-#include "../lib/oscillator.h"
-#include "../dsp/filters.h"
-#include "../dsp/fm_modulator.h"
+#include "../dsp/oscillator.h"
+#include "../filter/iir.h"
+#include "../modulation/fm_modulator.h"
+#include "../modulation/stereo_encoder.h"
 #include "../lib/optimization.h"
-#include "../dsp/bs412.h"
-#include "../dsp/gain_control.h"
+#include "../filter/bs412.h"
+#include "../filter/gain_control.h"
 
 #define DEFAULT_SAMPLE_RATE 192000
 
@@ -343,18 +344,19 @@ int main(int argc, char **argv) {
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
-	iirfilt_rrrf lpf_l, lpf_r, mpx_lpf;
+	iirfilt_rrrf lpf_l, lpf_r;
 	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
 	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
-	mpx_lpf = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_BUTTER, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, 1, (polar_stereo ? (46250.0f/sample_rate) : (53000.0f/sample_rate)), 0.0f, 1.0f, 1.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate, 15250.0f);
 	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate, 15250.0f);
 
-	MPXPowerMeasurement power, mpx_only_power;
+	MPXPowerMeasurement power;
 	init_modulation_power_measure(&power, sample_rate);
-	init_modulation_power_measure(&mpx_only_power, sample_rate);
+
+	StereoEncoder stencode;
+	init_stereo_encoder(&stencode, 4.0f, &osc, polar_stereo, MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
 
 	float bs412_audio_gain = 1.0f;
 
@@ -410,7 +412,6 @@ int main(int argc, char **argv) {
 
 		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
 			float mpx = 0.0f;
-			float audio = 0.0f;
 
 			float ready_l = apply_preemphasis(&preemp_l, audio_stereo_input[2*i+0]);
 			float ready_r = apply_preemphasis(&preemp_r, audio_stereo_input[2*i+1]);
@@ -424,20 +425,8 @@ int main(int argc, char **argv) {
 			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
 			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
 
-			float mid = (ready_l + ready_r) * 0.5f;
-			float side = (ready_l - ready_r) * 0.5f;
+			mpx = stereo_encode(&stencode, stereo, ready_l, ready_r);
 
-			audio = mid*MONO_VOLUME;
-			if(stereo) {
-				float stereo_carrier = get_oscillator_sin_multiplier_ni(&osc, 8); // 31.25 or 38 KHz
-
-				if(polar_stereo) audio += ((side+0.2)*stereo_carrier)*STEREO_VOLUME; // 0.2 in polar stereo because it also includes a carrier wave, so we add a carrier wave via DC
-				else {
-					float pilot = get_oscillator_sin_multiplier_ni(&osc, 4); // 19 KHz
-					mpx += pilot*PILOT_VOLUME;
-					audio += (side*stereo_carrier)*STEREO_VOLUME;
-				}
-			}
 			if(rds_on && !polar_stereo) {
 				for(uint8_t stream = 0; stream < rds_streams; stream++) {
 					uint8_t osc_stream = 12+stream;
@@ -448,11 +437,9 @@ int main(int argc, char **argv) {
 			if(mpx_on) mpx += mpx_in[i];
 			if(sca_on) mpx += modulate_fm(&sca_mod, hard_clip(sca_in[i], sca_clipper_threshold))*SCA_VOLUME;
 
-			float mpxonly_power = measure_mpx(&mpx_only_power, mpx * mpx_deviation);
-			float mpx_power = measure_mpx(&power, (audio+mpx) * mpx_deviation); // Standard requires that the output is measured specifically
+			float mpx_power = measure_mpx(&power, mpx * mpx_deviation);
 			if (mpx_power > max_mpx_power) {
 				float excess_power = mpx_power - max_mpx_power;
-				excess_power = deviation_to_dbr(dbr_to_deviation(excess_power) - dbr_to_deviation(mpxonly_power));
 				
 				if (excess_power > 0.0f && excess_power < 10.0f) {
 					float target_gain = dbr_to_deviation(-excess_power) / mpx_deviation;
@@ -466,9 +453,8 @@ int main(int argc, char **argv) {
 				bs412_audio_gain = fminf(1.0f, bs412_audio_gain + 0.001f);
 			}
 
-			audio *= bs412_audio_gain;
+			mpx *= bs412_audio_gain;
 
-			iirfilt_rrrf_execute(mpx_lpf, audio, &audio); // Should have no effect, as audio should be 0-15, and 23-53, this is a filter for 53, assuming the filter is good, this is precaution and recomendation
 			audio = hard_clip(audio, 1.0f-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
 			
 			output[i] = hard_clip((audio+mpx), 1.0f)*master_volume; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
@@ -485,7 +471,6 @@ int main(int argc, char **argv) {
 	printf("Cleaning up...\n");
 	iirfilt_rrrf_destroy(lpf_l);
 	iirfilt_rrrf_destroy(lpf_r);
-	iirfilt_rrrf_destroy(mpx_lpf);
 
 	free_PulseInputDevice(&input_device);
 	if(mpx_on) free_PulseInputDevice(&mpx_device);

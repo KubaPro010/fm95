@@ -8,7 +8,7 @@
 #define buffer_tlength_fragsize 1024
 #define buffer_prebuf 0
 
-#include "../lib/oscillator.h"
+#include "../dsp/oscillator.h"
 #include "../lib/optimization.h"
 
 #define DEFAULT_FREQ 1000.0f

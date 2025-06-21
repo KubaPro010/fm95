@@ -1,7 +1,6 @@
 #pragma once
 
 #include <math.h>
-#include "../lib/optimization.h"
 #include "../lib/constants.h"
 
 typedef struct
