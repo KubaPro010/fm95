@@ -383,8 +383,7 @@ int main(int argc, char **argv) {
 			advance_oscillator(&osc);
 
 			if (transmitting) {
-				if (current_bit != 59 && (dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) ||
-					(dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION)) {
+				if (current_bit != 59 && ((dcf77_bits[current_bit] == 0 && ms_within_second < PULSE_0_DURATION) || (dcf77_bits[current_bit] == 1 && ms_within_second < PULSE_1_DURATION))) {
 					output[i] = carrier * master_volume * REDUCED_AMPLITUDE;
 				} else output[i] = carrier * master_volume;
 			} else output[i] = carrier * master_volume;
