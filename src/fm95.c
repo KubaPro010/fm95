@@ -454,10 +454,8 @@ int main(int argc, char **argv) {
 			}
 
 			mpx *= bs412_audio_gain;
-
-			audio = hard_clip(audio, 1.0f-mpx); // Prevent clipping, via clipping the audio signal with relation to the mpx signal
 			
-			output[i] = hard_clip((audio+mpx), 1.0f)*master_volume; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
+			output[i] = hard_clip(mpx, 1.0f)*master_volume; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
 			if(rds_on || stereo) advance_oscillator(&osc);
 		}
 
