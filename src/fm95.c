@@ -441,7 +441,7 @@ int main(int argc, char **argv) {
 				for(int stream = 0; stream < rds_streams; stream++) {
 					uint8_t osc_stream = 12+stream;
 					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
-					mpx += (rds_in[rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream - 1));
+					mpx += (rds_in[rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream));
 				}
 			}
 			if(mpx_on) mpx += mpx_in[i];
