@@ -9,7 +9,6 @@
 #define buffer_prebuf 0
 
 #include "../dsp/oscillator.h"
-#include "../lib/optimization.h"
 
 #define DEFAULT_FREQ 1000.0f
 #define DEFAULT_SAMPLE_RATE 4000

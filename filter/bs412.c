@@ -7,7 +7,7 @@ inline float dbr_to_deviation(float dbr) {
 }
 
 inline float deviation_to_dbr(float deviation) {
-	if(deviation == 0.0f) return -100.0f;
+	if (deviation < 1e-6f) return -100.0f;
 	return 10.0f * (log2f(deviation) - LOG2_19000) * 0.30103f;
 }
 

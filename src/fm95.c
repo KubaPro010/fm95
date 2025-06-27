@@ -20,7 +20,6 @@
 #include "../filter/iir.h"
 #include "../modulation/fm_modulator.h"
 #include "../modulation/stereo_encoder.h"
-#include "../lib/optimization.h"
 #include "../filter/bs412.h"
 #include "../filter/gain_control.h"
 

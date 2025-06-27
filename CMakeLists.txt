@@ -13,21 +13,15 @@ endif()
 file(GLOB SRC_FILES "src/*.c")
 
 # file(GLOB LIB_FILES "lib/*.c")
-
 file(GLOB FILTER_FILES "filter/*.c")
 file(GLOB MODULATION_FILES "modulation/*.c")
-
 file(GLOB DSP_FILES "dsp/*.c")
-
 file(GLOB IO_FILES "io/*.c")
 
 # add_library(libfm OBJECT ${LIB_FILES})
-
 add_library(libfmfilter OBJECT ${FILTER_FILES})
 add_library(libfmmodulation OBJECT ${MODULATION_FILES})
-
 add_library(libfmdsp OBJECT ${DSP_FILES})
-
 add_library(libfmio OBJECT ${IO_FILES})
 
 # Define DEBUG macro for Debug builds on libraries
@@ -56,6 +50,6 @@ foreach(SRC_FILE ${SRC_FILES})
     install(TARGETS ${EXEC_NAME}
         DESTINATION /usr/bin
         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
-                    GROUP_EXECUTE GROUP_READ
+                    GROUP_EXECUTE GROUP_WRITE GROUP_READ
                     WORLD_EXECUTE WORLD_READ)
 endforeach()
