@@ -13,14 +13,15 @@ void init_stereo_encoder(StereoEncoder* st, uint8_t multiplier, Oscillator* osc,
 float stereo_encode(StereoEncoder* st, uint8_t enabled, float left, float right) {
     float mid = (left+right) * 0.5f;
     if(!enabled) return mid * st->mono_volume;
+
     float side = (left-right) * 0.5f;
+    
+    float signalx1 = get_oscillator_sin_multiplier_ni(st->osc, st->multiplier);
 
     if(!st->polar) {
-        float pilot = get_oscillator_sin_multiplier_ni(st->osc, st->multiplier);
-        float carrier = get_oscillator_sin_multiplier_ni(st->osc, st->multiplier * 2.0f);
-        return (mid*st->mono_volume) + (pilot*st->pilot_volume) + ((side*carrier) * st->stereo_volume);
+        float signalx2 = get_oscillator_sin_multiplier_ni(st->osc, st->multiplier * 2.0f);
+        return (mid*st->mono_volume) + (signalx1*st->pilot_volume) + ((side*signalx2) * st->stereo_volume);
     } else {
-        float carrier = get_oscillator_sin_multiplier_ni(st->osc, st->multiplier);
-        return (mid*st->mono_volume) + (((side+0.2f)*carrier) * st->stereo_volume); // Polar stereo does not contain a pilot, but it contains a -14 db carrier wave on the stereo subcarrier
+        return (mid*st->mono_volume) + (((side+0.2f)*signalx1) * st->stereo_volume); // Polar stereo does not contain a pilot, but it contains a -14 db carrier wave on the stereo subcarrier
     }
 }

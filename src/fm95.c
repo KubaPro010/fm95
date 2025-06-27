@@ -46,9 +46,10 @@
 
 static volatile sig_atomic_t to_run = 1;
 
-inline float hard_clip(float sample, float threshold) {
-	return fmaxf(-threshold, fminf(threshold, sample));
-}
+static PulseInputDevice input_device, mpx_device, rds_device;
+static PulseOutputDevice output_device;
+
+inline float hard_clip(float sample, float threshold) { return fmaxf(-threshold, fminf(threshold, sample)); }
 
 static void stop(int signum) {
 	(void)signum;
@@ -93,10 +94,7 @@ void show_help(char *name) {
 }
 
 int main(int argc, char **argv) {
-	printf("fm95 (an FM Processor by radio95) version 1.8\n");
-
-	PulseInputDevice input_device, mpx_device, rds_device;
-	PulseOutputDevice output_device;
+	printf("fm95 (an FM Processor by radio95) version 1.9\n");
 
 	float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
 	uint8_t stereo = DEFAULT_STEREO;
@@ -292,8 +290,8 @@ int main(int argc, char **argv) {
 	init_oscillator(&osc, polar_stereo ? 7812.5 : 4750, sample_rate);
 
 	iirfilt_rrrf lpf_l, lpf_r;
-	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
-	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 40.0f);
+	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 60.0f);
+	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 60.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate, 15250.0f);
@@ -335,16 +333,18 @@ int main(int argc, char **argv) {
 			if((pulse_error = read_PulseInputDevice(&mpx_device, mpx_in, sizeof(mpx_in)))) {
 				if(pulse_error == -1) fprintf(stderr, "MPX PulseInputDevice reported as uninitialized.");
 				else fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
-				to_run = 0;
-				break;
+				fprintf(stderr, "Disabling MPX.\n");
+				mpx_on = 0;
+				free_PulseInputDevice(&mpx_device);
 			}
 		}
 		if(rds_on) {
 			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(float) * BUFFER_SIZE * rds_streams))) {
 				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
 				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
-				to_run = 0;
-				break;
+				fprintf(stderr, "Disabling RDS.\n");
+				rds_on = 0;
+				free_PulseInputDevice(&rds_device);
 			}
 		}
 
@@ -367,7 +367,7 @@ int main(int argc, char **argv) {
 
 			if(rds_on && !polar_stereo) {
 				for(uint8_t stream = 0; stream < rds_streams; stream++) {
-					uint8_t osc_stream = 12+stream;
+					uint8_t osc_stream = 12+stream; // If the osc is a 4750 sine wave, then doing this would mean that stream 0 is 12, so 57 khz
 					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
 					mpx += (rds_in[rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream));
 				}
@@ -383,11 +383,9 @@ int main(int argc, char **argv) {
 					target_gain = fmaxf(target_gain, 0.1f);
 					target_gain = fminf(target_gain, 1.0f);
 					
-					bs412_audio_gain = 0.85f * bs412_audio_gain + 0.15f * target_gain;
+					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
 				}
-			} else {
-				bs412_audio_gain = fminf(1.0f, bs412_audio_gain + 0.001f);
-			}
+			} else bs412_audio_gain = fminf(1.5f, bs412_audio_gain + 0.001f);
 
 			mpx *= bs412_audio_gain;
 			
