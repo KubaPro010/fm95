@@ -37,7 +37,8 @@
         "socket.h": "c",
         "time.h": "c",
         "vban.h": "c",
-        "chimer.h": "c"
+        "chimer.h": "c",
+        "liquid.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

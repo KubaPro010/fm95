@@ -1,5 +1,6 @@
 #include <getopt.h>
 #include <liquid/liquid.h>
+#include <stdbool.h>
 
 #define LPF_ORDER 17
 
@@ -45,10 +46,31 @@
 
 static volatile sig_atomic_t to_run = 1;
 
-static PulseInputDevice input_device, mpx_device, rds_device;
-static PulseOutputDevice output_device;
-
 inline float hard_clip(float sample, float threshold) { return fmaxf(-threshold, fminf(threshold, sample)); }
+
+typedef struct
+{
+	bool stereo;
+	bool polar_stereo;
+
+	uint8_t rds_streams;
+
+	float clipper_threshold;
+	float preemphasis;
+	uint8_t calibration;
+	float mpx_power;
+	float mpx_deviation;
+	float master_volume;
+	float audio_volume;
+
+	uint32_t sample_rate;
+} FM95_Config;
+
+typedef struct
+{
+	PulseInputDevice input_device, mpx_device, rds_device;
+	PulseOutputDevice output_device;
+} FM95_Runtime;
 
 static void stop(int signum) {
 	(void)signum;
@@ -92,27 +114,178 @@ void show_help(char *name) {
 	);
 }
 
+int run_fm95(FM95_Config config, FM95_Runtime* runtime) {
+	int mpx_on = (runtime->mpx_device.initialized == 1);
+	int rds_on = (runtime->rds_device.initialized == 1);
+
+	if(config.calibration != 0) {
+		Oscillator osc;
+		init_oscillator(&osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
+
+		signal(SIGINT, stop);
+		signal(SIGTERM, stop);
+		int pulse_error;
+		float output[BUFFER_SIZE];
+
+		while(to_run) {
+			for (int i = 0; i < BUFFER_SIZE; i++) {
+				float sample = get_oscillator_sin_sample(&osc);
+				if(config.calibration == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f; // Sine wave to square wave filter
+				output[i] = sample*config.master_volume;
+			}
+			if((pulse_error = write_PulseOutputDevice(&runtime->output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
+				if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+				to_run = 0;
+				break;
+			}
+		}
+		return 0;
+	}
+
+	Oscillator osc;
+	init_oscillator(&osc, config.polar_stereo ? 7812.5 : 4750, config.sample_rate);
+
+	iirfilt_rrrf lpf_l, lpf_r;
+	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
+
+	ResistorCapacitor preemp_l, preemp_r;
+	init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, 15250.0f);
+	init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, 15250.0f);
+
+	MPXPowerMeasurement power;
+	init_modulation_power_measure(&power, config.sample_rate);
+
+	StereoEncoder stencode;
+	init_stereo_encoder(&stencode, 4.0f, &osc, config.polar_stereo, MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
+
+	float bs412_audio_gain = 1.0f;
+
+	AGC agc;
+	//            fs           target   min   max   attack  release
+	initAGC(&agc, config.sample_rate, 0.65f, 0.0f, 1.75f, 0.03f, 0.225f);
+
+	signal(SIGINT, stop);
+	signal(SIGTERM, stop);
+
+	int pulse_error;
+
+	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
+
+	float *rds_in = malloc(sizeof(float) * BUFFER_SIZE * config.rds_streams);
+	memset(rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
+
+	float mpx_in[BUFFER_SIZE] = {0};
+	float output[BUFFER_SIZE];
+
+	while (to_run) {
+		if((pulse_error = read_PulseInputDevice(&runtime->input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
+			if(pulse_error == -1) fprintf(stderr, "Main PulseInputDevice reported as uninitialized.");
+			else fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
+			to_run = 0;
+			break;
+		}
+		if(mpx_on) {
+			if((pulse_error = read_PulseInputDevice(&runtime->mpx_device, mpx_in, sizeof(mpx_in)))) {
+				if(pulse_error == -1) fprintf(stderr, "MPX PulseInputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
+				fprintf(stderr, "Disabling MPX.\n");
+				mpx_on = 0;
+			}
+		}
+		if(rds_on) {
+			if((pulse_error = read_PulseInputDevice(&runtime->rds_device, rds_in, sizeof(float) * BUFFER_SIZE * config.rds_streams))) {
+				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
+				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
+				fprintf(stderr, "Disabling RDS.\n");
+				rds_on = 0;
+			}
+		}
+
+		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
+			float mpx = 0.0f;
+
+			float ready_l = apply_preemphasis(&preemp_l, audio_stereo_input[2*i+0]);
+			float ready_r = apply_preemphasis(&preemp_r, audio_stereo_input[2*i+1]);
+			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
+			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
+
+			float agc_gain = process_agc(&agc, ((ready_l + ready_r) * 0.5f));
+			ready_l *= agc_gain;
+			ready_r *= agc_gain;
+
+			ready_l = hard_clip(ready_l*config.audio_volume, config.clipper_threshold);
+			ready_r = hard_clip(ready_r*config.audio_volume, config.clipper_threshold);
+
+			mpx = stereo_encode(&stencode, config.stereo, ready_l, ready_r);
+
+			if(rds_on && !config.polar_stereo) {
+				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
+					uint8_t osc_stream = 12+stream; // If the osc is a 4750 sine wave, then doing this would mean that stream 0 is 12, so 57 khz
+					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
+					mpx += (rds_in[config.rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream));
+				}
+			}
+
+			float mpx_power = measure_mpx(&power, mpx * config.mpx_deviation);
+			if (mpx_power > config.mpx_power) {
+				float excess_power = mpx_power - config.mpx_power;
+				
+				if (excess_power > 0.0f && excess_power < 10.0f) {
+					float target_gain = dbr_to_deviation(-excess_power) / config.mpx_deviation;
+					
+					target_gain = fmaxf(target_gain, 0.1f);
+					target_gain = fminf(target_gain, 1.0f);
+					
+					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
+				}
+			} else bs412_audio_gain = fminf(1.5f, bs412_audio_gain + 0.001f);
+
+			mpx *= bs412_audio_gain;
+			
+			output[i] = hard_clip(mpx, 1.0f)*config.master_volume+mpx_in[i]; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
+			advance_oscillator(&osc);
+		}
+
+		if((pulse_error = write_PulseOutputDevice(&runtime->output_device, output, sizeof(output)))) {
+			if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
+			else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+			to_run = 0;
+			break;
+		}
+	}
+	iirfilt_rrrf_destroy(lpf_l);
+	iirfilt_rrrf_destroy(lpf_r);
+
+	free(rds_in);
+	return 0;
+}
+
 int main(int argc, char **argv) {
-	printf("fm95 (an FM Processor by radio95) version 1.9\n");
+	printf("fm95 (an FM Processor by radio95) version 2.0\n");
 
-	float clipper_threshold = DEFAULT_CLIPPER_THRESHOLD;
-	uint8_t stereo = DEFAULT_STEREO;
-	uint8_t polar_stereo = DEFAULT_STEREO_POLAR;
-	uint8_t rds_streams = DEFAULT_RDS_STREAMS;
+	FM95_Config config = {
+		.stereo = DEFAULT_STEREO,
+		.polar_stereo = DEFAULT_STEREO_POLAR,
 
-	char audio_input_device[48] = INPUT_DEVICE;
-	char audio_output_device[48] = OUTPUT_DEVICE;
-	char audio_mpx_device[48] = MPX_DEVICE;
-	char audio_rds_device[48] = RDS_DEVICE;
-	float preemphasis_tau = DEFAULT_PREEMPHASIS_TAU;
+		.rds_streams = DEFAULT_RDS_STREAMS,
 
-	uint8_t calibration_mode = 0;
-	float max_mpx_power = DEFAULT_MPX_POWER;
-	float mpx_deviation = DEFAULT_MPX_DEVIATION;
-	float master_volume = DEFAULT_MASTER_VOLUME;
-	float audio_volume = DEFAULT_AUDIO_VOLUME;
+		.clipper_threshold = DEFAULT_CLIPPER_THRESHOLD,
+		.preemphasis = DEFAULT_PREEMPHASIS_TAU,
+		.calibration = 0,
+		.mpx_power = DEFAULT_MPX_POWER,
+		.mpx_deviation = DEFAULT_MPX_DEVIATION,
+		.master_volume = DEFAULT_MASTER_VOLUME,
+		.audio_volume = DEFAULT_AUDIO_VOLUME,
 
-	uint32_t sample_rate = DEFAULT_SAMPLE_RATE;
+		.sample_rate = DEFAULT_SAMPLE_RATE
+	};
+
+	char input_device_name[64] = INPUT_DEVICE;
+	char output_device_name[64] = OUTPUT_DEVICE;
+	char mpx_device_name[64] = MPX_DEVICE;
+	char rds_device_name[64] = RDS_DEVICE;
 
 	int opt;
 	const char	*short_opt = "s::i:o:M:r:R:c:O::e:V::p:P:A:v:D:h";
@@ -141,68 +314,68 @@ int main(int argc, char **argv) {
 	while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
 		switch(opt) {
 			case 's': // Stereo
-				if(optarg) stereo = atoi(optarg);
-				else stereo = 1;
+				if(optarg) config.stereo = atoi(optarg);
+				else config.stereo = 1;
 				break;
 			case 'i': // Input Device
-				memcpy(audio_input_device, optarg, 47);
+				memcpy(input_device_name, optarg, 63);
 				break;
 			case 'o': // Output Device
-				memcpy(audio_output_device, optarg, 47);
+				memcpy(output_device_name, optarg, 63);
 				break;;
 			case 'M': //MPX in
-				memcpy(audio_mpx_device, optarg, 47);
+				memcpy(mpx_device_name, optarg, 63);
 				break;
 			case 'r': // RDS in
-				memcpy(audio_rds_device, optarg, 47);
+				memcpy(rds_device_name, optarg, 63);
 				break;
 			case 'R': // RDS Streams
-				rds_streams = atoi(optarg);
-				if(rds_streams > 4) {
-					printf("Can't do more RDS streams than 4 (why even?)\n");
-					exit(1);
+				config.rds_streams = atoi(optarg);
+				if(config.rds_streams > 4) {
+					printf("RDS Streams more than 4? Nuh uh\n");
+					return 1;
 				}
 				break;
 			case 'c': //Clipper
-				clipper_threshold = strtof(optarg, NULL);
+				config.clipper_threshold = strtof(optarg, NULL);
 				break;
 			case 'O': //Polar
-				if(optarg) polar_stereo = atoi(optarg);
-				else polar_stereo = 1;
+				if(optarg) config.polar_stereo = atoi(optarg);
+				else config.polar_stereo = 1;
 				break;
 			case 'e': // Preemp
-				preemphasis_tau = strtof(optarg, NULL)*1.0e-6f;
+				config.preemphasis = strtof(optarg, NULL)*1.0e-6f;
 				break;
 			case 'V': // Calibration
-				if(optarg) calibration_mode = atoi(optarg);
-				else calibration_mode = 1;
+				if(optarg) config.calibration = atoi(optarg);
+				else config.calibration = 1;
 				break;
 			case 'p': // Power
-				max_mpx_power = strtof(optarg, NULL);
+				config.mpx_power = strtof(optarg, NULL);
 				break;
 			case 'P': // MPX deviation
-				mpx_deviation = strtof(optarg, NULL);
+				config.mpx_deviation = strtof(optarg, NULL);
 				break;
 			case 'A': // Master vol
-				master_volume = strtof(optarg, NULL);
+				config.master_volume = strtof(optarg, NULL);
 				break;
 			case 'v': // Audio Volume
-				audio_volume = strtof(optarg, NULL);
+				config.audio_volume = strtof(optarg, NULL);
 				break;
 			case 'D': // Deviation
-				master_volume *= (strtof(optarg, NULL)/75000.0f);
+				config.master_volume *= (strtof(optarg, NULL)/75000.0f);
 				break;
 			case 'h':
 				show_help(argv[0]);
 				return 1;
 		}
 	}
-	// #endregion
 
-	int mpx_on = (strlen(audio_mpx_device) != 0);
-	int rds_on = (strlen(audio_rds_device) != 0 && rds_streams != 0);
+	FM95_Runtime runtime;
 
-	// Define formats and buffer atributes
+	int mpx_on = (strlen(mpx_device_name) != 0);
+	int rds_on = (strlen(rds_device_name) != 0 && config.rds_streams != 0);	
+
 	pa_buffer_attr input_buffer_atr = {
 		.maxlength = buffer_maxlength,
 		.fragsize = buffer_tlength_fragsize
@@ -215,198 +388,51 @@ int main(int argc, char **argv) {
 
 	int opentime_pulse_error;
 
-	printf("Connecting to input device... (%s)\n", audio_input_device);
-	opentime_pulse_error = init_PulseInputDevice(&input_device, sample_rate, 2, "fm95", "Main Audio Input", audio_input_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+	printf("Connecting to input device... (%s)\n", input_device_name);
+	opentime_pulse_error = init_PulseInputDevice(&runtime.input_device, config.sample_rate, 2, "fm95", "Main Audio Input", input_device_name, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open input device: %s\n", pa_strerror(opentime_pulse_error));
 		return 1;
 	}
 
 	if(mpx_on) {
-		printf("Connecting to MPX device... (%s)\n", audio_mpx_device);
+		printf("Connecting to MPX device... (%s)\n", mpx_device_name);
 
-		opentime_pulse_error = init_PulseInputDevice(&mpx_device, sample_rate, 1, "fm95", "MPX Input", audio_mpx_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+		opentime_pulse_error = init_PulseInputDevice(&runtime.mpx_device, config.sample_rate, 1, "fm95", "MPX Input", mpx_device_name, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open MPX device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&input_device);
+			free_PulseInputDevice(&runtime.input_device);
 			return 1;
 		}
 	}
 	if(rds_on) {
-		printf("Connecting to RDS95 device... (%s)\n", audio_rds_device);
+		printf("Connecting to RDS95 device... (%s)\n", rds_device_name);
 
-		opentime_pulse_error = init_PulseInputDevice(&rds_device, sample_rate, rds_streams, "fm95", "RDS95 Input", audio_rds_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+		opentime_pulse_error = init_PulseInputDevice(&runtime.rds_device, config.sample_rate, config.rds_streams, "fm95", "RDS95 Input", rds_device_name, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&input_device);
-			if(mpx_on) free_PulseInputDevice(&mpx_device);
+			free_PulseInputDevice(&runtime.input_device);
+			if(mpx_on) free_PulseInputDevice(&runtime.mpx_device);
 			return 1;
 		}
 	}
 
-	printf("Connecting to output device... (%s)\n", audio_output_device);
+	printf("Connecting to output device... (%s)\n", output_device_name);
 
-	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "fm95", "Main Audio Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
+	opentime_pulse_error = init_PulseOutputDevice(&runtime.output_device, config.sample_rate, 1, "fm95", "Main Audio Output", output_device_name, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
-		free_PulseInputDevice(&input_device);
-		if(mpx_on) free_PulseInputDevice(&mpx_device);
-		if(rds_on) free_PulseInputDevice(&rds_device);
+		free_PulseInputDevice(&runtime.input_device);
+		if(mpx_on) free_PulseInputDevice(&runtime.mpx_device);
+		if(rds_on) free_PulseInputDevice(&runtime.rds_device);
 		return 1;
 	}
 
-	if(calibration_mode != 0) {
-		Oscillator osc;
-		init_oscillator(&osc, (calibration_mode == 2) ? 60 : 400, sample_rate);
-
-		signal(SIGINT, stop);
-		signal(SIGTERM, stop);
-		int pulse_error;
-		float output[BUFFER_SIZE];
-
-		while(to_run) {
-			for (int i = 0; i < BUFFER_SIZE; i++) {
-				float sample = get_oscillator_sin_sample(&osc);
-				if(calibration_mode == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f; // Sine wave to square wave filter
-				output[i] = sample*master_volume;
-			}
-			if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
-				if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
-				to_run = 0;
-				break;
-			}
-		}
-		printf("Cleaning up...\n");
-		free_PulseInputDevice(&input_device);
-		if(mpx_on) free_PulseInputDevice(&mpx_device);
-		if(rds_on) free_PulseInputDevice(&rds_device);
-		free_PulseOutputDevice(&output_device);
-		return 0;
-	}
-
-	Oscillator osc;
-	init_oscillator(&osc, polar_stereo ? 7812.5 : 4750, sample_rate);
-
-	iirfilt_rrrf lpf_l, lpf_r;
-	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 60.0f);
-	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/sample_rate), 0.0f, 1.0f, 60.0f);
-
-	ResistorCapacitor preemp_l, preemp_r;
-	init_preemphasis(&preemp_l, preemphasis_tau, sample_rate, 15250.0f);
-	init_preemphasis(&preemp_r, preemphasis_tau, sample_rate, 15250.0f);
-
-	MPXPowerMeasurement power;
-	init_modulation_power_measure(&power, sample_rate);
-
-	StereoEncoder stencode;
-	init_stereo_encoder(&stencode, 4.0f, &osc, polar_stereo, MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
-
-	float bs412_audio_gain = 1.0f;
-
-	AGC agc;
-	//            fs           target   min   max   attack  release
-	initAGC(&agc, sample_rate, 0.65f, 0.0f, 1.75f, 0.03f, 0.225f);
-
-	signal(SIGINT, stop);
-	signal(SIGTERM, stop);
-
-	int pulse_error;
-
-	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
-
-	float *rds_in = malloc(sizeof(float) * BUFFER_SIZE * rds_streams);
-	memset(rds_in, 0, sizeof(float) * BUFFER_SIZE * rds_streams);
-
-	float mpx_in[BUFFER_SIZE] = {0};
-	float output[BUFFER_SIZE];
-
-	while (to_run) {
-		if((pulse_error = read_PulseInputDevice(&input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
-			if(pulse_error == -1) fprintf(stderr, "Main PulseInputDevice reported as uninitialized.");
-			else fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
-			to_run = 0;
-			break;
-		}
-		if(mpx_on) {
-			if((pulse_error = read_PulseInputDevice(&mpx_device, mpx_in, sizeof(mpx_in)))) {
-				if(pulse_error == -1) fprintf(stderr, "MPX PulseInputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
-				fprintf(stderr, "Disabling MPX.\n");
-				mpx_on = 0;
-				free_PulseInputDevice(&mpx_device);
-			}
-		}
-		if(rds_on) {
-			if((pulse_error = read_PulseInputDevice(&rds_device, rds_in, sizeof(float) * BUFFER_SIZE * rds_streams))) {
-				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
-				fprintf(stderr, "Disabling RDS.\n");
-				rds_on = 0;
-				free_PulseInputDevice(&rds_device);
-			}
-		}
-
-		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
-			float mpx = 0.0f;
-
-			float ready_l = apply_preemphasis(&preemp_l, audio_stereo_input[2*i+0]);
-			float ready_r = apply_preemphasis(&preemp_r, audio_stereo_input[2*i+1]);
-			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
-			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
-
-			float agc_gain = process_agc(&agc, ((ready_l + ready_r) * 0.5f));
-			ready_l *= agc_gain;
-			ready_r *= agc_gain;
-
-			ready_l = hard_clip(ready_l*audio_volume, clipper_threshold);
-			ready_r = hard_clip(ready_r*audio_volume, clipper_threshold);
-
-			mpx = stereo_encode(&stencode, stereo, ready_l, ready_r);
-
-			if(rds_on && !polar_stereo) {
-				for(uint8_t stream = 0; stream < rds_streams; stream++) {
-					uint8_t osc_stream = 12+stream; // If the osc is a 4750 sine wave, then doing this would mean that stream 0 is 12, so 57 khz
-					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
-					mpx += (rds_in[rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream));
-				}
-			}
-
-			float mpx_power = measure_mpx(&power, mpx * mpx_deviation);
-			if (mpx_power > max_mpx_power) {
-				float excess_power = mpx_power - max_mpx_power;
-				
-				if (excess_power > 0.0f && excess_power < 10.0f) {
-					float target_gain = dbr_to_deviation(-excess_power) / mpx_deviation;
-					
-					target_gain = fmaxf(target_gain, 0.1f);
-					target_gain = fminf(target_gain, 1.0f);
-					
-					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
-				}
-			} else bs412_audio_gain = fminf(1.5f, bs412_audio_gain + 0.001f);
-
-			mpx *= bs412_audio_gain;
-			
-			output[i] = hard_clip(mpx, 1.0f)*master_volume+mpx_in[i]; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
-			if(rds_on || stereo) advance_oscillator(&osc);
-		}
-
-		if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) {
-			if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
-			else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
-			to_run = 0;
-			break;
-		}
-	}
+	int ret = run_fm95(config, &runtime);
 	printf("Cleaning up...\n");
-	iirfilt_rrrf_destroy(lpf_l);
-	iirfilt_rrrf_destroy(lpf_r);
-
-	free_PulseInputDevice(&input_device);
-	if(mpx_on) free_PulseInputDevice(&mpx_device);
-	if(rds_on) free_PulseInputDevice(&rds_device);
-	free_PulseOutputDevice(&output_device);
-	free(rds_in);
-	return 0;
+	free_PulseInputDevice(&runtime.input_device);
+	if(mpx_on) free_PulseInputDevice(&runtime.mpx_device);
+	if(rds_on) free_PulseInputDevice(&runtime.rds_device);
+	free_PulseOutputDevice(&runtime.output_device);
+	return ret;
 }
