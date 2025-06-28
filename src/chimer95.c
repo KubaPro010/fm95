@@ -120,7 +120,7 @@ typedef struct
 	PulseOutputDevice output_device;
 } Chimer95_Runtime;
 
-int run_chimer95(Chimer95_Config config, Chimer95_Runtime* runtime) {
+int run_chimer95(const Chimer95_Config config, Chimer95_Runtime* runtime) {
 	int pulse_error;
 
 	Oscillator osc;

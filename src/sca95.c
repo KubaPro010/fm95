@@ -70,7 +70,7 @@ void show_help(char *name) {
 	);
 }
 
-int run_sca95(Sca95_Config config, Sca95_Runtime* runtime) {
+int run_sca95(const Sca95_Config config, Sca95_Runtime* runtime) {
 	FMModulator sca_mod;
 	init_fm_modulator(&sca_mod, config.freq, config.deviation, config.sample_rate);
 

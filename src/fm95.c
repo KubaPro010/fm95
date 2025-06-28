@@ -72,6 +72,13 @@ typedef struct
 	PulseOutputDevice output_device;
 } FM95_Runtime;
 
+typedef struct {
+    char input[64];
+    char output[64];
+    char mpx[64];
+    char rds[64];
+} FM95_DeviceNames;
+
 static void stop(int signum) {
 	(void)signum;
 	printf("\nReceived stop signal.\n");
@@ -114,7 +121,14 @@ void show_help(char *name) {
 	);
 }
 
-int run_fm95(FM95_Config config, FM95_Runtime* runtime) {
+void cleanup_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
+    free_PulseInputDevice(&rt->input_device);
+    if (mpx_on) free_PulseInputDevice(&rt->mpx_device);
+    if (rds_on) free_PulseInputDevice(&rt->rds_device);
+    free_PulseOutputDevice(&rt->output_device);
+}
+
+int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	int mpx_on = (runtime->mpx_device.initialized == 1);
 	int rds_on = (runtime->rds_device.initialized == 1);
 
@@ -253,31 +267,8 @@ int run_fm95(FM95_Config config, FM95_Runtime* runtime) {
 	return 0;
 }
 
-int main(int argc, char **argv) {
-	printf("fm95 (an FM Processor by radio95) version 2.0\n");
 
-	FM95_Config config = {
-		.stereo = DEFAULT_STEREO,
-		.polar_stereo = DEFAULT_STEREO_POLAR,
-
-		.rds_streams = DEFAULT_RDS_STREAMS,
-
-		.clipper_threshold = DEFAULT_CLIPPER_THRESHOLD,
-		.preemphasis = DEFAULT_PREEMPHASIS_TAU,
-		.calibration = 0,
-		.mpx_power = DEFAULT_MPX_POWER,
-		.mpx_deviation = DEFAULT_MPX_DEVIATION,
-		.master_volume = DEFAULT_MASTER_VOLUME,
-		.audio_volume = DEFAULT_AUDIO_VOLUME,
-
-		.sample_rate = DEFAULT_SAMPLE_RATE
-	};
-
-	char input_device_name[64] = INPUT_DEVICE;
-	char output_device_name[64] = OUTPUT_DEVICE;
-	char mpx_device_name[64] = MPX_DEVICE;
-	char rds_device_name[64] = RDS_DEVICE;
-
+int parse_arguments(int argc, char **argv, FM95_Config* config, FM95_DeviceNames* dv) {
 	int opt;
 	const char	*short_opt = "s::i:o:M:r:R:c:O::e:V::p:P:A:v:D:h";
 	struct option	long_opt[] =
@@ -305,56 +296,56 @@ int main(int argc, char **argv) {
 	while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
 		switch(opt) {
 			case 's': // Stereo
-				if(optarg) config.stereo = atoi(optarg);
-				else config.stereo = 1;
+				if(optarg) config->stereo = atoi(optarg);
+				else config->stereo = 1;
 				break;
 			case 'i': // Input Device
-				memcpy(input_device_name, optarg, 63);
+				memcpy(dv->input, optarg, 63);
 				break;
 			case 'o': // Output Device
-				memcpy(output_device_name, optarg, 63);
+				memcpy(dv->output, optarg, 63);
 				break;;
 			case 'M': //MPX in
-				memcpy(mpx_device_name, optarg, 63);
+				memcpy(dv->mpx, optarg, 63);
 				break;
 			case 'r': // RDS in
-				memcpy(rds_device_name, optarg, 63);
+				memcpy(dv->rds, optarg, 63);
 				break;
 			case 'R': // RDS Streams
-				config.rds_streams = atoi(optarg);
-				if(config.rds_streams > 4) {
+				config->rds_streams = atoi(optarg);
+				if(config->rds_streams > 4) {
 					printf("RDS Streams more than 4? Nuh uh\n");
 					return 1;
 				}
 				break;
 			case 'c': //Clipper
-				config.clipper_threshold = strtof(optarg, NULL);
+				config->clipper_threshold = strtof(optarg, NULL);
 				break;
 			case 'O': //Polar
-				if(optarg) config.polar_stereo = atoi(optarg);
-				else config.polar_stereo = 1;
+				if(optarg) config->polar_stereo = atoi(optarg);
+				else config->polar_stereo = 1;
 				break;
 			case 'e': // Preemp
-				config.preemphasis = strtof(optarg, NULL)*1.0e-6f;
+				config->preemphasis = strtof(optarg, NULL)*1.0e-6f;
 				break;
 			case 'V': // Calibration
-				if(optarg) config.calibration = atoi(optarg);
-				else config.calibration = 1;
+				if(optarg) config->calibration = atoi(optarg);
+				else config->calibration = 1;
 				break;
 			case 'p': // Power
-				config.mpx_power = strtof(optarg, NULL);
+				config->mpx_power = strtof(optarg, NULL);
 				break;
 			case 'P': // MPX deviation
-				config.mpx_deviation = strtof(optarg, NULL);
+				config->mpx_deviation = strtof(optarg, NULL);
 				break;
 			case 'A': // Master vol
-				config.master_volume = strtof(optarg, NULL);
+				config->master_volume = strtof(optarg, NULL);
 				break;
 			case 'v': // Audio Volume
-				config.audio_volume = strtof(optarg, NULL);
+				config->audio_volume = strtof(optarg, NULL);
 				break;
 			case 'D': // Deviation
-				config.master_volume *= (strtof(optarg, NULL)/75000.0f);
+				config->master_volume *= (strtof(optarg, NULL)/75000.0f);
 				break;
 			case 'h':
 				show_help(argv[0]);
@@ -362,12 +353,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	FM95_Runtime runtime;
-	memset(&runtime, 0, sizeof(runtime));
+	return 0;
+}
 
-	int mpx_on = (strlen(mpx_device_name) != 0);
-	int rds_on = (strlen(rds_device_name) != 0 && config.rds_streams != 0);	
-
+int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM95_Config config, bool mpx_on, bool rds_on) {
 	pa_buffer_attr input_buffer_atr = {
 		.maxlength = buffer_maxlength,
 		.fragsize = buffer_tlength_fragsize
@@ -380,54 +369,93 @@ int main(int argc, char **argv) {
 
 	int opentime_pulse_error;
 
-	printf("Connecting to input device... (%s)\n", input_device_name);
-	opentime_pulse_error = init_PulseInputDevice(&runtime.input_device, config.sample_rate, 2, "fm95", "Main Audio Input", input_device_name, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+	printf("Connecting to input device... (%s)\n", dv_names.input);
+	opentime_pulse_error = init_PulseInputDevice(&runtime->input_device, config.sample_rate, 2, "fm95", "Main Audio Input", dv_names.input, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open input device: %s\n", pa_strerror(opentime_pulse_error));
 		return 1;
 	}
 
 	if(mpx_on) {
-		printf("Connecting to MPX device... (%s)\n", mpx_device_name);
+		printf("Connecting to MPX device... (%s)\n", dv_names.mpx);
 
-		opentime_pulse_error = init_PulseInputDevice(&runtime.mpx_device, config.sample_rate, 1, "fm95", "MPX Input", mpx_device_name, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+		opentime_pulse_error = init_PulseInputDevice(&runtime->mpx_device, config.sample_rate, 1, "fm95", "MPX Input", dv_names.mpx, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open MPX device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&runtime.input_device);
+			free_PulseInputDevice(&runtime->input_device);
 			return 1;
 		}
 	}
 	if(rds_on) {
-		printf("Connecting to RDS95 device... (%s)\n", rds_device_name);
+		printf("Connecting to RDS95 device... (%s)\n", dv_names.rds);
 
-		opentime_pulse_error = init_PulseInputDevice(&runtime.rds_device, config.sample_rate, config.rds_streams, "fm95", "RDS95 Input", rds_device_name, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+		opentime_pulse_error = init_PulseInputDevice(&runtime->rds_device, config.sample_rate, config.rds_streams, "fm95", "RDS95 Input", dv_names.rds, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&runtime.input_device);
-			if(mpx_on) free_PulseInputDevice(&runtime.mpx_device);
+			free_PulseInputDevice(&runtime->input_device);
+			if(mpx_on) free_PulseInputDevice(&runtime->mpx_device);
 			return 1;
 		}
 	}
 
-	printf("Connecting to output device... (%s)\n", output_device_name);
+	printf("Connecting to output device... (%s)\n", dv_names.output);
 
-	opentime_pulse_error = init_PulseOutputDevice(&runtime.output_device, config.sample_rate, 1, "fm95", "Main Audio Output", output_device_name, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
+	opentime_pulse_error = init_PulseOutputDevice(&runtime->output_device, config.sample_rate, 1, "fm95", "Main Audio Output", dv_names.output, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
-		free_PulseInputDevice(&runtime.input_device);
-		if(mpx_on) free_PulseInputDevice(&runtime.mpx_device);
-		if(rds_on) free_PulseInputDevice(&runtime.rds_device);
+		free_PulseInputDevice(&runtime->input_device);
+		if(mpx_on) free_PulseInputDevice(&runtime->mpx_device);
+		if(rds_on) free_PulseInputDevice(&runtime->rds_device);
 		return 1;
 	}
+	return 0;
+}
+
+int main(int argc, char **argv) {
+	printf("fm95 (an FM Processor by radio95) version 2.1\n");
+
+	FM95_Config config = {
+		.stereo = DEFAULT_STEREO,
+		.polar_stereo = DEFAULT_STEREO_POLAR,
+
+		.rds_streams = DEFAULT_RDS_STREAMS,
+
+		.clipper_threshold = DEFAULT_CLIPPER_THRESHOLD,
+		.preemphasis = DEFAULT_PREEMPHASIS_TAU,
+		.calibration = 0,
+		.mpx_power = DEFAULT_MPX_POWER,
+		.mpx_deviation = DEFAULT_MPX_DEVIATION,
+		.master_volume = DEFAULT_MASTER_VOLUME,
+		.audio_volume = DEFAULT_AUDIO_VOLUME,
+
+		.sample_rate = DEFAULT_SAMPLE_RATE
+	};
+
+	FM95_DeviceNames dv_names = {
+		.input = INPUT_DEVICE,
+		.output = OUTPUT_DEVICE,
+		.mpx = MPX_DEVICE,
+		.rds = RDS_DEVICE
+	};
+
+	int err;
+	err = parse_arguments(argc, argv, &config, &dv_names);
+	if(err != 0) return err;
+
+	FM95_Runtime runtime;
+	memset(&runtime, 0, sizeof(runtime));
+
+	int mpx_on = (strlen(dv_names.mpx) != 0);
+	int rds_on = (strlen(dv_names.rds) != 0 && config.rds_streams != 0);	
+
+	err = setup_audio(&runtime, dv_names, config, mpx_on, rds_on);
+	if(err != 0) return err;
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
 
 	int ret = run_fm95(config, &runtime);
 	printf("Cleaning up...\n");
-	free_PulseInputDevice(&runtime.input_device);
-	if(mpx_on) free_PulseInputDevice(&runtime.mpx_device);
-	if(rds_on) free_PulseInputDevice(&runtime.rds_device);
-	free_PulseOutputDevice(&runtime.output_device);
+	cleanup_runtime(&runtime, mpx_on, rds_on);
 	return ret;
 }

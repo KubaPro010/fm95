@@ -1,6 +1,6 @@
 #include "audio.h"
 
-int init_PulseInputDevice(PulseInputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
+int init_PulseInputDevice(PulseInputDevice* dev, const int sample_rate, const int channels, const char* app_name, const char *stream_name, const char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
 	#ifdef PULSE_DEBUG
 	debug_printf("Initializing PulseInputDevice format with app_name: %s, stream_name: %s, device: %s, sample_rate: %d, channels: %d, format: %d\n", app_name, stream_name, device, sample_rate, channels, format);
 	#endif
@@ -41,7 +41,7 @@ void free_PulseInputDevice(PulseInputDevice* dev) {
 	dev->initialized = 0;
 }
 
-int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels, char* app_name, char *stream_name, char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
+int init_PulseOutputDevice(PulseOutputDevice* dev, const int sample_rate, const int channels, const char* app_name, const char *stream_name, const char* device, pa_buffer_attr* buffer_attr, enum pa_sample_format format) {
 	#ifdef PULSE_DEBUG
 	debug_printf("Initializing PulseOutputDevice format with app_name: %s, stream_name: %s, device: %s, sample_rate: %d, channels: %d, format: %d\n", app_name, stream_name, device, sample_rate, channels, format);
 	#endif
