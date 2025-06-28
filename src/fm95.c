@@ -1,6 +1,9 @@
 #include <getopt.h>
 #include <liquid/liquid.h>
 #include <stdbool.h>
+#include "../inih/ini.h"
+
+#define DEFAULT_INI_PATH "/etc/fm95.conf"
 
 #define LPF_ORDER 17
 
@@ -64,6 +67,9 @@ typedef struct
 	float audio_volume;
 
 	uint32_t sample_rate;
+
+	// ini dont edit
+	char ini_config_path[64];
 } FM95_Config;
 
 typedef struct
@@ -78,6 +84,10 @@ typedef struct {
     char mpx[64];
     char rds[64];
 } FM95_DeviceNames;
+typedef struct {
+    FM95_Config* config;
+    FM95_DeviceNames* devices;
+} FM95_SetupContext;
 
 static void stop(int signum) {
 	(void)signum;
@@ -88,36 +98,9 @@ static void stop(int signum) {
 void show_help(char *name) {
 	printf(
 		"Usage: \t%s\n"
-		"\t-s,--stereo\tForce Stereo [default: %d]\n"
-		"\t-i,--input\tOverride input device [default: %s]\n"
-		"\t-o,--output\tOverride output device [default: %s]\n"
-		"\t-M,--mpx\tOverride MPX input device [default: %s]\n"
-		"\t-r,--rds\tOverride RDS95 input device [default: %s]\n"
-		"\t-R,--rds_strs\tSpecifies the number of the RDS streams provided by RDS95 [default: %d]\n"
-		"\t-c,--clipper\tOverride the clipper threshold [default: %.2f]\n"
-		"\t-O,--polar\tForce Polar Stereo (does not take effect with -s0%s)\n"
-		"\t-e,--preemp\tOverride preemphasis [default: %.2f µs]\n"
-		"\t-V,--calibrate\tEnable Calibration mode [default: off, option 2 enables a 60 hz square wave instead of the 400 hz sine wave]\n"
-		"\t-p,--power\tSet the MPX power [default: %.1f]\n"
-		"\t-P,--mpx_dev\tSet the MPX deviation [default: %.1f]\n"
-		"\t-A,--master_vol\tSet master volume [default: %.3f]\n"
-		"\t-v,--audio_vol\tSet audio volume [default: %.3f]\n"
-		"\t-D,--deviation\tSet audio volume, but with the deviation (100%% being 75000) [default: %.1f]\n"
-		,name
-		,DEFAULT_STEREO
-		,INPUT_DEVICE
-		,OUTPUT_DEVICE
-		,MPX_DEVICE
-		,RDS_DEVICE
-		,DEFAULT_RDS_STREAMS
-		,DEFAULT_CLIPPER_THRESHOLD
-		,(DEFAULT_STEREO_POLAR == 1) ? ", default" : ""
-		,DEFAULT_PREEMPHASIS_TAU/0.000001
-		,DEFAULT_MPX_POWER
-		,DEFAULT_MPX_DEVIATION
-		,DEFAULT_MASTER_VOLUME
-		,DEFAULT_AUDIO_VOLUME
-		,DEFAULT_DEVIATION
+		"\t-c,--config\tOverride the default config path (%s)\n",
+		name,
+		DEFAULT_INI_PATH
 	);
 }
 
@@ -268,84 +251,20 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 }
 
 
-int parse_arguments(int argc, char **argv, FM95_Config* config, FM95_DeviceNames* dv) {
+int parse_arguments(int argc, char **argv, FM95_Config* config) {
 	int opt;
-	const char	*short_opt = "s::i:o:M:r:R:c:O::e:V::p:P:A:v:D:h";
+	const char	*short_opt = "c:h";
 	struct option	long_opt[] =
 	{
-		{"stereo",      optional_argument, NULL, 's'},
-		{"input",       required_argument, NULL, 'i'},
-		{"output",      required_argument, NULL, 'o'},
-		{"mpx",         required_argument, NULL, 'M'},
-		{"rds",         required_argument, NULL, 'r'},
-		{"rds_strs",        required_argument, NULL, 'R'},
-		{"clipper",     required_argument, NULL, 'c'},
-		{"polar",       optional_argument,       NULL, 'O'},
-		{"preemp",      required_argument,       NULL, 'e'},
-		{"calibrate",     optional_argument,       NULL, 'V'},
-		{"power",     required_argument,       NULL, 'p'},
-		{"mpx_dev",     required_argument,       NULL, 'P'},
-		{"master_vol",     required_argument,       NULL, 'A'},
-		{"audio_vol",     required_argument,       NULL, 'v'},
-		{"deviation",     required_argument,       NULL, 'D'},
-
+		{"config",		required_argument,	NULL,	'c'},
 		{"help",        no_argument,       NULL, 'h'},
 		{0,             0,                 0,    0}
 	};
 
 	while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
 		switch(opt) {
-			case 's': // Stereo
-				if(optarg) config->stereo = atoi(optarg);
-				else config->stereo = 1;
-				break;
-			case 'i': // Input Device
-				memcpy(dv->input, optarg, 63);
-				break;
-			case 'o': // Output Device
-				memcpy(dv->output, optarg, 63);
-				break;;
-			case 'M': //MPX in
-				memcpy(dv->mpx, optarg, 63);
-				break;
-			case 'r': // RDS in
-				memcpy(dv->rds, optarg, 63);
-				break;
-			case 'R': // RDS Streams
-				config->rds_streams = atoi(optarg);
-				if(config->rds_streams > 4) {
-					printf("RDS Streams more than 4? Nuh uh\n");
-					return 1;
-				}
-				break;
-			case 'c': //Clipper
-				config->clipper_threshold = strtof(optarg, NULL);
-				break;
-			case 'O': //Polar
-				if(optarg) config->polar_stereo = atoi(optarg);
-				else config->polar_stereo = 1;
-				break;
-			case 'e': // Preemp
-				config->preemphasis = strtof(optarg, NULL)*1.0e-6f;
-				break;
-			case 'V': // Calibration
-				if(optarg) config->calibration = atoi(optarg);
-				else config->calibration = 1;
-				break;
-			case 'p': // Power
-				config->mpx_power = strtof(optarg, NULL);
-				break;
-			case 'P': // MPX deviation
-				config->mpx_deviation = strtof(optarg, NULL);
-				break;
-			case 'A': // Master vol
-				config->master_volume = strtof(optarg, NULL);
-				break;
-			case 'v': // Audio Volume
-				config->audio_volume = strtof(optarg, NULL);
-				break;
-			case 'D': // Deviation
-				config->master_volume *= (strtof(optarg, NULL)/75000.0f);
+			case 'c':
+				memcpy(config->ini_config_path, optarg, 63);
 				break;
 			case 'h':
 				show_help(argv[0]);
@@ -354,6 +273,66 @@ int parse_arguments(int argc, char **argv, FM95_Config* config, FM95_DeviceNames
 	}
 
 	return 0;
+}
+
+static int config_handler(void* user, const char* section, const char* name, const char* value) {
+    FM95_SetupContext* ctx = (FM95_SetupContext*)user;
+    FM95_Config* pconfig = ctx->config;
+    FM95_DeviceNames* dv = ctx->devices;
+
+    #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+    
+    if (MATCH("fm95", "stereo")) {
+        pconfig->stereo = atoi(value);
+	} else if (MATCH("devices", "input")) {
+        strncpy(dv->input, value, 63);
+        dv->input[63] = '\0';
+    } else if (MATCH("devices", "output")) {
+        strncpy(dv->output, value, 63);
+        dv->output[63] = '\0';
+    } else if (MATCH("devices", "mpx")) {
+        strncpy(dv->mpx, value, 63);
+        dv->mpx[63] = '\0';
+    } else if (MATCH("devices", "rds")) {
+        strncpy(dv->rds, value, 63);
+        dv->rds[63] = '\0';
+    } else if (MATCH("fm95", "rds_streams")) {
+        pconfig->rds_streams = atoi(value);
+        if(pconfig->rds_streams > 4) {
+            printf("RDS Streams more than 4? Nuh uh\n");
+            return 0;
+        }
+    } else if (MATCH("fm95", "clipper_threshold")) {
+        pconfig->clipper_threshold = strtof(value, NULL);
+    } else if (MATCH("fm95", "polar_stereo")) {
+        pconfig->polar_stereo = atoi(value);
+    } else if (MATCH("fm95", "preemphasis")) {
+        pconfig->preemphasis = strtof(value, NULL) * 1.0e-6f;
+    } else if (MATCH("fm95", "calibration")) {
+        pconfig->calibration = atoi(value);
+    } else if (MATCH("fm95", "mpx_power")) {
+        pconfig->mpx_power = strtof(value, NULL);
+    } else if (MATCH("fm95", "mpx_deviation")) {
+        pconfig->mpx_deviation = strtof(value, NULL);
+    } else if (MATCH("fm95", "master_volume")) {
+        pconfig->master_volume = strtof(value, NULL);
+    } else if (MATCH("fm95", "audio_volume")) {
+        pconfig->audio_volume = strtof(value, NULL);
+    } else if (MATCH("fm95", "deviation")) {
+        pconfig->master_volume *= (strtof(value, NULL) / 75000.0f);
+	} else {
+        return 0; // Unknown section/name
+    }
+    
+    return 1;
+}
+
+int parse_config(FM95_Config* config, FM95_DeviceNames* dv) {
+	FM95_SetupContext ctx = {
+		.config = config,
+		.devices = dv
+	};
+	return ini_parse(config->ini_config_path, &config_handler, &ctx);
 }
 
 int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM95_Config config, bool mpx_on, bool rds_on) {
@@ -428,7 +407,9 @@ int main(int argc, char **argv) {
 		.master_volume = DEFAULT_MASTER_VOLUME,
 		.audio_volume = DEFAULT_AUDIO_VOLUME,
 
-		.sample_rate = DEFAULT_SAMPLE_RATE
+		.sample_rate = DEFAULT_SAMPLE_RATE,
+
+		.ini_config_path = DEFAULT_INI_PATH
 	};
 
 	FM95_DeviceNames dv_names = {
@@ -439,8 +420,14 @@ int main(int argc, char **argv) {
 	};
 
 	int err;
-	err = parse_arguments(argc, argv, &config, &dv_names);
+	err = parse_arguments(argc, argv, &config);
 	if(err != 0) return err;
+
+	err = parse_config(&config, &dv_names);
+	if(err != 0) {
+		printf("Could not parse the config file. (error code as return code)\n");
+		return err;
+	}
 
 	FM95_Runtime runtime;
 	memset(&runtime, 0, sizeof(runtime));

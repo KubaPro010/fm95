@@ -22,6 +22,8 @@ and one output:
 
 ## How to compile?
 
+Note that you're required also to load submodules, if you don't know what that means then ask ChatGPT
+
 To compile you need `cmake`, `liquid-dsp` and `libpulse-dev`, if you have those then do these commands:
 
 ```bash
