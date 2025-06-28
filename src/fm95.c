@@ -1,6 +1,7 @@
 #include <getopt.h>
 #include <liquid/liquid.h>
 #include "../inih/ini.h"
+#include <stdbool.h>
 
 #define DEFAULT_INI_PATH "/etc/fm95.conf"
 
