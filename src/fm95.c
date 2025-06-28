@@ -231,7 +231,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 					
 					bs412_audio_gain = bs412_attack_alpha * bs412_audio_gain + (1 - bs412_attack_alpha) * target_gain;
 				}
-			} else bs412_audio_gain = bs412_release_alpha * bs412_audio_gain + (1 - bs412_release_alpha) * 1.0f;
+			} else bs412_audio_gain = fminf(1.0f, bs412_release_alpha * bs412_audio_gain + (1 - bs412_release_alpha) * 1.0f);
 
 			mpx *= bs412_audio_gain;
 			
