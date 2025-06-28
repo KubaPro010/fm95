@@ -122,8 +122,6 @@ int run_fm95(FM95_Config config, FM95_Runtime* runtime) {
 		Oscillator osc;
 		init_oscillator(&osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
 
-		signal(SIGINT, stop);
-		signal(SIGTERM, stop);
 		int pulse_error;
 		float output[BUFFER_SIZE];
 
@@ -166,9 +164,6 @@ int run_fm95(FM95_Config config, FM95_Runtime* runtime) {
 	//            fs           target   min   max   attack  release
 	initAGC(&agc, config.sample_rate, 0.65f, 0.0f, 1.75f, 0.03f, 0.225f);
 
-	signal(SIGINT, stop);
-	signal(SIGTERM, stop);
-
 	int pulse_error;
 
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
@@ -181,23 +176,20 @@ int run_fm95(FM95_Config config, FM95_Runtime* runtime) {
 
 	while (to_run) {
 		if((pulse_error = read_PulseInputDevice(&runtime->input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
-			if(pulse_error == -1) fprintf(stderr, "Main PulseInputDevice reported as uninitialized.");
-			else fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
+			fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
 		}
 		if(mpx_on) {
 			if((pulse_error = read_PulseInputDevice(&runtime->mpx_device, mpx_in, sizeof(mpx_in)))) {
-				if(pulse_error == -1) fprintf(stderr, "MPX PulseInputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
+				fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
 				fprintf(stderr, "Disabling MPX.\n");
 				mpx_on = 0;
 			}
 		}
 		if(rds_on) {
 			if((pulse_error = read_PulseInputDevice(&runtime->rds_device, rds_in, sizeof(float) * BUFFER_SIZE * config.rds_streams))) {
-				if(pulse_error == -1) fprintf(stderr, "RDS95 PulseInputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
+				fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
 				fprintf(stderr, "Disabling RDS.\n");
 				rds_on = 0;
 			}
@@ -249,8 +241,7 @@ int run_fm95(FM95_Config config, FM95_Runtime* runtime) {
 		}
 
 		if((pulse_error = write_PulseOutputDevice(&runtime->output_device, output, sizeof(output)))) {
-			if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
-			else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+			fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 			to_run = 0;
 			break;
 		}
@@ -428,6 +419,9 @@ int main(int argc, char **argv) {
 		if(rds_on) free_PulseInputDevice(&runtime.rds_device);
 		return 1;
 	}
+
+	signal(SIGINT, stop);
+	signal(SIGTERM, stop);
 
 	int ret = run_fm95(config, &runtime);
 	printf("Cleaning up...\n");
