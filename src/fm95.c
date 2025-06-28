@@ -19,7 +19,6 @@
 
 #include "../dsp/oscillator.h"
 #include "../filter/iir.h"
-#include "../modulation/fm_modulator.h"
 #include "../modulation/stereo_encoder.h"
 #include "../filter/bs412.h"
 #include "../filter/gain_control.h"
@@ -70,6 +69,10 @@ typedef struct
 	uint8_t lpf_order;
 	float preemp_unity_freq;
 	float agc_target;
+	float agc_attack;
+	float agc_release;
+	float agc_max;
+	float agc_min;
 } FM95_Config;
 
 typedef struct
@@ -156,10 +159,11 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
 
 	float bs412_audio_gain = 1.0f;
+	float bs412_attack_alpha = expf(-1.0f / (0.03f * config.sample_rate));
+	float bs412_release_alpha = expf(-1.0f / (0.1f * config.sample_rate));
 
 	AGC agc;
-	//                                                   min   max    attack release
-	initAGC(&agc, config.sample_rate, config.agc_target, 0.1f, 2.75f, 0.03f, 0.225f);
+	initAGC(&agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
 
 	int pulse_error;
 
@@ -225,9 +229,9 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 					target_gain = fmaxf(target_gain, 0.1f);
 					target_gain = fminf(target_gain, 1.0f);
 					
-					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
+					bs412_audio_gain = bs412_attack_alpha * bs412_audio_gain + (1 - bs412_attack_alpha) * target_gain;
 				}
-			} else bs412_audio_gain = fminf(1.0f, bs412_audio_gain + 0.001f);
+			} else bs412_audio_gain = bs412_release_alpha * bs412_audio_gain + (1 - bs412_release_alpha) * 1.0f;
 
 			mpx *= bs412_audio_gain;
 			
@@ -324,6 +328,14 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->sample_rate = atoi(value);
 	} else if(MATCH("advanced", "agc_target")) {
 		pconfig->agc_target = strtof(value, NULL);
+	} else if(MATCH("advanced", "agc_attack")) {
+		pconfig->agc_attack = strtof(value, NULL);
+	} else if(MATCH("advanced", "agc_release")) {
+		pconfig->agc_release = strtof(value, NULL);
+	} else if(MATCH("advanced", "agc_min")) {
+		pconfig->agc_min = strtof(value, NULL);
+	} else if(MATCH("advanced", "agc_max")) {
+		pconfig->agc_max = strtof(value, NULL);
 	} else {
         return 0; // Unknown section/name
     }
@@ -416,7 +428,11 @@ int main(int argc, char **argv) {
 
 		.lpf_order = 17,
 		.preemp_unity_freq = 15250.0f,
-		.agc_target = 0.625f
+		.agc_target = 0.625f,
+		.agc_attack = 0.03f,
+		.agc_release = 0.225f,
+		.agc_min = 0.1f,
+		.agc_max = 1.75f,
 	};
 
 	FM95_DeviceNames dv_names = {

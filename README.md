@@ -22,7 +22,7 @@ and one output:
 
 ## How to compile?
 
-Note that you're required also to load submodules, if you don't know what that means then ask ChatGPT
+Note that you're required also to load submodules, if you don't know what that means, ask ChatGPT
 
 To compile you need `cmake`, `liquid-dsp` and `libpulse-dev`, if you have those then do these commands:
 
@@ -46,3 +46,7 @@ FM95 also includes some other apps, such as chimer95 which generates GTS tones e
 ## FM95 Calibration
 
 FM95 features a calibration mode `-V` which instead of outputing the MPX just outputs a 400 hz tone, use that tone to match the deviation on your transmitter
+
+## Usage of other projects
+
+The apps use inih by Ben Hoyt.
