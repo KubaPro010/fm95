@@ -73,6 +73,8 @@ typedef struct
 	float agc_release;
 	float agc_max;
 	float agc_min;
+	float bs412_attack;
+	float bs412_release;
 } FM95_Config;
 
 typedef struct
@@ -159,8 +161,8 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
 
 	float bs412_audio_gain = 1.0f;
-	float bs412_attack_alpha = expf(-1.0f / (0.03f * config.sample_rate));
-	float bs412_release_alpha = expf(-1.0f / (0.1f * config.sample_rate));
+	float bs412_attack_alpha = expf(-1.0f / (config.bs412_attack * config.sample_rate));
+	float bs412_release_alpha = expf(-1.0f / (config.bs412_release * config.sample_rate));
 
 	AGC agc;
 	initAGC(&agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
@@ -336,6 +338,10 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->agc_min = strtof(value, NULL);
 	} else if(MATCH("advanced", "agc_max")) {
 		pconfig->agc_max = strtof(value, NULL);
+	} else if(MATCH("advanced", "bs412_attack")) {
+		pconfig->bs412_attack = strtof(value, NULL);
+	} else if(MATCH("advanced", "bs412_release")) {
+		pconfig->bs412_release = strtof(value, NULL);
 	} else {
         return 0; // Unknown section/name
     }
@@ -433,6 +439,8 @@ int main(int argc, char **argv) {
 		.agc_release = 0.225f,
 		.agc_min = 0.1f,
 		.agc_max = 1.75f,
+		.bs412_attack = 0.03f,
+		.bs412_release = 0.02,
 	};
 
 	FM95_DeviceNames dv_names = {
