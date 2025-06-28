@@ -1,18 +1,14 @@
 #include <getopt.h>
 #include <liquid/liquid.h>
-#include <stdbool.h>
 #include "../inih/ini.h"
 
 #define DEFAULT_INI_PATH "/etc/fm95.conf"
-
-#define LPF_ORDER 17
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
 #define buffer_prebuf 8
 
 #define DEFAULT_STEREO 1
-#define DEFAULT_STEREO_POLAR 0
 #define DEFAULT_RDS_STREAMS 2
 #define DEFAULT_CLIPPER_THRESHOLD 1.0f
 #define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs (75e-6)
@@ -53,8 +49,7 @@ inline float hard_clip(float sample, float threshold) { return fmaxf(-threshold,
 
 typedef struct
 {
-	bool stereo;
-	bool polar_stereo;
+	uint8_t stereo;
 
 	uint8_t rds_streams;
 
@@ -70,6 +65,10 @@ typedef struct
 
 	// ini dont edit
 	char ini_config_path[64];
+
+	uint8_t lpf_order;
+	float preemp_unity_freq;
+	float agc_target;
 } FM95_Config;
 
 typedef struct
@@ -139,27 +138,27 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	}
 
 	Oscillator osc;
-	init_oscillator(&osc, config.polar_stereo ? 7812.5 : 4750, config.sample_rate);
+	init_oscillator(&osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
 
 	iirfilt_rrrf lpf_l, lpf_r;
-	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
-	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, LPF_ORDER, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
-	init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, 15250.0f);
-	init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, 15250.0f);
+	init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+	init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
 
 	MPXPowerMeasurement power;
 	init_modulation_power_measure(&power, config.sample_rate);
 
 	StereoEncoder stencode;
-	init_stereo_encoder(&stencode, 4.0f, &osc, config.polar_stereo, MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
+	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
 
 	float bs412_audio_gain = 1.0f;
 
 	AGC agc;
-	//            fs           target   min   max   attack  release
-	initAGC(&agc, config.sample_rate, 0.625f, 1.0f, 1.75f, 0.03f, 0.225f);
+	//                                                   min   max    attack release
+	initAGC(&agc, config.sample_rate, config.agc_target, 0.1f, 2.75f, 0.03f, 0.225f);
 
 	int pulse_error;
 
@@ -179,15 +178,13 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		}
 		if(mpx_on) {
 			if((pulse_error = read_PulseInputDevice(&runtime->mpx_device, mpx_in, sizeof(mpx_in)))) {
-				fprintf(stderr, "Error reading from MPX device: %s\n", pa_strerror(pulse_error));
-				fprintf(stderr, "Disabling MPX.\n");
+				fprintf(stderr, "Error reading from MPX device: %s\nDisabling MPX.\n", pa_strerror(pulse_error));
 				mpx_on = 0;
 			}
 		}
 		if(rds_on) {
 			if((pulse_error = read_PulseInputDevice(&runtime->rds_device, rds_in, sizeof(float) * BUFFER_SIZE * config.rds_streams))) {
-				fprintf(stderr, "Error reading from RDS95 device: %s\n", pa_strerror(pulse_error));
-				fprintf(stderr, "Disabling RDS.\n");
+				fprintf(stderr, "Error reading from RDS95 device: %s\nDisabling RDS.\n", pa_strerror(pulse_error));
 				rds_on = 0;
 			}
 		}
@@ -209,7 +206,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 			mpx = stereo_encode(&stencode, config.stereo, ready_l, ready_r);
 
-			if(rds_on && !config.polar_stereo) {
+			if(rds_on && !(config.stereo == 2)) {
 				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
 					uint8_t osc_stream = 12+stream; // If the osc is a 4750 sine wave, then doing this would mean that stream 0 is 12, so 57 khz
 					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
@@ -229,7 +226,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 					
 					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
 				}
-			} else bs412_audio_gain = fminf(1.5f, bs412_audio_gain + 0.001f);
+			} else bs412_audio_gain = fminf(3.5f, bs412_audio_gain + 0.001f);
 
 			mpx *= bs412_audio_gain;
 			
@@ -304,8 +301,6 @@ static int config_handler(void* user, const char* section, const char* name, con
         }
     } else if (MATCH("fm95", "clipper_threshold")) {
         pconfig->clipper_threshold = strtof(value, NULL);
-    } else if (MATCH("fm95", "polar_stereo")) {
-        pconfig->polar_stereo = atoi(value);
     } else if (MATCH("fm95", "preemphasis")) {
         pconfig->preemphasis = strtof(value, NULL) * 1.0e-6f;
     } else if (MATCH("fm95", "calibration")) {
@@ -320,6 +315,14 @@ static int config_handler(void* user, const char* section, const char* name, con
         pconfig->audio_volume = strtof(value, NULL);
     } else if (MATCH("fm95", "deviation")) {
         pconfig->master_volume *= (strtof(value, NULL) / 75000.0f);
+	} else if(MATCH("advanced", "lpf_order")) {
+		pconfig->lpf_order = atoi(value);
+	} else if(MATCH("advanced", "preemp_unity")) {
+		pconfig->preemp_unity_freq = strtof(value, NULL);
+	} else if(MATCH("advanced", "sample_rate")) {
+		pconfig->sample_rate = atoi(value);
+	} else if(MATCH("advanced", "agc_target")) {
+		pconfig->agc_target = strtof(value, NULL);
 	} else {
         return 0; // Unknown section/name
     }
@@ -391,11 +394,10 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 }
 
 int main(int argc, char **argv) {
-	printf("fm95 (an FM Processor by radio95) version 2.1\n");
+	printf("fm95 (an FM Processor by radio95) version 2.2\n");
 
 	FM95_Config config = {
 		.stereo = DEFAULT_STEREO,
-		.polar_stereo = DEFAULT_STEREO_POLAR,
 
 		.rds_streams = DEFAULT_RDS_STREAMS,
 
@@ -409,7 +411,11 @@ int main(int argc, char **argv) {
 
 		.sample_rate = DEFAULT_SAMPLE_RATE,
 
-		.ini_config_path = DEFAULT_INI_PATH
+		.ini_config_path = DEFAULT_INI_PATH,
+
+		.lpf_order = 17,
+		.preemp_unity_freq = 15250.0f,
+		.agc_target = 0.625f
 	};
 
 	FM95_DeviceNames dv_names = {
