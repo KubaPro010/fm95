@@ -159,7 +159,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 	AGC agc;
 	//                                                   min   max    attack release
-	initAGC(&agc, config.sample_rate, config.agc_target, 0.1f, 1.75f, 0.03f, 0.225f);
+	initAGC(&agc, config.sample_rate, config.agc_target, 0.1f, 2.75f, 0.03f, 0.225f);
 
 	int pulse_error;
 
@@ -227,7 +227,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 					
 					bs412_audio_gain = 0.8f * bs412_audio_gain + 0.2f * target_gain;
 				}
-			} else bs412_audio_gain = fminf(3.5f, bs412_audio_gain + 0.001f);
+			} else bs412_audio_gain = fminf(1.25f, bs412_audio_gain + 0.001f);
 
 			mpx *= bs412_audio_gain;
 			
