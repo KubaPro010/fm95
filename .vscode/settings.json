@@ -38,7 +38,10 @@
         "time.h": "c",
         "vban.h": "c",
         "chimer.h": "c",
-        "liquid.h": "c"
+        "liquid.h": "c",
+        "queue": "c",
+        "thread": "c",
+        "vector": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

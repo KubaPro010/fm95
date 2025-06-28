@@ -5,7 +5,7 @@ int init_PulseInputDevice(PulseInputDevice* dev, int sample_rate, int channels, 
 	debug_printf("Initializing PulseInputDevice format with app_name: %s, stream_name: %s, device: %s, sample_rate: %d, channels: %d, format: %d\n", app_name, stream_name, device, sample_rate, channels, format);
 	#endif
 
-	if (dev->initialized) return -1;
+	if (dev->initialized) return PA_ERR_BADSTATE;
 	pa_sample_spec sample_spec = {.format = format, .channels = channels, .rate = sample_rate};
 	pa_buffer_attr new_buffer_attr = *buffer_attr;
 	dev->sample_spec = sample_spec;
@@ -23,7 +23,7 @@ int init_PulseInputDevice(PulseInputDevice* dev, int sample_rate, int channels, 
 }
 
 int read_PulseInputDevice(PulseInputDevice* dev, void* buffer, size_t size) {
-	if (!dev->initialized) return -1;
+	if (!dev->initialized) return PA_ERR_BADSTATE;
 	int error = 0;
 	pa_simple_read(dev->dev, buffer, size, &error);
 	return error;
@@ -46,12 +46,8 @@ int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels
 	debug_printf("Initializing PulseOutputDevice format with app_name: %s, stream_name: %s, device: %s, sample_rate: %d, channels: %d, format: %d\n", app_name, stream_name, device, sample_rate, channels, format);
 	#endif
 
-	if (dev->initialized) return -1;
-	pa_sample_spec sample_spec = {
-		.format = format,
-		.channels = channels,
-		.rate = sample_rate
-	};
+	if (dev->initialized) return PA_ERR_BADSTATE;
+	pa_sample_spec sample_spec = {.format = format, .channels = channels, .rate = sample_rate};
 	pa_buffer_attr new_buffer_attr = *buffer_attr;
 	dev->sample_spec = sample_spec;
 	dev->buffer_attr = new_buffer_attr;
@@ -61,24 +57,14 @@ int init_PulseOutputDevice(PulseOutputDevice* dev, int sample_rate, int channels
 	dev->device = strdup(device);
 
 	int error;
-	dev->dev = pa_simple_new(
-		NULL,
-		app_name,
-		PA_STREAM_PLAYBACK,
-		device,
-		stream_name,
-		&sample_spec,
-		NULL,
-		&new_buffer_attr,
-		&error
-	);
+	dev->dev = pa_simple_new(NULL, app_name, PA_STREAM_PLAYBACK, device, stream_name, &sample_spec, NULL, &new_buffer_attr, &error);
 	if (!dev->dev) return error;
 	dev->initialized = 1;
 	return 0;
 }
 
 int write_PulseOutputDevice(PulseOutputDevice* dev, void* buffer, size_t size) {
-	if (!dev->initialized) return -1;
+	if (!dev->initialized) return PA_ERR_BADSTATE;
 	int error = 0;
 	if(pa_simple_write(dev->dev, buffer, size, &error) == 0) return 0;
 	return error;

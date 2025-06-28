@@ -372,6 +372,7 @@ int main(int argc, char **argv) {
 	}
 
 	FM95_Runtime runtime;
+	memset(&runtime, 0, sizeof(runtime));
 
 	int mpx_on = (strlen(mpx_device_name) != 0);
 	int rds_on = (strlen(rds_device_name) != 0 && config.rds_streams != 0);	
