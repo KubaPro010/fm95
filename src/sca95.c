@@ -5,9 +5,9 @@
 #define buffer_tlength_fragsize 12288
 #define buffer_prebuf 8
 
-#define DEFAULT_SCA_FREQUENCY 67000.0f
-#define DEFAULT_SCA_DEVIATION 7000.0f
-#define DEFAULT_SCA_CLIPPER_THRESHOLD 1.0f
+#define DEFAULT_FREQUENCY 67000.0f
+#define DEFAULT_DEVIATION 7000.0f
+#define DEFAULT_CLIPPER_THRESHOLD 1.0f
 
 #include "../modulation/fm_modulator.h"
 
@@ -26,9 +26,22 @@
 
 static volatile sig_atomic_t to_run = 1;
 
-inline float hard_clip(float sample, float threshold) {
-	return fmaxf(-threshold, fminf(threshold, sample));
-}
+inline float hard_clip(float sample, float threshold) { return fmaxf(-threshold, fminf(threshold, sample)); }
+
+typedef struct {
+	float freq;
+	float deviation;
+	float clipper;
+	float volume;
+	float master_volume;
+	float audio_volume;
+	uint32_t sample_rate;
+} Sca95_Config;
+typedef struct
+{
+	PulseInputDevice input;
+	PulseOutputDevice output;
+} Sca95_Runtime;
 
 static void stop(int signum) {
 	(void)signum;
@@ -45,36 +58,64 @@ void show_help(char *name) {
 		"\t-F,--sca_dev\tOverride the SCA deviation [default: %.2f]\n"
 		"\t-C,--sca_clip\tOverride the SCA clipper threshold [default: %.2f]\n"
 		"\t-A,--master_vol\tSet master volume [default: %.3f]\n"
+		"\t-v,--volume\tSet audio volume [default: %.3f]\n"
 		,name
 		,INPUT_DEVICE
 		,OUTPUT_DEVICE
-		,DEFAULT_SCA_FREQUENCY
-		,DEFAULT_SCA_DEVIATION
-		,DEFAULT_SCA_CLIPPER_THRESHOLD
+		,DEFAULT_FREQUENCY
+		,DEFAULT_DEVIATION
+		,DEFAULT_CLIPPER_THRESHOLD
+		,DEFAULT_VOLUME
 		,DEFAULT_AUDIO_VOLUME
 	);
 }
 
+int run_sca95(Sca95_Config config, Sca95_Runtime* runtime) {
+	FMModulator sca_mod;
+	init_fm_modulator(&sca_mod, config.freq, config.deviation, config.sample_rate);
+
+	int pulse_error;
+
+	float audio_input[BUFFER_SIZE];
+	float output[BUFFER_SIZE];
+
+	while (to_run) {
+		if((pulse_error = read_PulseInputDevice(&runtime->input, audio_input, sizeof(audio_input)))) {
+			fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
+			to_run = 0;
+			break;
+		}
+
+		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
+			output[i] = modulate_fm(&sca_mod, hard_clip(audio_input[i]*config.audio_volume, config.clipper))*config.master_volume;
+		}
+
+		if((pulse_error = write_PulseOutputDevice(&runtime->output, output, sizeof(output)))) {
+			fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+			to_run = 0;
+			break;
+		}
+	}
+	return 0;
+}
+
 int main(int argc, char **argv) {
-	printf("sca95 (a SCA modulator by radio95) version 1.0\n");
+	printf("sca95 (a SCA modulator by radio95) version 1.1\n");
 
-	PulseInputDevice input_device;
-	PulseOutputDevice output_device;
+	Sca95_Config config = {
+		.freq = DEFAULT_FREQUENCY,
+		.deviation = DEFAULT_DEVIATION,
+		.clipper = DEFAULT_CLIPPER_THRESHOLD,
+		.master_volume = DEFAULT_VOLUME,
+		.audio_volume = DEFAULT_AUDIO_VOLUME,
+		.sample_rate = DEFAULT_SAMPLE_RATE
+	};
 
-	float sca_frequency = DEFAULT_SCA_FREQUENCY;
-	float sca_deviation = DEFAULT_SCA_DEVIATION;
-	float sca_clipper_threshold = DEFAULT_SCA_CLIPPER_THRESHOLD;
-
-	char audio_input_device[48] = INPUT_DEVICE;
-	char audio_output_device[48] = OUTPUT_DEVICE;
-
-	float master_volume = DEFAULT_VOLUME;
-	float audio_volume = DEFAULT_AUDIO_VOLUME;
-
-	uint32_t sample_rate = DEFAULT_SAMPLE_RATE;
+	char audio_input_device[64] = INPUT_DEVICE;
+	char audio_output_device[64] = OUTPUT_DEVICE;
 
 	int opt;
-	const char	*short_opt = "i:o:f:F:C:A:";
+	const char	*short_opt = "i:o:f:F:C:A:v:h";
 	struct option	long_opt[] =
 	{
 		{"input",       required_argument, NULL, 'i'},
@@ -99,19 +140,19 @@ int main(int argc, char **argv) {
 				memcpy(audio_output_device, optarg, 47);
 				break;
 			case 'f': //SCA freq
-				sca_frequency = strtof(optarg, NULL);
+				config.freq = strtof(optarg, NULL);
 				break;
 			case 'F': //SCA deviation
-				sca_deviation = strtof(optarg, NULL);
+				config.deviation = strtof(optarg, NULL);
 				break;
 			case 'C': //SCA clip
-				sca_clipper_threshold = strtof(optarg, NULL);
+				config.clipper = strtof(optarg, NULL);
 				break;
 			case 'A': // Master vol
-				master_volume = strtof(optarg, NULL);
+				config.master_volume = strtof(optarg, NULL);
 				break;
 			case 'v': // Audio Volume
-				audio_volume = strtof(optarg, NULL);
+				config.audio_volume = strtof(optarg, NULL);
 				break;
 			case 'h':
 				show_help(argv[0]);
@@ -131,8 +172,11 @@ int main(int argc, char **argv) {
 
 	int opentime_pulse_error;
 
+	Sca95_Runtime runtime;
+	memset(&runtime, 0, sizeof(runtime));
+
 	printf("Connecting to input device... (%s)\n", audio_input_device);
-	opentime_pulse_error = init_PulseInputDevice(&input_device, sample_rate, 1, "sca95", "Main Audio Input", audio_input_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
+	opentime_pulse_error = init_PulseInputDevice(&runtime.input, config.sample_rate, 1, "sca95", "Main Audio Input", audio_input_device, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open input device: %s\n", pa_strerror(opentime_pulse_error));
 		return 1;
@@ -140,46 +184,19 @@ int main(int argc, char **argv) {
 
 	printf("Connecting to output device... (%s)\n", audio_output_device);
 
-	opentime_pulse_error = init_PulseOutputDevice(&output_device, sample_rate, 1, "sca95", "Main Audio Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
+	opentime_pulse_error = init_PulseOutputDevice(&runtime.output, config.sample_rate, 1, "sca95", "Signal Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
-		free_PulseInputDevice(&input_device);
+		free_PulseInputDevice(&runtime.input);
 		return 1;
 	}
-
-	FMModulator sca_mod;
-	init_fm_modulator(&sca_mod, sca_frequency, sca_deviation, sample_rate);
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
 
-	int pulse_error;
-
-	float audio_input[BUFFER_SIZE];
-	float output[BUFFER_SIZE];
-
-	while (to_run) {
-		if((pulse_error = read_PulseInputDevice(&input_device, audio_input, sizeof(audio_input)))) {
-			if(pulse_error == -1) fprintf(stderr, "Main PulseInputDevice reported as uninitialized.");
-			else fprintf(stderr, "Error reading from input device: %s\n", pa_strerror(pulse_error));
-			to_run = 0;
-			break;
-		}
-
-		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
-			output[i] = modulate_fm(&sca_mod, hard_clip(audio_input[i]*audio_volume, sca_clipper_threshold))*master_volume;
-		}
-
-		if((pulse_error = write_PulseOutputDevice(&output_device, output, sizeof(output)))) {
-			if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
-			else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
-			to_run = 0;
-			break;
-		}
-	}
+	int ret = run_sca95(config, &runtime);
 	printf("Cleaning up...\n");
-
-	free_PulseInputDevice(&input_device);
-	free_PulseOutputDevice(&output_device);
-	return 0;
+	free_PulseInputDevice(&runtime.input);
+	free_PulseOutputDevice(&runtime.output);
+	return ret;
 }
