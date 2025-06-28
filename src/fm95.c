@@ -176,7 +176,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 	AGC agc;
 	//            fs           target   min   max   attack  release
-	initAGC(&agc, config.sample_rate, 0.65f, 0.0f, 1.75f, 0.03f, 0.225f);
+	initAGC(&agc, config.sample_rate, 0.625f, 1.0f, 1.75f, 0.03f, 0.225f);
 
 	int pulse_error;
 
