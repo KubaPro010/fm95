@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include "../inih/ini.h"
 
-#define DEFAULT_CONFIG_PATH "/etc/fm95.conf"
+#define DEFAULT_CONFIG_PATH "/etc/chimer95.conf"
 #define buffer_maxlength 1024
 #define buffer_tlength_fragsize 1024
 #define buffer_prebuf 0
