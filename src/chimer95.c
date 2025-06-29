@@ -262,7 +262,8 @@ int main(int argc, char **argv) {
 		.freq = DEFAULT_FREQ,
 		.sample_rate = DEFAULT_SAMPLE_RATE,
 		.offset = DEFAULT_OFFSET,
-		.test_mode = 0
+		.test_mode = 0,
+		.ini_config_path = DEFAULT_CONFIG_PATH
 	};
 
 	int err;
