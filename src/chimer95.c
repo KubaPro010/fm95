@@ -225,7 +225,7 @@ static int config_handler(void* user, const char* section, const char* name, con
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     
-    if (MATCH("chimer95", "clipper_threshold")) {
+    if (MATCH("chimer95", "freq")) {
         pconfig->freq = strtof(value, NULL);
 	} else if(MATCH("chimer95", "volume")) {
 		pconfig->master_volume = strtof(value, NULL);
@@ -233,7 +233,7 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->offset = strtoul(value, NULL, 10);
 	} else if(MATCH("chimer95", "sample_rate")) {
 		pconfig->sample_rate = atoi(value);
-	} else if(MATCH("chimer95", "sample_rate")) {
+	} else if(MATCH("chimer95", "test_mode")) {
 		pconfig->test_mode = atoi(value);
 	} else if(MATCH("devices", "chimer")) {
 		strncpy(dv->output, value, 63);
