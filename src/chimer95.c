@@ -4,7 +4,9 @@
 #include <signal.h>
 #include <string.h>
 #include <stdbool.h>
+#include "../inih/ini.h"
 
+#define DEFAULT_CONFIG_PATH "/etc/fm95.conf"
 #define buffer_maxlength 1024
 #define buffer_tlength_fragsize 1024
 #define buffer_prebuf 0
@@ -47,18 +49,9 @@ static void stop(int signum) {
 void show_help(char *name) {
 	printf(
 		"Usage:\t%s\n"
-		"\t-o,--output\tOverride output device [default: %s]\n"
-		"\t-F,--frequency\tGTS Frequency [default: %.1f Hz]\n"
-		"\t-s,--samplerate\tOutput Samplerate [default: %d]\n"
-		"\t-v,--volume\tOutput volume [default: %.2f]\n"
-		"\t-t,--offset\tGTS Offset [default: %d s]\n"
-		"\t-T,--test\tEnable test mode (plays full hour signal at end of every minute)\n"
+		"\t-c,--config\tSets the config path [default: %s]\n"
 		,name
-		,OUTPUT_DEVICE
-		,DEFAULT_FREQ
-		,DEFAULT_SAMPLE_RATE
-		,DEFAULT_MASTER_VOLUME
-		,DEFAULT_OFFSET
+		,DEFAULT_CONFIG_PATH
 	);
 }
 
@@ -114,11 +107,21 @@ typedef struct
 	uint32_t sample_rate;
 	int16_t offset;
 	bool test_mode;
+
+	char ini_config_path[64];
 } Chimer95_Config;
 typedef struct
 {
 	PulseOutputDevice output_device;
 } Chimer95_Runtime;
+
+typedef struct {
+    char output[64];
+} Chimer95_DeviceNames;
+typedef struct {
+    Chimer95_Config* config;
+    Chimer95_DeviceNames* devices;
+} Chimer95_SetupContext;
 
 int run_chimer95(const Chimer95_Config config, Chimer95_Runtime* runtime) {
 	int pulse_error;
@@ -191,10 +194,68 @@ int run_chimer95(const Chimer95_Config config, Chimer95_Runtime* runtime) {
 	return 0;
 }
 
-int main(int argc, char **argv) {
-	printf("chimer95 (GTS time signal encoder by radio95) version 1.2\n");
+int parse_arguments(int argc, char **argv, Chimer95_Config* config) {
+	int opt;
+	const char	*short_opt = "c:h";
+	struct option	long_opt[] =
+	{
+		{"config",		required_argument,	NULL,	'c'},
+		{"help",        no_argument,       NULL, 'h'},
+		{0,             0,                 0,    0}
+	};
 
-	char audio_output_device[64] = OUTPUT_DEVICE;
+	while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
+		switch(opt) {
+			case 'c':
+				memcpy(config->ini_config_path, optarg, 63);
+				break;
+			case 'h':
+				show_help(argv[0]);
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
+static int config_handler(void* user, const char* section, const char* name, const char* value) {
+    Chimer95_SetupContext* ctx = (Chimer95_SetupContext*)user;
+    Chimer95_Config* pconfig = ctx->config;
+    Chimer95_DeviceNames* dv = ctx->devices;
+
+    #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+    
+    if (MATCH("chimer95", "clipper_threshold")) {
+        pconfig->freq = strtof(value, NULL);
+	} else if(MATCH("chimer95", "volume")) {
+		pconfig->master_volume = strtof(value, NULL);
+	} else if(MATCH("chimer95", "offset")) {
+		pconfig->offset = strtoul(value, NULL, 10);
+	} else if(MATCH("chimer95", "sample_rate")) {
+		pconfig->sample_rate = atoi(value);
+	} else if(MATCH("chimer95", "sample_rate")) {
+		pconfig->test_mode = atoi(value);
+	} else if(MATCH("devices", "chimer")) {
+		strncpy(dv->output, value, 63);
+        dv->output[63] = '\0';
+	} else {
+        return 0; // Unknown section/name
+    }
+    
+    return 1;
+}
+
+int parse_config(Chimer95_Config* config, Chimer95_DeviceNames* dv) {
+	Chimer95_SetupContext ctx = {
+		.config = config,
+		.devices = dv
+	};
+	return ini_parse(config->ini_config_path, &config_handler, &ctx);
+}
+
+int main(int argc, char **argv) {
+	printf("chimer95 (GTS time signal encoder by radio95) version 1.3\n");
+
 
 	Chimer95_Config config = {
 		.master_volume = DEFAULT_MASTER_VOLUME,
@@ -204,49 +265,22 @@ int main(int argc, char **argv) {
 		.test_mode = 0
 	};
 
-	// Parse command line arguments
-	int opt;
-	const char *short_opt = "o:F:s:v:t:Th";
-	struct option long_opt[] = {
-		{"output",     required_argument, NULL, 'o'},
-		{"frequency",  required_argument, NULL, 'F'},
-		{"samplerate", required_argument, NULL, 's'},
-		{"volume",     required_argument, NULL, 'v'},
-		{"offset",     required_argument, NULL, 't'},
-		{"test",       no_argument,       NULL, 'T'},
-		{"help",       no_argument,       NULL, 'h'},
-		{0,            0,                 0,    0}
+	int err;
+	err = parse_arguments(argc, argv, &config);
+	if(err != 0) return err;
+
+	Chimer95_DeviceNames dv_names = {
+		.output = OUTPUT_DEVICE,
 	};
 
-	while((opt = getopt_long(argc, argv, short_opt, long_opt, NULL)) != -1) {
-		switch(opt) {
-			case 'o':
-				strncpy(audio_output_device, optarg, sizeof(audio_output_device) - 1);
-				audio_output_device[sizeof(audio_output_device) - 1] = '\0';
-				break;
-			case 'F':
-				config.freq = strtof(optarg, NULL);
-				break;
-			case 's':
-				config.sample_rate = strtol(optarg, NULL, 10);
-				break;
-			case 'v':
-				config.master_volume = strtof(optarg, NULL);
-				break;
-			case 't':
-				config.offset = strtoul(optarg, NULL, 10);
-				break;
-			case 'T':
-				config.test_mode = 1;
-				break;
-			case 'h':
-				show_help(argv[0]);
-				return 0;
-		}
+	err = parse_config(&config, &dv_names);
+	if(err != 0) {
+		printf("Could not parse the config file. (error code as return code)\n");
+		return err;
 	}
 
 	printf("Configuration:\n");
-	printf("\tOutput device: %s\n", audio_output_device);
+	printf("\tOutput device: %s\n", dv_names.output);
 	printf("\tFrequency: %.1f Hz\n", config.freq);
 	printf("\tSample rate: %d Hz\n", config.sample_rate);
 	printf("\tVolume: %.2f\n", config.master_volume);
@@ -263,9 +297,9 @@ int main(int argc, char **argv) {
 	Chimer95_Runtime runtime;
 	memset(&runtime, 0, sizeof(runtime));
 
-	printf("Connecting to output device... (%s)\n", audio_output_device);
+	printf("Connecting to output device... (%s)\n", dv_names.output);
 
-	int pulse_error = init_PulseOutputDevice(&runtime.output_device, config.sample_rate, 1, "chimer95", "Main Audio Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
+	int pulse_error = init_PulseOutputDevice(&runtime.output_device, config.sample_rate, 1, "chimer95", "Main Audio Output", dv_names.output, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(pulse_error));
 		return 1;
