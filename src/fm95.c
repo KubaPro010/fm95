@@ -38,11 +38,11 @@
 #define DEFAULT_AUDIO_VOLUME 1.0f // Audio volume, before clipper
 #define DEFAULT_AUDIO_PREAMP 1.0f // Audio volume, but before all the filters
 
-#define MONO_VOLUME 0.45f // 45%
-#define PILOT_VOLUME 0.09f // 9%
-#define STEREO_VOLUME 0.3f // 30%
-#define RDS_VOLUME 0.0475f // 4.75%
-#define RDS_VOLUME_STEP 0.9f // 90%, so RDS2 stream 4 is 90% of stream 3 which is 90% of stream 2, which again is 90% of stream 1...
+#define DEFAULT_MONO_VOLUME 0.45f // 45%
+#define DEFAULT_PILOT_VOLUME 0.09f // 9%
+#define DEFAULT_STEREO_VOLUME 0.3f // 30%
+#define DEFAULT_RDS_VOLUME 0.0475f // 4.75%
+#define DEFAULT_RDS_VOLUME_STEP 0.9f // 90%, so RDS2 stream 4 is 90% of stream 3 which is 90% of stream 2, which again is 90% of stream 1...
 
 static volatile sig_atomic_t to_run = 1;
 
@@ -50,6 +50,15 @@ inline float hard_clip(float sample, float threshold) { return fmaxf(-threshold,
 
 typedef struct
 {
+	float mono;
+	float pilot;
+	float stereo;
+	float rds;
+	float rds_step;
+} FM95_Volumes;
+typedef struct
+{
+	FM95_Volumes volumes;
 	uint8_t stereo;
 
 	uint8_t rds_streams;
@@ -160,7 +169,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_modulation_power_measure(&power, config.sample_rate);
 
 	StereoEncoder stencode;
-	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), MONO_VOLUME, PILOT_VOLUME, STEREO_VOLUME);
+	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
 	float bs412_audio_gain = 1.0f;
 	float bs412_attack_alpha = expf(-1.0f / (config.bs412_attack * config.sample_rate));
@@ -219,7 +228,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
 					uint8_t osc_stream = 12+stream; // If the osc is a 4750 sine wave, then doing this would mean that stream 0 is 12, so 57 khz
 					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
-					mpx += (rds_in[config.rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (RDS_VOLUME * powf(RDS_VOLUME_STEP, stream));
+					mpx += (rds_in[config.rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (config.volumes.rds * powf(config.volumes.rds_step, stream));
 				}
 			}
 
@@ -346,6 +355,16 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->bs412_attack = strtof(value, NULL);
 	} else if(MATCH("advanced", "bs412_release")) {
 		pconfig->bs412_release = strtof(value, NULL);
+	} else if(MATCH("volumes", "mono")) {
+		pconfig->volumes.mono = strtof(value, NULL);
+	} else if(MATCH("volumes", "pilot")) {
+		pconfig->volumes.pilot = strtof(value, NULL);
+	} else if(MATCH("volumes", "stereo")) {
+		pconfig->volumes.stereo = strtof(value, NULL);
+	} else if(MATCH("volumes", "rds")) {
+		pconfig->volumes.rds = strtof(value, NULL);
+	} else if(MATCH("volumes", "rds_step")) {
+		pconfig->volumes.rds_step = strtof(value, NULL);
 	} else {
         return 0; // Unknown section/name
     }
@@ -420,6 +439,13 @@ int main(int argc, char **argv) {
 	printf("fm95 (an FM Processor by radio95) version 2.2\n");
 
 	FM95_Config config = {
+		.volumes = {
+			.mono = DEFAULT_MONO_VOLUME,
+			.pilot = DEFAULT_PILOT_VOLUME,
+			.stereo = DEFAULT_STEREO_VOLUME,
+			.rds = DEFAULT_RDS_VOLUME,
+			.rds_step = DEFAULT_RDS_VOLUME_STEP
+		},
 		.stereo = DEFAULT_STEREO,
 
 		.rds_streams = DEFAULT_RDS_STREAMS,
