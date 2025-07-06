@@ -36,6 +36,7 @@
 
 #define DEFAULT_MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
 #define DEFAULT_AUDIO_VOLUME 1.0f // Audio volume, before clipper
+#define DEFAULT_AUDIO_PREAMP 1.0f // Audio volume, but before all the filters
 
 #define MONO_VOLUME 0.45f // 45%
 #define PILOT_VOLUME 0.09f // 9%
@@ -60,6 +61,7 @@ typedef struct
 	float mpx_deviation;
 	float master_volume;
 	float audio_volume;
+	float audio_preamp;
 
 	uint32_t sample_rate;
 
@@ -199,8 +201,8 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
 			float mpx = 0.0f;
 
-			float ready_l = apply_preemphasis(&preemp_l, audio_stereo_input[2*i+0]);
-			float ready_r = apply_preemphasis(&preemp_r, audio_stereo_input[2*i+1]);
+			float ready_l = apply_preemphasis(&preemp_l, audio_stereo_input[2*i+0]*config.audio_preamp);
+			float ready_r = apply_preemphasis(&preemp_r, audio_stereo_input[2*i+1]*config.audio_preamp);
 			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
 			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
 
@@ -320,6 +322,8 @@ static int config_handler(void* user, const char* section, const char* name, con
         pconfig->master_volume = strtof(value, NULL);
     } else if (MATCH("fm95", "audio_volume")) {
         pconfig->audio_volume = strtof(value, NULL);
+    } else if (MATCH("fm95", "audio_preamp")) {
+        pconfig->audio_preamp = strtof(value, NULL);
     } else if (MATCH("fm95", "deviation")) {
         pconfig->master_volume *= (strtof(value, NULL) / 75000.0f);
 	} else if(MATCH("advanced", "lpf_order")) {
@@ -427,6 +431,7 @@ int main(int argc, char **argv) {
 		.mpx_deviation = DEFAULT_MPX_DEVIATION,
 		.master_volume = DEFAULT_MASTER_VOLUME,
 		.audio_volume = DEFAULT_AUDIO_VOLUME,
+		.audio_preamp = DEFAULT_AUDIO_PREAMP,
 
 		.sample_rate = DEFAULT_SAMPLE_RATE,
 
