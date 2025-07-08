@@ -65,6 +65,7 @@ typedef struct
 
 	float clipper_threshold;
 	float preemphasis;
+	float tilt;
 	uint8_t calibration;
 	float mpx_power;
 	float mpx_deviation;
@@ -168,6 +169,9 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	MPXPowerMeasurement power;
 	init_modulation_power_measure(&power, config.sample_rate);
 
+	TiltCorrectionFilter tilter;
+	tilt_init(&tilter, config.tilt);
+
 	StereoEncoder stencode;
 	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
@@ -248,7 +252,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 			mpx *= bs412_audio_gain;
 			
-			output[i] = hard_clip((mpx_in[i]+mpx)*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
+			output[i] = hard_clip(tilt(&tilter, (mpx_in[i]+mpx))*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
 			advance_oscillator(&osc);
 		}
 
@@ -365,6 +369,8 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->volumes.rds = strtof(value, NULL);
 	} else if(MATCH("volumes", "rds_step")) {
 		pconfig->volumes.rds_step = strtof(value, NULL);
+	} else if(MATCH("fm95", "tilt")) {
+		pconfig->tilt = strtof(value, NULL);
 	} else {
         return 0; // Unknown section/name
     }
@@ -452,6 +458,7 @@ int main(int argc, char **argv) {
 
 		.clipper_threshold = DEFAULT_CLIPPER_THRESHOLD,
 		.preemphasis = DEFAULT_PREEMPHASIS_TAU,
+		.tilt = 0,
 		.calibration = 0,
 		.mpx_power = DEFAULT_MPX_POWER,
 		.mpx_deviation = DEFAULT_MPX_DEVIATION,
