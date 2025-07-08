@@ -87,6 +87,7 @@ typedef struct
 	float agc_min;
 	float bs412_attack;
 	float bs412_release;
+	float bs412_max;
 } FM95_Config;
 
 typedef struct
@@ -167,7 +168,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
 
 	BS412Compressor bs412;
-	init_bs412(&bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.sample_rate);
+	init_bs412(&bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
 
 	TiltCorrectionFilter tilter;
 	tilt_init(&tilter, config.tilt);
@@ -353,6 +354,8 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->volumes.rds_step = strtof(value, NULL);
 	} else if(MATCH("fm95", "tilt")) {
 		pconfig->tilt = strtof(value, NULL);
+	} else if(MATCH("advanced", "bs412_max")) {
+		pconfig->bs412_max = strtof(value, NULL);
 	} else {
         return 0; // Unknown section/name
     }
@@ -461,6 +464,7 @@ int main(int argc, char **argv) {
 		.agc_max = 1.75f,
 		.bs412_attack = 0.03f,
 		.bs412_release = 0.02,
+		.bs412_max = 1.0f,
 	};
 
 	FM95_DeviceNames dv_names = {

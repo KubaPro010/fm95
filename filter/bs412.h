@@ -17,6 +17,7 @@ typedef struct
 	float target;
 	float attack;
 	float release;
+	float max;
 	float gain;
 	double average;
 } BS412Compressor;
