@@ -232,7 +232,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				}
 			}
 
-			mpx = bs412_compress(&bs412, mpx*config.mpx_deviation);
+			mpx = bs412_compress(&bs412, mpx*config.mpx_deviation) / config.mpx_deviation;
 			
 			output[i] = hard_clip(tilt(&tilter, (mpx_in[i]+mpx))*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
 			advance_oscillator(&osc);
