@@ -248,7 +248,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 			mpx *= bs412_audio_gain;
 			
-			output[i] = hard_clip(mpx, 1.0f)*config.master_volume+mpx_in[i]; // Ensure peak deviation of 75 khz, assuming we're calibrated correctly
+			output[i] = hard_clip((mpx_in[i]+mpx)*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
 			advance_oscillator(&osc);
 		}
 
