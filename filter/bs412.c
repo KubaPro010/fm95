@@ -53,5 +53,5 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 	else
 		mpx->gain = mpx->gain * mpx->release + (1.0f - mpx->release) * gain_target;
 
-	return fminf(sample*mpx->gain, dbr_to_deviation(mpx->target*1.1f));
+	return sample*mpx->gain;
 }
