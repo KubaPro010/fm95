@@ -18,11 +18,11 @@ typedef struct
 	float attack;
 	float release;
 	float gain;
-	double sample;
+	double average;
 } BS412Compressor;
 
 float dbr_to_deviation(float dbr);
 float deviation_to_dbr(float deviation);
 
 void init_bs412(BS412Compressor *mpx, float mpx_deviation, float target_power, float attack, float release, int sample_rate);
-float bs412_compress(BS412Compressor *mpx, float sample);
+float bs412_compress(BS412Compressor *mpx, float average);

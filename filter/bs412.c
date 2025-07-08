@@ -13,8 +13,8 @@ inline float deviation_to_dbr(float deviation) {
 
 void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, float attack, float release, int sample_rate) {
 	mpx->mpx_deviation = mpx_deviation;
-	mpx->sample_counter = 0;
-	mpx->sample = 0;
+	mpx->average_counter = 0;
+	mpx->average = 0;
 	mpx->sample_rate = sample_rate;
 	mpx->attack = expf(-1.0f / (attack * sample_rate));
 	mpx->release = expf(-1.0f / (release * sample_rate));
@@ -26,11 +26,10 @@ void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, f
 }
 
 float bs412_compress(BS412Compressor* mpx, float sample) {
-	mpx->sample += sample * sample * mpx->mpx_deviation; // rmS
-	mpx->sample_counter++;
+	mpx->average += (sample * sample) * mpx->mpx_deviation; // rmS
+	mpx->average_counter++;
 
-	float inv_counter = 1.0f / mpx->sample_counter;
-	float avg_deviation = sqrtf(mpx->sample * inv_counter); // RMs
+	float avg_deviation = sqrtf(mpx->average / mpx->average_counter); // RMs
 	float modulation_power = deviation_to_dbr(avg_deviation);
 
 	#ifdef BS412_DEBUG
@@ -39,12 +38,12 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 	}
 	#endif
 
-	if (mpx->sample_counter >= mpx->sample_rate * 60) {
+	if (mpx->average_counter >= mpx->sample_rate * 60) {
 		#ifdef BS412_DEBUG
 		debug_printf("Resetting MPX power measurement\n");
 		#endif
-		mpx->sample = avg_deviation * avg_deviation;
-		mpx->sample_counter = 1;
+		mpx->average = avg_deviation * avg_deviation;
+		mpx->average_counter = 1;
 	}
 
 	float gain_target = powf(10.0f, (mpx->target - modulation_power) / 20.0f); // dB to linear
@@ -53,5 +52,5 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 	else
 		mpx->gain = mpx->gain * mpx->release + (1.0f - mpx->release) * gain_target;
 
-	return sample*mpx->gain;
+	return fminf(sample*mpx->gain, dbr_to_deviation(mpx->target*1.1f));
 }
