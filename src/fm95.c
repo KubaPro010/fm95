@@ -166,18 +166,14 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
 	init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
 
-	MPXPowerMeasurement power;
-	init_modulation_power_measure(&power, config.sample_rate);
+	BS412Compressor bs412;
+	init_bs412(&bs412, config.mpx_power, config.bs412_attack, config.bs412_release, config.sample_rate);
 
 	TiltCorrectionFilter tilter;
 	tilt_init(&tilter, config.tilt);
 
 	StereoEncoder stencode;
 	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
-
-	float bs412_audio_gain = 1.0f;
-	float bs412_attack_alpha = expf(-1.0f / (config.bs412_attack * config.sample_rate));
-	float bs412_release_alpha = expf(-1.0f / (config.bs412_release * config.sample_rate));
 
 	AGC agc;
 	initAGC(&agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
@@ -236,21 +232,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				}
 			}
 
-			float mpx_power = measure_mpx(&power, mpx * config.mpx_deviation);
-			if (mpx_power > config.mpx_power) {
-				float excess_power = mpx_power - config.mpx_power;
-				
-				if (excess_power > 0.0f && excess_power < 10.0f) {
-					float target_gain = dbr_to_deviation(-excess_power) / config.mpx_deviation;
-					
-					target_gain = fmaxf(target_gain, 0.1f);
-					target_gain = fminf(target_gain, 1.0f);
-					
-					bs412_audio_gain = bs412_attack_alpha * bs412_audio_gain + (1 - bs412_attack_alpha) * target_gain;
-				}
-			} else bs412_audio_gain = fminf(1.0f, bs412_release_alpha * bs412_audio_gain + (1 - bs412_release_alpha) * 1.0f);
-
-			mpx *= bs412_audio_gain;
+			mpx = bs412_compress(&bs412, mpx*config.mpx_deviation);
 			
 			output[i] = hard_clip(tilt(&tilter, (mpx_in[i]+mpx))*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
 			advance_oscillator(&osc);

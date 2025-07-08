@@ -13,11 +13,15 @@ typedef struct
 {
 	int sample_counter;
 	int sample_rate;
+	float target;
+	float attack;
+	float release;
+	float gain;
 	double sample;
-} MPXPowerMeasurement;
+} BS412Compressor;
 
 float dbr_to_deviation(float dbr);
 float deviation_to_dbr(float deviation);
 
-void init_modulation_power_measure(MPXPowerMeasurement *mpx, int sample_rate);
-float measure_mpx(MPXPowerMeasurement *mpx, float deviation);
+void init_bs412(BS412Compressor *mpx, float target_power, float attack, float release, int sample_rate);
+float bs412_compress(BS412Compressor *mpx, float deviation);

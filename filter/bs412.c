@@ -11,16 +11,20 @@ inline float deviation_to_dbr(float deviation) {
 	return 10.0f * (log2f(deviation) - LOG2_19000) * 0.30103f;
 }
 
-void init_modulation_power_measure(MPXPowerMeasurement* mpx, int sample_rate) {
+void init_bs412(BS412Compressor* mpx, float target_power, float attack, float release, int sample_rate) {
 	mpx->sample_counter = 0;
 	mpx->sample = 0;
 	mpx->sample_rate = sample_rate;
+	mpx->attack = expf(-1.0f / (attack * sample_rate));
+	mpx->release = expf(-1.0f / (release * sample_rate));
+	mpx->target = target_power;
+	mpx->gain = 1.0f;
 	#ifdef BS412_DEBUG
 	debug_printf("Initialized MPX power measurement with sample rate: %d\n", sample_rate);
 	#endif
 }
 
-float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
+float bs412_compress(BS412Compressor* mpx, float deviation) {
 	mpx->sample += deviation * deviation; // rmS
 	mpx->sample_counter++;
 
@@ -42,5 +46,12 @@ float measure_mpx(MPXPowerMeasurement* mpx, float deviation) {
 		mpx->sample_counter = 1;
 	}
 
-	return modulation_power;
+	float gain_target = powf(10.0f, (mpx->target - modulation_power) / 20.0f); // dB to linear
+	if (gain_target > mpx->gain)
+		mpx->gain = mpx->gain * mpx->attack + (1.0f - mpx->attack) * gain_target;
+	else
+		mpx->gain = mpx->gain * mpx->release + (1.0f - mpx->release) * gain_target;
+
+
+	return deviation*mpx->gain;
 }
