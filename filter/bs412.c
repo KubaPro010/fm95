@@ -11,7 +11,8 @@ inline float deviation_to_dbr(float deviation) {
 	return 10.0f * (log2f(deviation) - LOG2_19000) * 0.30103f;
 }
 
-void init_bs412(BS412Compressor* mpx, float target_power, float attack, float release, int sample_rate) {
+void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, float attack, float release, int sample_rate) {
+	mpx->mpx_deviation = mpx_deviation;
 	mpx->sample_counter = 0;
 	mpx->sample = 0;
 	mpx->sample_rate = sample_rate;
@@ -24,8 +25,8 @@ void init_bs412(BS412Compressor* mpx, float target_power, float attack, float re
 	#endif
 }
 
-float bs412_compress(BS412Compressor* mpx, float deviation) {
-	mpx->sample += deviation * deviation; // rmS
+float bs412_compress(BS412Compressor* mpx, float sample) {
+	mpx->sample += sample * sample * mpx->mpx_deviation; // rmS
 	mpx->sample_counter++;
 
 	float inv_counter = 1.0f / mpx->sample_counter;
@@ -52,6 +53,5 @@ float bs412_compress(BS412Compressor* mpx, float deviation) {
 	else
 		mpx->gain = mpx->gain * mpx->release + (1.0f - mpx->release) * gain_target;
 
-
-	return deviation*mpx->gain;
+	return fminf(sample*mpx->gain, dbr_to_deviation(mpx->target*1.1f));
 }

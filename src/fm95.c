@@ -167,7 +167,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
 
 	BS412Compressor bs412;
-	init_bs412(&bs412, config.mpx_power, config.bs412_attack, config.bs412_release, config.sample_rate);
+	init_bs412(&bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.sample_rate);
 
 	TiltCorrectionFilter tilter;
 	tilt_init(&tilter, config.tilt);
@@ -232,7 +232,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				}
 			}
 
-			mpx = bs412_compress(&bs412, mpx*config.mpx_deviation) / config.mpx_deviation;
+			mpx = bs412_compress(&bs412, mpx);
 			
 			output[i] = hard_clip(tilt(&tilter, (mpx_in[i]+mpx))*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
 			advance_oscillator(&osc);
