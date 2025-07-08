@@ -12,7 +12,7 @@
 typedef struct
 {
 	int mpx_deviation;
-	int sample_counter;
+	int average_counter;
 	int sample_rate;
 	float target;
 	float attack;
