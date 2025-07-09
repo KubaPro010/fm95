@@ -59,7 +59,7 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 	mpx->gain = fmaxf(0.0f, mpx->gain);
 
 	float output_sample = sample * mpx->gain;
-	float limit_dbr = mpx->target + 0.41f;
+	float limit_dbr = mpx->target + 0.1f;
 	float limit_deviation_hz = dbr_to_deviation(limit_dbr);
 	float normalized_limit = limit_deviation_hz / mpx->mpx_deviation;
     float final_limit = fminf(1.0f, normalized_limit);
