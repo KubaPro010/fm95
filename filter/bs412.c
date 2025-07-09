@@ -27,7 +27,7 @@ void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, f
 }
 
 float bs412_compress(BS412Compressor* mpx, float sample) {
-	mpx->average += (sample * sample) * mpx->mpx_deviation; // rmS
+	mpx->average += sample * sample * mpx->mpx_deviation * mpx->mpx_deviation; // rmS
 	mpx->average_counter++;
 
 	float avg_deviation = sqrtf(mpx->average / mpx->average_counter); // RMs
@@ -55,5 +55,5 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 	mpx->gain = fminf(mpx->max, mpx->gain);
 	mpx->gain = fmaxf(0.0f, mpx->gain);
 
-	return fminf(sample*mpx->gain, dbr_to_deviation(mpx->target*1.1f));
+	return fminf(fmaxf(sample*mpx->gain, -(dbr_to_deviation(mpx->target*1.1f)/mpx->mpx_deviation)), (dbr_to_deviation(mpx->target*1.1f)/mpx->mpx_deviation));
 }
