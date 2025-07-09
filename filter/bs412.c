@@ -27,15 +27,16 @@ void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, f
 }
 
 float bs412_compress(BS412Compressor* mpx, float sample) {
-	mpx->average += sample * sample * mpx->mpx_deviation * mpx->mpx_deviation; // rmS
+	mpx->average += sample * sample * mpx->mpx_deviation * mpx->mpx_deviation;
 	mpx->average_counter++;
 
-	float avg_deviation = sqrtf(mpx->average / mpx->average_counter); // RMs
+	float avg_power = mpx->average / mpx->average_counter;
+	float avg_deviation = sqrtf(avg_power);
 	float modulation_power = deviation_to_dbr(avg_deviation);
 
 	#ifdef BS412_DEBUG
-	if(mpx->sample_counter % mpx->sample_rate == 0) {
-		debug_printf("MPX power: %f dBr\n", modulation_power);
+	if(mpx->average_counter % mpx->sample_rate == 0) {
+		debug_printf("MPX power: %.2f dBr\n", modulation_power);
 	}
 	#endif
 
@@ -43,17 +44,25 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 		#ifdef BS412_DEBUG
 		debug_printf("Resetting MPX power measurement\n");
 		#endif
-		mpx->average = avg_deviation * avg_deviation;
+		mpx->average = avg_power;
 		mpx->average_counter = 1;
 	}
 
-	float gain_target = powf(10.0f, (mpx->target - modulation_power) / 20.0f); // dB to linear
-	if (gain_target > mpx->gain)
+	float gain_target = powf(10.0f, (mpx->target - modulation_power) / 20.0f);
+	if (gain_target > mpx->gain) {
 		mpx->gain = mpx->gain * mpx->attack + (1.0f - mpx->attack) * gain_target;
-	else
+    } else {
 		mpx->gain = mpx->gain * mpx->release + (1.0f - mpx->release) * gain_target;
+    }
+	
 	mpx->gain = fminf(mpx->max, mpx->gain);
 	mpx->gain = fmaxf(0.0f, mpx->gain);
 
-	return fminf(fmaxf(sample*mpx->gain, -(dbr_to_deviation(mpx->target*1.1f)/mpx->mpx_deviation)), (dbr_to_deviation(mpx->target*1.1f)/mpx->mpx_deviation));
+	float output_sample = sample * mpx->gain;
+	float limit_dbr = mpx->target + 0.41f;
+	float limit_deviation_hz = dbr_to_deviation(limit_dbr);
+	float normalized_limit = limit_deviation_hz / mpx->mpx_deviation;
+    float final_limit = fminf(1.0f, normalized_limit);
+
+	return fmaxf(-final_limit, fminf(final_limit, output_sample));
 }
