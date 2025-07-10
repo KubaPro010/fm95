@@ -15,8 +15,9 @@ typedef struct {
 	float attackCoef;
 	float releaseCoef;
 
-	float rms_buffer;
+	float rmsBuffer;
 	float rmsAlpha;
+	float rmsBeta;
 } AGC;
 
 void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime);
