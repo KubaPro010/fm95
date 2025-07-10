@@ -52,7 +52,7 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 		float excess_power = modulation_power - mpx->target;
 		
 		if (excess_power > 0.0f && excess_power < 10.0f) {
-			float target_gain = dbr_to_deviation(-excess_power) / config.mpx_deviation;
+			float target_gain = dbr_to_deviation(-excess_power) / mpx->mpx_deviation;
 			
 			target_gain = fmaxf(target_gain, 0.1f);
 			target_gain = fminf(target_gain, 1.0f);
