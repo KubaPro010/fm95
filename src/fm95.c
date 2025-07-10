@@ -88,6 +88,7 @@ typedef struct
 	float bs412_attack;
 	float bs412_release;
 	float bs412_max;
+	float lpf_cutoff;
 } FM95_Config;
 
 typedef struct
@@ -160,8 +161,8 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_oscillator(&osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
 
 	iirfilt_rrrf lpf_l, lpf_r;
-	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
-	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (15000.0f/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
 
 	ResistorCapacitor preemp_l, preemp_r;
 	init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
@@ -211,21 +212,23 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		for (uint16_t i = 0; i < BUFFER_SIZE; i++) {
 			float mpx = 0.0f;
 
-			float ready_l = apply_preemphasis(&preemp_l, audio_stereo_input[2*i+0]*config.audio_preamp);
-			float ready_r = apply_preemphasis(&preemp_r, audio_stereo_input[2*i+1]*config.audio_preamp);
-			iirfilt_rrrf_execute(lpf_l, ready_l, &ready_l);
-			iirfilt_rrrf_execute(lpf_r, ready_r, &ready_r);
+			float l = audio_stereo_input[2*i+0]*config.audio_preamp;
+			float r = audio_stereo_input[2*i+1]*config.audio_preamp;
+			if(config.preemphasis != 0) l = apply_preemphasis(&preemp_l, l);
+			if(config.preemphasis != 0) r = apply_preemphasis(&preemp_r, r);
+			if(config.lpf_cutoff != 0) iirfilt_rrrf_execute(lpf_l, l, &l);
+			if(config.lpf_cutoff != 0) iirfilt_rrrf_execute(lpf_r, r, &r);
 
-			float agc_gain = process_agc(&agc, ((ready_l + ready_r) * 0.5f));
-			ready_l *= agc_gain;
-			ready_r *= agc_gain;
+			float agc_gain = process_agc(&agc, ((l + r) * 0.5f));
+			l *= agc_gain;
+			r *= agc_gain;
 
-			ready_l = hard_clip(ready_l*config.audio_volume, config.clipper_threshold);
-			ready_r = hard_clip(ready_r*config.audio_volume, config.clipper_threshold);
+			l = hard_clip(l*config.audio_volume, config.clipper_threshold);
+			r = hard_clip(r*config.audio_volume, config.clipper_threshold);
 
-			mpx = stereo_encode(&stencode, config.stereo, ready_l, ready_r);
+			mpx = stereo_encode(&stencode, config.stereo, l, r);
 
-			if(rds_on && !(config.stereo == 2)) {
+			if(rds_on && !(config.stereo == 2)) { // disable rds on polar stereo
 				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
 					uint8_t osc_stream = 12+stream; // If the osc is a 4750 sine wave, then doing this would mean that stream 0 is 12, so 57 khz
 					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
@@ -233,9 +236,10 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				}
 			}
 
-			mpx = bs412_compress(&bs412, mpx);
-			
-			output[i] = hard_clip(tilt(&tilter, (mpx_in[i]+mpx))*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
+			mpx = bs412_compress(&bs412, mpx+mpx_in[i]);
+			if(config.tilt != 0) mpx = tilt(&tilter, mpx);
+
+			output[i] = hard_clip(mpx*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
 			advance_oscillator(&osc);
 		}
 
@@ -356,6 +360,12 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->tilt = strtof(value, NULL);
 	} else if(MATCH("advanced", "bs412_max")) {
 		pconfig->bs412_max = strtof(value, NULL);
+	} else if(MATCH("advanced", "lpf_cutoff")) {
+		pconfig->lpf_cutoff = strtof(value, NULL);
+		if(pconfig->lpf_cutoff > (pconfig->sample_rate * 0.5)) {
+			pconfig->lpf_cutoff = (pconfig->sample_rate * 0.5);
+			fprintf(stderr, "LPF cutoff over niquist, limiting.\n");
+		}
 	} else {
         return 0; // Unknown section/name
     }
@@ -465,6 +475,7 @@ int main(int argc, char **argv) {
 		.bs412_attack = 0.03f,
 		.bs412_release = 0.02,
 		.bs412_max = 1.0f,
+		.lpf_cutoff = 15000,
 	};
 
 	FM95_DeviceNames dv_names = {
