@@ -229,10 +229,14 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			mpx = stereo_encode(&stencode, config.stereo, l, r);
 
 			if(rds_on && !(config.stereo == 2)) { // disable rds on polar stereo
+				float rds_level = config.volumes.rds;
 				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
-					uint8_t osc_stream = 12+stream; // If the osc is a 4750 sine wave, then doing this would mean that stream 0 is 12, so 57 khz
-					if(osc_stream == 13) osc_stream++; // 61.75 KHz is not used, idk why but would be cool if it was
-					mpx += (rds_in[config.rds_streams*i+stream]*get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * (config.volumes.rds * powf(config.volumes.rds_step, stream));
+					uint8_t osc_stream = 12 + stream;
+					if(osc_stream == 13) osc_stream++;
+
+					mpx += (rds_in[config.rds_streams * i + stream] * get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * rds_level;
+
+					rds_level *= config.volumes.rds_step; // Prepare level for the next stream
 				}
 			}
 
@@ -287,7 +291,7 @@ static int config_handler(void* user, const char* section, const char* name, con
     FM95_DeviceNames* dv = ctx->devices;
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
-    
+
     if (MATCH("fm95", "stereo")) {
         pconfig->stereo = atoi(value);
 	} else if (MATCH("devices", "input")) {
@@ -369,7 +373,7 @@ static int config_handler(void* user, const char* section, const char* name, con
 	} else {
         return 0; // Unknown section/name
     }
-    
+
     return 1;
 }
 
@@ -499,7 +503,7 @@ int main(int argc, char **argv) {
 	memset(&runtime, 0, sizeof(runtime));
 
 	int mpx_on = (strlen(dv_names.mpx) != 0);
-	int rds_on = (strlen(dv_names.rds) != 0 && config.rds_streams != 0);	
+	int rds_on = (strlen(dv_names.rds) != 0 && config.rds_streams != 0);
 
 	err = setup_audio(&runtime, dv_names, config, mpx_on, rds_on);
 	if(err != 0) return err;
