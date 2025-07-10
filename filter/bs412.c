@@ -48,7 +48,7 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 		mpx->average_counter = 1;
 	}
 
-	float target_gain = mpx->target / (modulation_power + 1e-9f);
+	float target_gain = powf(10.0f, mpx->target - modulation_power / 20.0f);
 	if (modulation_power > mpx->target) {
 		mpx->gain = mpx->attack * mpx->gain + (1.0f - mpx->attack) * target_gain;
 	} else {
