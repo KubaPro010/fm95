@@ -15,7 +15,7 @@ void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float m
 	agc->currentLevel = 0.0f;
 
 	agc->rms_buffer = 0.0f;
-	agc->rmsAlpha = expf(-1.0f / (sampleRate * 0.02f));
+	agc->rmsAlpha = expf(-1.0f / (sampleRate * 0.025f));
 }
 
 float process_agc(AGC* agc, float sidechain) {

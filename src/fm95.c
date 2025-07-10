@@ -131,8 +131,8 @@ void cleanup_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
 }
 
 int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
-	int mpx_on = (runtime->mpx_device.initialized == 1);
-	int rds_on = (runtime->rds_device.initialized == 1);
+	bool mpx_on = (runtime->mpx_device.initialized == 1);
+	bool rds_on = (runtime->rds_device.initialized == 1);
 
 	if(config.calibration != 0) {
 		Oscillator osc;
@@ -502,8 +502,8 @@ int main(int argc, char **argv) {
 	FM95_Runtime runtime;
 	memset(&runtime, 0, sizeof(runtime));
 
-	int mpx_on = (strlen(dv_names.mpx) != 0);
-	int rds_on = (strlen(dv_names.rds) != 0 && config.rds_streams != 0);
+	bool mpx_on = (strlen(dv_names.mpx) != 0);
+	bool rds_on = (strlen(dv_names.rds) != 0 && config.rds_streams != 0);
 
 	err = setup_audio(&runtime, dv_names, config, mpx_on, rds_on);
 	if(err != 0) return err;
