@@ -213,16 +213,16 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 			float l = audio_stereo_input[2*i+0]*config.audio_preamp;
 			float r = audio_stereo_input[2*i+1]*config.audio_preamp;
+			
+			float agc_gain = process_agc(&agc, 0.5f * (fabsf(l) + fabsf(r)));
+			l *= agc_gain;
+			r *= agc_gain;
 
 			if(config.lpf_cutoff != 0) {
 				iirfilt_rrrf_execute(lpf_l, l, &l);
 				iirfilt_rrrf_execute(lpf_r, r, &r);
 			}
-
-			float agc_gain = process_agc(&agc, 0.5f * (fabsf(l) + fabsf(r)));
-			l *= agc_gain;
-			r *= agc_gain;
-
+			
 			if(config.preemphasis != 0) {
 				l = apply_preemphasis(&preemp_l, l);
 				r = apply_preemphasis(&preemp_r, r);
