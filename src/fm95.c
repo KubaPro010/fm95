@@ -35,8 +35,6 @@
 #include "../io/audio.h"
 
 #define DEFAULT_MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
-#define DEFAULT_AUDIO_VOLUME 1.0f // Audio volume, before clipper
-#define DEFAULT_AUDIO_PREAMP 1.0f // Audio volume, but before all the filters
 
 #define DEFAULT_MONO_VOLUME 0.45f // 45%
 #define DEFAULT_PILOT_VOLUME 0.09f // 9%
@@ -69,6 +67,7 @@ typedef struct
 	uint8_t calibration;
 	float mpx_power;
 	float mpx_deviation;
+	float audio_deviation;
 	float master_volume;
 	float audio_volume;
 	float audio_preamp;
@@ -215,15 +214,19 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			float l = audio_stereo_input[2*i+0]*config.audio_preamp;
 			float r = audio_stereo_input[2*i+1]*config.audio_preamp;
 
-			if(config.lpf_cutoff != 0) iirfilt_rrrf_execute(lpf_l, l, &l);
-			if(config.lpf_cutoff != 0) iirfilt_rrrf_execute(lpf_r, r, &r);
+			if(config.lpf_cutoff != 0) {
+				iirfilt_rrrf_execute(lpf_l, l, &l);
+				iirfilt_rrrf_execute(lpf_r, r, &r);
+			}
 
-			float agc_gain = process_agc(&agc, ((l + r) * 0.5f));
+			float agc_gain = process_agc(&agc, 0.5f * (fabsf(l) + fabsf(r)));
 			l *= agc_gain;
 			r *= agc_gain;
 
-			if(config.preemphasis != 0) l = apply_preemphasis(&preemp_l, l);
-			if(config.preemphasis != 0) r = apply_preemphasis(&preemp_r, r);
+			if(config.preemphasis != 0) {
+				l = apply_preemphasis(&preemp_l, l);
+				r = apply_preemphasis(&preemp_r, r);
+			}
 
 			l = hard_clip(l*config.audio_volume, config.clipper_threshold);
 			r = hard_clip(r*config.audio_volume, config.clipper_threshold);
@@ -242,10 +245,10 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				}
 			}
 
-			mpx = bs412_compress(&bs412, mpx+mpx_in[i]);
+			if(config.bs412_attack > 0) mpx = bs412_compress(&bs412, mpx+mpx_in[i]);
 			if(config.tilt != 0) mpx = tilt(&tilter, mpx);
 
-			output[i] = hard_clip(mpx*config.master_volume, 1.0); // Ensure peak deviation of 75 khz, assuming we're calibrated correctly (lower)
+			output[i] = hard_clip(mpx*config.master_volume, 1.0); // Ensure peak deviation of 75 khz (or the set deviation), assuming we're calibrated correctly
 			advance_oscillator(&osc);
 		}
 
@@ -331,7 +334,7 @@ static int config_handler(void* user, const char* section, const char* name, con
     } else if (MATCH("fm95", "audio_preamp")) {
         pconfig->audio_preamp = strtof(value, NULL);
     } else if (MATCH("fm95", "deviation")) {
-        pconfig->master_volume *= (strtof(value, NULL) / 75000.0f);
+        pconfig->audio_deviation = strtof(value, NULL);
 	} else if(MATCH("advanced", "lpf_order")) {
 		pconfig->lpf_order = atoi(value);
 	} else if(MATCH("advanced", "preemp_unity")) {
@@ -463,9 +466,10 @@ int main(int argc, char **argv) {
 		.calibration = 0,
 		.mpx_power = DEFAULT_MPX_POWER,
 		.mpx_deviation = DEFAULT_MPX_DEVIATION,
+		.audio_deviation = DEFAULT_DEVIATION,
 		.master_volume = DEFAULT_MASTER_VOLUME,
-		.audio_volume = DEFAULT_AUDIO_VOLUME,
-		.audio_preamp = DEFAULT_AUDIO_PREAMP,
+		.audio_volume = 1.0f,
+		.audio_preamp = 1.0f,
 
 		.sample_rate = DEFAULT_SAMPLE_RATE,
 
