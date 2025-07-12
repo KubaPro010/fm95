@@ -505,6 +505,8 @@ int main(int argc, char **argv) {
 		return err;
 	}
 
+	config.master_volume *= config.audio_deviation/75000.0f;
+
 	FM95_Runtime runtime;
 	memset(&runtime, 0, sizeof(runtime));
 
