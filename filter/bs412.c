@@ -21,8 +21,6 @@ void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, f
 	mpx->target = target_power;
 	mpx->gain = 0.0f;
 	mpx->max = max;
-	memset(mpx->lookahead_samples, 0, BS412_LOOKAHEAD);
-	mpx->lookahead_counter = 0;
 	#ifdef BS412_DEBUG
 	debug_printf("Initialized MPX power measurement with sample rate: %d\n", sample_rate);
 	#endif
