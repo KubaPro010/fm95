@@ -5,9 +5,12 @@
 #endif
 
 #include <math.h>
+#include <string.h>
 #ifdef BS412_DEBUG
 #include "../lib/debug.h"
 #endif
+
+#define BS412_LOOKAHEAD 2048 // samples
 
 typedef struct
 {
@@ -20,6 +23,9 @@ typedef struct
 	float max;
 	float gain;
 	double average;
+
+	float lookahead_samples[BS412_LOOKAHEAD + 1];
+	int lookahead_counter;
 } BS412Compressor;
 
 float dbr_to_deviation(float dbr);
