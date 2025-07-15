@@ -160,24 +160,28 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	init_oscillator(&osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
 
 	iirfilt_rrrf lpf_l, lpf_r;
-	lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
-	lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	if(config.lpf_cutoff != 0) {
+		lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+		lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	}
 
 	ResistorCapacitor preemp_l, preemp_r;
-	init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
-	init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+	if(config.preemphasis != 0) {
+		init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+		init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+	}
 
 	BS412Compressor bs412;
 	init_bs412(&bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
 
 	TiltCorrectionFilter tilter;
-	tilt_init(&tilter, config.tilt);
+	if(config.tilt != 0) tilt_init(&tilter, config.tilt);
 
 	StereoEncoder stencode;
 	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
 	AGC agc;
-	initAGC(&agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
+	if(config.agc_max != 0.0) initAGC(&agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
 
 	int pulse_error;
 
@@ -214,9 +218,11 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			float l = audio_stereo_input[2*i+0]*config.audio_preamp;
 			float r = audio_stereo_input[2*i+1]*config.audio_preamp;
 			
-			float agc_gain = process_agc(&agc, 0.5f * (fabsf(l) + fabsf(r)));
-			l *= agc_gain;
-			r *= agc_gain;
+			if(config.agc_max != 0.0) {
+				float agc_gain = process_agc(&agc, 0.5f * (fabsf(l) + fabsf(r)));
+				l *= agc_gain;
+				r *= agc_gain;
+			}
 
 			if(config.lpf_cutoff != 0) {
 				iirfilt_rrrf_execute(lpf_l, l, &l);
@@ -245,7 +251,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				}
 			}
 
-			if(config.bs412_attack > 0) mpx = bs412_compress(&bs412, mpx+mpx_in[i]);
+			mpx = bs412_compress(&bs412, mpx+mpx_in[i]);
 			if(config.tilt != 0) mpx = tilt(&tilter, mpx);
 
 			output[i] = hard_clip(mpx*config.master_volume, 1.0); // Ensure peak deviation of 75 khz (or the set deviation), assuming we're calibrated correctly
@@ -258,8 +264,10 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			break;
 		}
 	}
-	iirfilt_rrrf_destroy(lpf_l);
-	iirfilt_rrrf_destroy(lpf_r);
+	if(config.lpf_cutoff != 0) {
+		iirfilt_rrrf_destroy(lpf_l);
+		iirfilt_rrrf_destroy(lpf_r);
+	}
 
 	free(rds_in);
 	return 0;
