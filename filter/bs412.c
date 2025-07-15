@@ -30,7 +30,7 @@ void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, f
 
 float bs412_compress(BS412Compressor* mpx, float sample) {
 	if(mpx->lookahead_counter > BS412_LOOKAHEAD) mpx->lookahead_counter = 0;
-	float process_sample = mpx->lookahead_samples[BS412_LOOKAHEAD-mpx->lookahead_counter]; // get sample from the other end
+	float process_sample = mpx->lookahead_samples[BS412_LOOKAHEAD - 1 - mpx->lookahead_counter]; // get sample from the other end
 	mpx->lookahead_samples[mpx->lookahead_counter++] = sample; // write to the first end
 
 	mpx->average += process_sample * process_sample * mpx->mpx_deviation * mpx->mpx_deviation;
