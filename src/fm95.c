@@ -239,7 +239,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 			mpx = stereo_encode(&stencode, config.stereo, l, r);
 
-			if(rds_on && !(config.stereo == 2)) { // disable rds on polar stereo
+			if(rds_on && config.stereo != 2) { // disable rds on polar stereo
 				float rds_level = config.volumes.rds;
 				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
 					uint8_t osc_stream = 12 + stream;
