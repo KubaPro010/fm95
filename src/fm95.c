@@ -555,6 +555,7 @@ int main(int argc, char **argv) {
 			config.rds_streams = old_streams;
 			cleanup_runtime(&runtime, config);
 			init_runtime(&runtime, config, rds_on);
+			to_run = 1;
 			continue;
 		}
 		printf("Cleaning up...\n");
