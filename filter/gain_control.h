@@ -1,5 +1,6 @@
 #pragma once
 #include <math.h>
+#include <stdint.h>
 
 typedef struct {
 	float targetLevel;
@@ -11,7 +12,7 @@ typedef struct {
 	float currentGain;
 	float currentLevel;
 
-	int sampleRate;
+	uint32_t sampleRate;
 	float attackCoef;
 	float releaseCoef;
 

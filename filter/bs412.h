@@ -6,6 +6,7 @@
 
 #include <math.h>
 #include <string.h>
+#include <stdint.h>
 #ifdef BS412_DEBUG
 #include "../lib/debug.h"
 #endif
@@ -14,7 +15,7 @@ typedef struct
 {
 	int mpx_deviation;
 	int average_counter;
-	int sample_rate;
+	uint32_t sample_rate;
 	float target;
 	float attack;
 	float release;

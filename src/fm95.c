@@ -445,7 +445,7 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 	}
 
 	float last_gain = 0.0f;
-	if((uint32_t)runtime->bs412.sample_rate == config.sample_rate) last_gain = runtime->bs412.gain;
+	if(runtime->bs412.sample_rate == config.sample_rate) last_gain = runtime->bs412.gain;
 	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
 	runtime->bs412.gain = last_gain;
 
@@ -454,7 +454,8 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
 	if(config.agc_max != 0.0) {
-		if((uint32_t)runtime->agc.sampleRate == config.sample_rate) last_gain = runtime->agc.currentGain;
+		last_gain = 0.0f;
+		if(runtime->agc.sampleRate == config.sample_rate) last_gain = runtime->agc.currentGain;
 		initAGC(&runtime->agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
 		runtime->agc.currentGain = last_gain;
 	}
