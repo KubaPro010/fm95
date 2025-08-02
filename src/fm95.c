@@ -94,6 +94,7 @@ typedef struct
 {
 	PulseInputDevice input_device, mpx_device, rds_device;
 	PulseOutputDevice output_device;
+	float* rds_in;
 } FM95_Runtime;
 
 typedef struct {
@@ -125,7 +126,10 @@ void show_help(char *name) {
 void cleanup_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
     free_PulseInputDevice(&rt->input_device);
     if (mpx_on) free_PulseInputDevice(&rt->mpx_device);
-    if (rds_on) free_PulseInputDevice(&rt->rds_device);
+    if (rds_on) {
+		free_PulseInputDevice(&rt->rds_device);
+		free(rt->rds_in);
+	}
     free_PulseOutputDevice(&rt->output_device);
 }
 
@@ -186,9 +190,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	int pulse_error;
 
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
-
-	float *rds_in = malloc(sizeof(float) * BUFFER_SIZE * config.rds_streams);
-	memset(rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
+	if(rds_on) memset(runtime->rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
 
 	float mpx_in[BUFFER_SIZE] = {0};
 	float output[BUFFER_SIZE];
@@ -206,7 +208,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			}
 		}
 		if(rds_on) {
-			if((pulse_error = read_PulseInputDevice(&runtime->rds_device, rds_in, sizeof(float) * BUFFER_SIZE * config.rds_streams))) {
+			if((pulse_error = read_PulseInputDevice(&runtime->rds_device, runtime->rds_in, sizeof(float) * BUFFER_SIZE * config.rds_streams))) {
 				fprintf(stderr, "Error reading from RDS95 device: %s\nDisabling RDS.\n", pa_strerror(pulse_error));
 				rds_on = 0;
 			}
@@ -239,13 +241,13 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 
 			mpx = stereo_encode(&stencode, config.stereo, l, r);
 
-			if(rds_on && !(config.stereo == 2)) { // disable rds on polar stereo
+			if(rds_on && config.stereo != 2) { // disable rds on polar stereo
 				float rds_level = config.volumes.rds;
 				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
 					uint8_t osc_stream = 12 + stream;
 					if(osc_stream == 13) osc_stream++;
 
-					mpx += (rds_in[config.rds_streams * i + stream] * get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * rds_level;
+					mpx += (runtime->rds_in[config.rds_streams * i + stream] * get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * rds_level;
 
 					rds_level *= config.volumes.rds_step; // Prepare level for the next stream
 				}
@@ -269,7 +271,6 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		iirfilt_rrrf_destroy(lpf_r);
 	}
 
-	free(rds_in);
 	return 0;
 }
 
@@ -438,6 +439,7 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 			if(mpx_on) free_PulseInputDevice(&runtime->mpx_device);
 			return 1;
 		}
+		runtime->rds_in = malloc(sizeof(float) * BUFFER_SIZE * config.rds_streams);
 	}
 
 	printf("Connecting to output device... (%s)\n", dv_names.output);
