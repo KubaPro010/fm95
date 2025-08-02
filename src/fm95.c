@@ -103,6 +103,7 @@ static void stop(int signum) {
 	(void)signum;
 	printf("\nReceived stop signal.\n");
 	to_run = 0;
+	to_reload = 0;
 }
 static void reload(int signum) {
 	(void)signum;
