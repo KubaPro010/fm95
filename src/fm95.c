@@ -26,6 +26,7 @@
 #define DEFAULT_RDS_VOLUME_STEP 0.9f // 90%, so RDS2 stream 4 is 90% of stream 3 which is 90% of stream 2, which again is 90% of stream 1...
 
 static volatile sig_atomic_t to_run = 1;
+static volatile sig_atomic_t to_reload = 0;
 
 inline float hard_clip(float sample, float threshold) { return fmaxf(-threshold, fminf(threshold, sample)); }
 
@@ -103,6 +104,12 @@ static void stop(int signum) {
 	printf("\nReceived stop signal.\n");
 	to_run = 0;
 }
+static void reload(int signum) {
+	(void)signum;
+	printf("\nReceived reload signal.\n");
+	to_run = 0;
+	to_reload = 1;
+}
 
 void show_help(char *name) {
 	printf(
@@ -113,7 +120,14 @@ void show_help(char *name) {
 	);
 }
 
-void cleanup_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
+void cleanup_runtime(FM95_Runtime* runtime, FM95_Config config) {
+	if(config.lpf_cutoff != 0) {
+		iirfilt_rrrf_destroy(runtime->lpf_l);
+		iirfilt_rrrf_destroy(runtime->lpf_r);
+	}
+}
+
+void cleanup_audio_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
     free_PulseInputDevice(&rt->input_device);
     if (mpx_on) free_PulseInputDevice(&rt->mpx_device);
     if (rds_on) {
@@ -128,8 +142,6 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	bool rds_on = (runtime->rds_device.initialized == 1);
 
 	if(config.calibration != 0) {
-		init_oscillator(&runtime->osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
-
 		int pulse_error;
 		float output[BUFFER_SIZE];
 
@@ -149,30 +161,9 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		return 0;
 	}
 
-	init_oscillator(&runtime->osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
-
-	if(config.lpf_cutoff != 0) {
-		runtime->lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
-		runtime->lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
-	}
-
-	if(config.preemphasis != 0) {
-		init_preemphasis(&runtime->preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
-		init_preemphasis(&runtime->preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
-	}
-
-	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
-
-	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt);
-
-	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
-
-	if(config.agc_max != 0.0) initAGC(&runtime->agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
-
 	int pulse_error;
 
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
-	if(rds_on) memset(runtime->rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
 
 	float mpx_in[BUFFER_SIZE] = {0};
 	float output[BUFFER_SIZE];
@@ -249,10 +240,6 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			to_run = 0;
 			break;
 		}
-	}
-	if(config.lpf_cutoff != 0) {
-		iirfilt_rrrf_destroy(runtime->lpf_l);
-		iirfilt_rrrf_destroy(runtime->lpf_r);
 	}
 
 	return 0;
@@ -439,6 +426,34 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 	return 0;
 }
 
+void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
+	if(config.calibration != 0) {
+		init_oscillator(&runtime->osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
+		return;
+	}
+	else init_oscillator(&runtime->osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
+
+	if(config.lpf_cutoff != 0) {
+		runtime->lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+		runtime->lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+	}
+
+	if(config.preemphasis != 0) {
+		init_preemphasis(&runtime->preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+		init_preemphasis(&runtime->preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+	}
+
+	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
+
+	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt);
+
+	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
+
+	if(config.agc_max != 0.0) initAGC(&runtime->agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
+
+	if(rds_on) memset(runtime->rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
+}
+
 int main(int argc, char **argv) {
 	printf("fm95 (an FM Processor by radio95) version 2.2\n");
 
@@ -521,9 +536,31 @@ int main(int argc, char **argv) {
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
+	signal(SIGHUP, reload);
 
-	int ret = run_fm95(config, &runtime);
-	printf("Cleaning up...\n");
-	cleanup_runtime(&runtime, mpx_on, rds_on);
+	init_runtime(&runtime, config, rds_on);
+
+	int ret;
+	while(true) {
+		ret = run_fm95(config, &runtime);
+		if(to_reload) {
+			to_reload = 0;
+			printf("Reloading...\n");
+			uint8_t old_streams = config.rds_streams; // keep the rds streams
+			err = parse_config(&config, &dv_names);
+			if(err != 0) {
+				printf("Could not parse the config file. (error code as return code)\n");
+				return err;
+			}
+			config.rds_streams = old_streams;
+			cleanup_runtime(&runtime, config);
+			init_runtime(&runtime, config, rds_on);
+			continue;
+		}
+		printf("Cleaning up...\n");
+		cleanup_runtime(&runtime, config);
+		cleanup_audio_runtime(&runtime, mpx_on, rds_on);
+		break;
+	}
 	return ret;
 }
