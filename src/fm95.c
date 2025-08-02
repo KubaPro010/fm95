@@ -9,32 +9,15 @@
 #define buffer_tlength_fragsize 12288
 #define buffer_prebuf 8
 
-#define DEFAULT_STEREO 1
-#define DEFAULT_RDS_STREAMS 2
-#define DEFAULT_CLIPPER_THRESHOLD 1.0f
-#define DEFAULT_PREEMPHASIS_TAU 50e-6 // Europe, the freedomers use 75µs (75e-6)
-#define DEFAULT_MPX_POWER 3.0f // dbr, this is for BS412, simplest bs412
-#define DEFAULT_MPX_DEVIATION 75000.0f // for BS412
-#define DEFAULT_DEVIATION 75000.0f // another way to set the volume
-
 #include "../dsp/oscillator.h"
 #include "../filter/iir.h"
 #include "../modulation/stereo_encoder.h"
 #include "../filter/bs412.h"
 #include "../filter/gain_control.h"
 
-#define DEFAULT_SAMPLE_RATE 192000
-
-#define INPUT_DEVICE "FM_Audio.monitor"
-#define OUTPUT_DEVICE "alsa_output.platform-soc_sound.stereo-fallback"
-#define RDS_DEVICE "RDS.monitor"
-#define MPX_DEVICE "FM_MPX.monitor"
-
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 2048 // This defines how many samples to process at a time, because the loop here is this: get signal -> process signal -> output signal, and when we get signal we actually get BUFFER_SIZE of them
 
 #include "../io/audio.h"
-
-#define DEFAULT_MASTER_VOLUME 1.0f // Volume of everything combined, for calibration
 
 #define DEFAULT_MONO_VOLUME 0.45f // 45%
 #define DEFAULT_PILOT_VOLUME 0.09f // 9%
@@ -95,6 +78,13 @@ typedef struct
 	PulseInputDevice input_device, mpx_device, rds_device;
 	PulseOutputDevice output_device;
 	float* rds_in;
+	Oscillator osc;
+	iirfilt_rrrf lpf_l, lpf_r;
+	ResistorCapacitor preemp_l, preemp_r;
+	BS412Compressor bs412;
+	TiltCorrectionFilter tilter;
+	StereoEncoder stencode;
+	AGC agc;
 } FM95_Runtime;
 
 typedef struct {
@@ -138,15 +128,14 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	bool rds_on = (runtime->rds_device.initialized == 1);
 
 	if(config.calibration != 0) {
-		Oscillator osc;
-		init_oscillator(&osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
+		init_oscillator(&runtime->osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
 
 		int pulse_error;
 		float output[BUFFER_SIZE];
 
 		while(to_run) {
 			for (int i = 0; i < BUFFER_SIZE; i++) {
-				float sample = get_oscillator_sin_sample(&osc);
+				float sample = get_oscillator_sin_sample(&runtime->osc);
 				if(config.calibration == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f; // Sine wave to square wave filter
 				output[i] = sample*config.master_volume;
 			}
@@ -160,32 +149,25 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		return 0;
 	}
 
-	Oscillator osc;
-	init_oscillator(&osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
+	init_oscillator(&runtime->osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
 
-	iirfilt_rrrf lpf_l, lpf_r;
 	if(config.lpf_cutoff != 0) {
-		lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
-		lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+		runtime->lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
+		runtime->lpf_r = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
 	}
 
-	ResistorCapacitor preemp_l, preemp_r;
 	if(config.preemphasis != 0) {
-		init_preemphasis(&preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
-		init_preemphasis(&preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+		init_preemphasis(&runtime->preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+		init_preemphasis(&runtime->preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
 	}
 
-	BS412Compressor bs412;
-	init_bs412(&bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
+	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
 
-	TiltCorrectionFilter tilter;
-	if(config.tilt != 0) tilt_init(&tilter, config.tilt);
+	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt);
 
-	StereoEncoder stencode;
-	init_stereo_encoder(&stencode, 4.0f, &osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
+	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
-	AGC agc;
-	if(config.agc_max != 0.0) initAGC(&agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
+	if(config.agc_max != 0.0) initAGC(&runtime->agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
 
 	int pulse_error;
 
@@ -221,25 +203,27 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			float r = audio_stereo_input[2*i+1]*config.audio_preamp;
 			
 			if(config.agc_max != 0.0) {
-				float agc_gain = process_agc(&agc, 0.5f * (fabsf(l) + fabsf(r)));
+				float agc_gain = process_agc(&runtime->agc, 0.5f * (fabsf(l) + fabsf(r)));
 				l *= agc_gain;
 				r *= agc_gain;
 			}
 
 			if(config.lpf_cutoff != 0) {
-				iirfilt_rrrf_execute(lpf_l, l, &l);
-				iirfilt_rrrf_execute(lpf_r, r, &r);
+				iirfilt_rrrf_execute(runtime->lpf_l, l, &l);
+				iirfilt_rrrf_execute(runtime->lpf_r, r, &r);
 			}
 			
 			if(config.preemphasis != 0) {
-				l = apply_preemphasis(&preemp_l, l);
-				r = apply_preemphasis(&preemp_r, r);
+				l = apply_preemphasis(&runtime->preemp_l, l);
+				r = apply_preemphasis(&runtime->preemp_r, r);
 			}
 
-			l = hard_clip(l*config.audio_volume, config.clipper_threshold);
-			r = hard_clip(r*config.audio_volume, config.clipper_threshold);
+			if(config.clipper_threshold != 0) {
+				l = hard_clip(l*config.audio_volume, config.clipper_threshold);
+				r = hard_clip(r*config.audio_volume, config.clipper_threshold);
+			}
 
-			mpx = stereo_encode(&stencode, config.stereo, l, r);
+			mpx = stereo_encode(&runtime->stencode, config.stereo, l, r);
 
 			if(rds_on && config.stereo != 2) { // disable rds on polar stereo
 				float rds_level = config.volumes.rds;
@@ -247,17 +231,17 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 					uint8_t osc_stream = 12 + stream;
 					if(osc_stream == 13) osc_stream++;
 
-					mpx += (runtime->rds_in[config.rds_streams * i + stream] * get_oscillator_cos_multiplier_ni(&osc, osc_stream)) * rds_level;
+					mpx += (runtime->rds_in[config.rds_streams * i + stream] * get_oscillator_cos_multiplier_ni(&runtime->osc, osc_stream)) * rds_level;
 
 					rds_level *= config.volumes.rds_step; // Prepare level for the next stream
 				}
 			}
 
-			mpx = bs412_compress(&bs412, mpx+mpx_in[i]);
-			if(config.tilt != 0) mpx = tilt(&tilter, mpx);
+			mpx = bs412_compress(&runtime->bs412, mpx+mpx_in[i]);
+			if(config.tilt != 0) mpx = tilt(&runtime->tilter, mpx);
 
 			output[i] = hard_clip(mpx*config.master_volume, 1.0); // Ensure peak deviation of 75 khz (or the set deviation), assuming we're calibrated correctly
-			advance_oscillator(&osc);
+			advance_oscillator(&runtime->osc);
 		}
 
 		if((pulse_error = write_PulseOutputDevice(&runtime->output_device, output, sizeof(output)))) {
@@ -267,8 +251,8 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		}
 	}
 	if(config.lpf_cutoff != 0) {
-		iirfilt_rrrf_destroy(lpf_l);
-		iirfilt_rrrf_destroy(lpf_r);
+		iirfilt_rrrf_destroy(runtime->lpf_l);
+		iirfilt_rrrf_destroy(runtime->lpf_r);
 	}
 
 	return 0;
@@ -466,43 +450,43 @@ int main(int argc, char **argv) {
 			.rds = DEFAULT_RDS_VOLUME,
 			.rds_step = DEFAULT_RDS_VOLUME_STEP
 		},
-		.stereo = DEFAULT_STEREO,
+		.stereo = 1,
 
-		.rds_streams = DEFAULT_RDS_STREAMS,
+		.rds_streams = 1, // You have to match this with RDS95, otherwise may god have mercy on your RDS decoders
 
-		.clipper_threshold = DEFAULT_CLIPPER_THRESHOLD,
-		.preemphasis = DEFAULT_PREEMPHASIS_TAU,
-		.tilt = 0,
-		.calibration = 0,
-		.mpx_power = DEFAULT_MPX_POWER,
-		.mpx_deviation = DEFAULT_MPX_DEVIATION,
-		.audio_deviation = DEFAULT_DEVIATION,
-		.master_volume = DEFAULT_MASTER_VOLUME,
-		.audio_volume = 1.0f,
-		.audio_preamp = 1.0f,
+		.clipper_threshold = 1.0f, // At what level for the clipper to work, 1.0f, clips the audio at 1 volt peak to peak, so it will be always between -1 and 1
+		.preemphasis = 50e-6, // Europe, the "freedomers" use 75µs (75e-6)
+		.tilt = 0, // Off
+		.calibration = 0, // Off
+		.mpx_power = 3.0f, // dbr, this is for BS412, simplest bs412
+		.mpx_deviation = 75000.0f, // for BS412
+		.audio_deviation = 75000.0f, // another way to set the volume
+		.master_volume = 1.0f, // Volume of everything combined, for calibration
+		.audio_volume = 1.0f, // Volume of the audio, before stereo encoding, before clipper
+		.audio_preamp = 1.0f, // Volume of the audio before the filters
 
-		.sample_rate = DEFAULT_SAMPLE_RATE,
+		.sample_rate = 192000, // Sample rate for this whole gizmo to run on
 
 		.ini_config_path = DEFAULT_INI_PATH,
 
-		.lpf_order = 17,
-		.preemp_unity_freq = 15250.0f,
+		.lpf_order = 15, // how good the lpf is, usually no more than 18 is needed
+		.preemp_unity_freq = 15000.0f, // the preemphasis makes the highs louder, which for digital means no good, so instead of making the highs louder, make the lows quieter which gives the illusion of highs louder
 		.agc_target = 0.625f,
 		.agc_attack = 0.03f,
 		.agc_release = 0.225f,
 		.agc_min = 0.1f,
-		.agc_max = 1.75f,
-		.bs412_attack = 0.03f,
-		.bs412_release = 0.02,
+		.agc_max = 1.5f,
+		.bs412_attack = 0.05f,
+		.bs412_release = 0.025,
 		.bs412_max = 1.0f,
-		.lpf_cutoff = 15000,
+		.lpf_cutoff = 15000, // lpf cutoff, some run this at 15, because Big FM™ tells them to, but running this higher has no costs (unless you're running it above 18.5 khz), but no gains either
 	};
 
 	FM95_DeviceNames dv_names = {
-		.input = INPUT_DEVICE,
-		.output = OUTPUT_DEVICE,
-		.mpx = MPX_DEVICE,
-		.rds = RDS_DEVICE
+		.input = "\0",
+		.output = "\0",
+		.mpx = "\0",
+		.rds = "\0"
 	};
 
 	int err;
@@ -513,6 +497,15 @@ int main(int argc, char **argv) {
 	if(err != 0) {
 		printf("Could not parse the config file. (error code as return code)\n");
 		return err;
+	}
+
+	if(strlen(dv_names.input) == 0) {
+		printf("Please set the input device");
+		return 1;
+	}
+	if(strlen(dv_names.output) == 0) {
+		printf("Please set the output device");
+		return 1;
 	}
 
 	config.master_volume *= config.audio_deviation/75000.0f;
