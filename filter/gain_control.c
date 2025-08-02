@@ -9,6 +9,7 @@ void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float m
     agc->releaseCoef = expf(-1.0f / (sampleRate * releaseTime));
     agc->rmsAlpha = expf(-1.0f / (sampleRate * 0.025f));
     agc->rmsBeta = 1.0f - agc->rmsAlpha;
+    agc->sampleRate = sampleRate;
 
     agc->currentGain = 1.0f;
     agc->currentLevel = 0.0f;
