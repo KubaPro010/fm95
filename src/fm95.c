@@ -443,13 +443,20 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 		init_preemphasis(&runtime->preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
 	}
 
+	float last_gain = 0.0f;
+	if(runtime->bs412.sample_rate == config.sample_rate) last_gain = runtime->bs412.gain;
 	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
+	runtime->bs412.gain = last_gain;
 
 	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt);
 
 	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
-	if(config.agc_max != 0.0) initAGC(&runtime->agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
+	if(config.agc_max != 0.0) {
+		if(runtime->agc.sampleRate == config.sample_rate) last_gain = runtime->agc.currentGain;
+		initAGC(&runtime->agc, config.sample_rate, config.agc_target, config.agc_min, config.agc_max, config.agc_attack, config.agc_release);
+		runtime->agc.currentGain = last_gain;
+	}
 
 	if(rds_on) memset(runtime->rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
 }
