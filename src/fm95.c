@@ -226,8 +226,8 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			if(rds_on && config.stereo != 2) { // disable rds on polar stereo
 				float rds_level = config.volumes.rds;
 				for(uint8_t stream = 0; stream < config.rds_streams; stream++) {
-					uint8_t osc_stream = 48 + (stream*4);
-					if(osc_stream >= 52) osc_stream += 4;
+					uint8_t osc_stream = 12 + stream;
+					if(osc_stream >= 13) osc_stream++;
 
 					mpx += (runtime->rds_in[config.rds_streams * i + stream] * get_oscillator_cos_multiplier_ni(&runtime->osc, osc_stream)) * rds_level;
 
@@ -438,7 +438,7 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 		init_oscillator(&runtime->osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
 		return;
 	}
-	else init_oscillator(&runtime->osc, (config.stereo == 2) ? 1953.125 : 1187.5, config.sample_rate);
+	else init_oscillator(&runtime->osc, (config.stereo == 2) ? 7812.5 : 4750, config.sample_rate);
 
 	if(config.lpf_cutoff != 0) {
 		runtime->lpf_l = iirfilt_rrrf_create_prototype(LIQUID_IIRDES_CHEBY2, LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, config.lpf_order, (config.lpf_cutoff/config.sample_rate), 0.0f, 1.0f, 60.0f);
@@ -457,7 +457,7 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 
 	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt);
 
-	init_stereo_encoder(&runtime->stencode, 16.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
+	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
 	if(config.agc_max != 0.0) {
 		last_gain = 1.0f;
