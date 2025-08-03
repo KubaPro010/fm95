@@ -26,6 +26,15 @@ void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, f
 	#endif
 }
 
+float soft_clip_tanh(float sample, float threshold) {
+    if (fabsf(sample) <= threshold) {
+        return sample;  // Linear region
+    }
+    float sign = (sample >= 0) ? 1.0f : -1.0f;
+    float excess = fabsf(sample) - threshold;
+    return sign * (threshold + tanhf(excess) * (1.0f - threshold));
+}
+
 float bs412_compress(BS412Compressor* mpx, float sample) {
 	mpx->average += sample * sample * mpx->mpx_deviation * mpx->mpx_deviation;
 	mpx->average_counter++;
@@ -56,6 +65,10 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 	}
 	
 	mpx->gain = fmaxf(0.0f, fminf(mpx->max, mpx->gain));
+
+	float output_sample = sample * mpx->gain;
+	float limit_threshold = dbr_to_deviation(mpx->target + 0.1f) / mpx->mpx_deviation;
+    output_sample = soft_clip_tanh(output_sample, limit_threshold);
 
 	return sample * mpx->gain;
 }
