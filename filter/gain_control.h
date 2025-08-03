@@ -21,5 +21,5 @@ typedef struct {
 	float rmsBeta;
 } AGC;
 
-void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime);
+void initAGC(AGC* agc, uint32_t sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime);
 float process_agc(AGC* agc, float sidechain);

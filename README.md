@@ -14,7 +14,6 @@ Supports these inputs:
 - Audio (via Pulse)
 - MPX (via Pulse, basically passthrough, i don't recommend this unless you have something else than rds or sca to modulate, you could run chimer95 via here)
 - RDS (via Pulse, expects unmodulated RDS, rds95 is recommended here, in modulation this is quadrature to the pilot, number of channels is specified by the argument, each of the channels (max 4) go on these freqs: 57, 66.5, 71.25, 76)
-- SCA (via Pulse, by default on 67 khz with a 7 khz deviation)
 
 and one output:
 
@@ -41,11 +40,7 @@ Should run completly fine on a pi 5, fine on a pi 3b (30% cpu, 45% with lpf)
 
 ## Other Apps
 
-FM95 also includes some other apps, such as chimer95 which generates GTS tones each half hour, and dcf95 which creates a DCF77 compatible signal, and vban95 now which is a buffered VBAN receiver
-
-## FM95 Calibration
-
-FM95 features a calibration mode `-V` which instead of outputing the MPX just outputs a 400 hz tone, use that tone to match the deviation on your transmitter
+FM95 also includes some other apps, such as chimer95 which generates GTS tones each half hour, and dcf95 which creates a DCF77 compatible signal, and vban95 now which is a buffered VBAN receiver. And now also SCA generation was moved to sca95 from fm95!
 
 ## Usage of other projects
 

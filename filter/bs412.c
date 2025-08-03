@@ -11,7 +11,7 @@ inline float deviation_to_dbr(float deviation) {
 	return 10.0f * (log2f(deviation) - LOG2_19000) * 0.30103f;
 }
 
-void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, float attack, float release, float max, int sample_rate) {
+void init_bs412(BS412Compressor* mpx, uint32_t mpx_deviation, float target_power, float attack, float release, float max, uint32_t sample_rate) {
 	mpx->mpx_deviation = mpx_deviation;
 	mpx->average_counter = 0;
 	mpx->average = 0;
@@ -26,7 +26,7 @@ void init_bs412(BS412Compressor* mpx, float mpx_deviation, float target_power, f
 	#endif
 }
 
-float soft_clip_tanh(float sample, float threshold) {
+inline float soft_clip_tanh(float sample, float threshold) {
     if (fabsf(sample) <= threshold) {
         return sample;  // Linear region
     }

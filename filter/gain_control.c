@@ -1,6 +1,6 @@
 #include "gain_control.h"
 
-void initAGC(AGC* agc, int sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime) {
+void initAGC(AGC* agc, uint32_t sampleRate, float targetLevel, float minGain, float maxGain, float attackTime, float releaseTime) {
     agc->targetLevel = targetLevel;
     agc->minGain = minGain;
     agc->maxGain = maxGain;

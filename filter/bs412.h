@@ -13,8 +13,8 @@
 
 typedef struct
 {
-	int mpx_deviation;
-	int average_counter;
+	uint32_t mpx_deviation;
+	uint32_t average_counter;
 	uint32_t sample_rate;
 	float target;
 	float attack;
@@ -27,5 +27,5 @@ typedef struct
 float dbr_to_deviation(float dbr);
 float deviation_to_dbr(float deviation);
 
-void init_bs412(BS412Compressor *mpx, float mpx_deviation, float target_power, float attack, float release, float max, int sample_rate);
+void init_bs412(BS412Compressor *mpx, uint32_t mpx_deviation, float target_power, float attack, float release, float max, uint32_t sample_rate);
 float bs412_compress(BS412Compressor *mpx, float average);
