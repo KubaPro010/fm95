@@ -482,7 +482,7 @@ int main(int argc, char **argv) {
 		.tilt = 0, // Off
 		.calibration = 0, // Off
 		.mpx_power = 3.0f, // dbr, this is for BS412, simplest bs412
-		.mpx_deviation = 75000.0f, // for BS412
+		.mpx_deviation = 75000.0f, // for BS412, this is what deviation does the compressor see as peak, so if i set here 150 khz, then the compressor will act as if it was two times louder
 		.audio_deviation = 75000.0f, // another way to set the volume
 		.master_volume = 1.0f, // Volume of everything combined, for calibration
 		.audio_volume = 1.0f, // Volume of the audio, before stereo encoding, before clipper
