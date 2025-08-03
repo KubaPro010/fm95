@@ -45,7 +45,7 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 
 	#ifdef BS412_DEBUG
 	if(mpx->average_counter % mpx->sample_rate == 0) {
-		debug_printf("MPX power: %.2f dBr (%.0f) with gain %.2fx (%.2f dBr)\n", modulation_power, avg_deviation, mpx->gain, deviation_to_dbr(avg_deviation * mpx->gain));
+		debug_printf("MPX power: %.2f dBr with gain %.2fx (%.2f dBr)\n", modulation_power, mpx->gain, deviation_to_dbr(avg_deviation * mpx->gain));
 	}
 	#endif
 
