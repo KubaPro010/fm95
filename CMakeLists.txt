@@ -38,16 +38,24 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(libfmio PRIVATE DEBUG=1)
 endif()
 
-set(FM_LIBS inih libfmfilter libfmmodulation libfmio libfmdsp pulse pulse-simple m liquid)
-
 foreach(SRC_FILE ${SRC_FILES})
     get_filename_component(EXEC_NAME ${SRC_FILE} NAME_WE)
 
     add_executable(${EXEC_NAME} ${SRC_FILE})
     target_compile_options(${EXEC_NAME} PRIVATE -O2 -Wall -Wextra -Werror -Wno-unused-parameter)
-    target_link_libraries(${EXEC_NAME} PRIVATE ${FM_LIBS})
-    
-    # Define DEBUG macro for Debug builds
+
+    if(EXEC_NAME STREQUAL "fm95")
+        target_link_libraries(${EXEC_NAME} PRIVATE libfmfilter libfmmodulation libfmdsp libfmio pulse pulse-simple m liquid inih)
+    elseif(EXEC_NAME STREQUAL "chimer95")
+        target_link_libraries(${EXEC_NAME} PRIVATE libfmdsp inih m libfmio pulse pulse-simple)
+    elseif(EXEC_NAME STREQUAL "sca95")
+        target_link_libraries(${EXEC_NAME} PRIVATE libfmmodulation inih m libfmio pulse pulse-simple libfmdsp)
+    elseif(EXEC_NAME STREQUAL "vban95")
+        target_link_libraries(${EXEC_NAME} PRIVATE libfmio pulse pulse-simple)
+    else()
+        message(FATAL_ERROR "How do I link this? ${EXEC_NAME}")
+    endif()
+
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_definitions(${EXEC_NAME} PRIVATE DEBUG=1)
     endif()

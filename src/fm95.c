@@ -102,12 +102,12 @@ static void stop(int signum) {
 	(void)signum;
 	printf("\nReceived stop signal.\n");
 	to_run = 0;
-	to_reload = 0;
+	to_reload = 0; // Make sure we don't reload
 }
 static void reload(int signum) {
 	(void)signum;
 	printf("\nReceived reload signal.\n");
-	to_run = 0;
+	to_run = 0; // To run is a flag, just telling when to stop the loop
 	to_reload = 1;
 }
 
@@ -141,9 +141,10 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	bool mpx_on = (runtime->mpx_device.initialized == 1);
 	bool rds_on = (runtime->rds_device.initialized == 1);
 
+	float output[BUFFER_SIZE];
+
 	if(config.calibration != 0) {
 		int pulse_error;
-		float output[BUFFER_SIZE];
 
 		while(to_run) {
 			for (int i = 0; i < BUFFER_SIZE; i++) {
@@ -166,7 +167,6 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
 
 	float mpx_in[BUFFER_SIZE] = {0};
-	float output[BUFFER_SIZE];
 
 	while (to_run) {
 		if((pulse_error = read_PulseInputDevice(&runtime->input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
