@@ -70,5 +70,5 @@ float bs412_compress(BS412Compressor* mpx, float sample) {
 	float limit_threshold = dbr_to_deviation(mpx->target + 0.1f) / mpx->mpx_deviation;
     output_sample = soft_clip_tanh(output_sample, limit_threshold);
 
-	return sample * mpx->gain;
+	return output_sample;
 }
