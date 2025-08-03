@@ -7,7 +7,6 @@
 
 #define buffer_maxlength 12288
 #define buffer_tlength_fragsize 12288
-#define buffer_prebuf 8
 
 #include "../dsp/oscillator.h"
 #include "../filter/iir.h"
@@ -129,13 +128,13 @@ void cleanup_runtime(FM95_Runtime* runtime, FM95_Config config) {
 }
 
 void cleanup_audio_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
-    free_PulseInputDevice(&rt->input_device);
-    if (mpx_on) free_PulseInputDevice(&rt->mpx_device);
+    free_PulseDevice(&rt->input_device);
+    if (mpx_on) free_PulseDevice(&rt->mpx_device);
     if (rds_on) {
-		free_PulseInputDevice(&rt->rds_device);
+		free_PulseDevice(&rt->rds_device);
 		free(rt->rds_in);
 	}
-    free_PulseOutputDevice(&rt->output_device);
+    free_PulseDevice(&rt->output_device);
 }
 
 int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
@@ -379,7 +378,7 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 	pa_buffer_attr output_buffer_atr = {
 		.maxlength = buffer_maxlength,
 		.tlength = buffer_tlength_fragsize,
-		.prebuf = buffer_prebuf
+		.prebuf = 16
 	};
 
 	int opentime_pulse_error;
@@ -397,7 +396,7 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 		opentime_pulse_error = init_PulseInputDevice(&runtime->mpx_device, config.sample_rate, 1, "fm95", "MPX Input", dv_names.mpx, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open MPX device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&runtime->input_device);
+			free_PulseDevice(&runtime->input_device);
 			return 1;
 		}
 	}
@@ -407,8 +406,8 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 		opentime_pulse_error = init_PulseInputDevice(&runtime->rds_device, config.sample_rate, config.rds_streams, "fm95", "RDS95 Input", dv_names.rds, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
-			free_PulseInputDevice(&runtime->input_device);
-			if(mpx_on) free_PulseInputDevice(&runtime->mpx_device);
+			free_PulseDevice(&runtime->input_device);
+			if(mpx_on) free_PulseDevice(&runtime->mpx_device);
 			return 1;
 		}
 		runtime->rds_in = malloc(sizeof(float) * BUFFER_SIZE * config.rds_streams);
@@ -419,9 +418,9 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 	opentime_pulse_error = init_PulseOutputDevice(&runtime->output_device, config.sample_rate, 1, "fm95", "Main Audio Output", dv_names.output, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
-		free_PulseInputDevice(&runtime->input_device);
-		if(mpx_on) free_PulseInputDevice(&runtime->mpx_device);
-		if(rds_on) free_PulseInputDevice(&runtime->rds_device);
+		free_PulseDevice(&runtime->input_device);
+		if(mpx_on) free_PulseDevice(&runtime->mpx_device);
+		if(rds_on) free_PulseDevice(&runtime->rds_device);
 		return 1;
 	}
 	return 0;

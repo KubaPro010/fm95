@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
 	opentime_pulse_error = init_PulseOutputDevice(&runtime.output, config.sample_rate, 1, "sca95", "Signal Output", audio_output_device, &output_buffer_atr, PA_SAMPLE_FLOAT32NE);
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
-		free_PulseInputDevice(&runtime.input);
+		free_PulseDevice(&runtime.input);
 		return 1;
 	}
 
@@ -196,7 +196,7 @@ int main(int argc, char **argv) {
 
 	int ret = run_sca95(config, &runtime);
 	printf("Cleaning up...\n");
-	free_PulseInputDevice(&runtime.input);
-	free_PulseOutputDevice(&runtime.output);
+	free_PulseDevice(&runtime.input);
+	free_PulseDevice(&runtime.output);
 	return ret;
 }

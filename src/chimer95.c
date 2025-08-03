@@ -311,6 +311,6 @@ int main(int argc, char **argv) {
 
 	int ret = run_chimer95(config, &runtime);
 	printf("Cleaning up...\n");
-	free_PulseOutputDevice(&runtime.output_device);
+	free_PulseDevice(&runtime.output_device);
 	return ret;
 }

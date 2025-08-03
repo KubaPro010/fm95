@@ -42,7 +42,8 @@
         "queue": "c",
         "thread": "c",
         "vector": "c",
-        "stereo_encoder.h": "c"
+        "stereo_encoder.h": "c",
+        "iir.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

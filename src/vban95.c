@@ -385,7 +385,7 @@ int main(int argc, char *argv[]) {
                     continue;
                 }
 
-                if (output.initialized) free_PulseOutputDevice(&output);
+                if (output.initialized) free_PulseDevice(&output);
                 
                 int result = init_PulseOutputDevice(
                     &output, 
@@ -410,7 +410,7 @@ int main(int argc, char *argv[]) {
 
     // Clean up
     printf("Cleaning up...\n");
-    if (output.initialized) free_PulseOutputDevice(&output);
+    if (output.initialized) free_PulseDevice(&output);
     destroy_audio_buffer(audio_buffer);
     close(sockfd);
     
