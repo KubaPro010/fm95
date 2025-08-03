@@ -315,26 +315,36 @@ static int config_handler(void* user, const char* section, const char* name, con
         pconfig->audio_preamp = strtof(value, NULL);
     } else if (MATCH("fm95", "deviation")) {
         pconfig->audio_deviation = strtof(value, NULL);
+	} else if(MATCH("fm95", "tilt")) {
+		pconfig->tilt = strtof(value, NULL);
+	} else if(MATCH("fm95", "bs412_max")) {
+		pconfig->bs412_max = strtof(value, NULL);
+	} else if(MATCH("fm95", "agc_target")) {
+		pconfig->agc_target = strtof(value, NULL);
+	} else if(MATCH("fm95", "agc_attack")) {
+		pconfig->agc_attack = strtof(value, NULL);
+	} else if(MATCH("fm95", "agc_release")) {
+		pconfig->agc_release = strtof(value, NULL);
+	} else if(MATCH("fm95", "agc_min")) {
+		pconfig->agc_min = strtof(value, NULL);
+	} else if(MATCH("fm95", "agc_max")) {
+		pconfig->agc_max = strtof(value, NULL);
+	} else if(MATCH("fm95", "bs412_attack")) {
+		pconfig->bs412_attack = strtof(value, NULL);
+	} else if(MATCH("fm95", "bs412_release")) {
+		pconfig->bs412_release = strtof(value, NULL);
 	} else if(MATCH("advanced", "lpf_order")) {
 		pconfig->lpf_order = atoi(value);
 	} else if(MATCH("advanced", "preemp_unity")) {
 		pconfig->preemp_unity_freq = strtof(value, NULL);
 	} else if(MATCH("advanced", "sample_rate")) {
 		pconfig->sample_rate = atoi(value);
-	} else if(MATCH("advanced", "agc_target")) {
-		pconfig->agc_target = strtof(value, NULL);
-	} else if(MATCH("advanced", "agc_attack")) {
-		pconfig->agc_attack = strtof(value, NULL);
-	} else if(MATCH("advanced", "agc_release")) {
-		pconfig->agc_release = strtof(value, NULL);
-	} else if(MATCH("advanced", "agc_min")) {
-		pconfig->agc_min = strtof(value, NULL);
-	} else if(MATCH("advanced", "agc_max")) {
-		pconfig->agc_max = strtof(value, NULL);
-	} else if(MATCH("advanced", "bs412_attack")) {
-		pconfig->bs412_attack = strtof(value, NULL);
-	} else if(MATCH("advanced", "bs412_release")) {
-		pconfig->bs412_release = strtof(value, NULL);
+	} else if(MATCH("advanced", "lpf_cutoff")) {
+		pconfig->lpf_cutoff = strtof(value, NULL);
+		if(pconfig->lpf_cutoff > (pconfig->sample_rate * 0.5)) {
+			pconfig->lpf_cutoff = (pconfig->sample_rate * 0.5);
+			fprintf(stderr, "LPF cutoff over niquist, limiting.\n");
+		}
 	} else if(MATCH("volumes", "mono")) {
 		pconfig->volumes.mono = strtof(value, NULL);
 	} else if(MATCH("volumes", "pilot")) {
@@ -345,16 +355,6 @@ static int config_handler(void* user, const char* section, const char* name, con
 		pconfig->volumes.rds = strtof(value, NULL);
 	} else if(MATCH("volumes", "rds_step")) {
 		pconfig->volumes.rds_step = strtof(value, NULL);
-	} else if(MATCH("fm95", "tilt")) {
-		pconfig->tilt = strtof(value, NULL);
-	} else if(MATCH("advanced", "bs412_max")) {
-		pconfig->bs412_max = strtof(value, NULL);
-	} else if(MATCH("advanced", "lpf_cutoff")) {
-		pconfig->lpf_cutoff = strtof(value, NULL);
-		if(pconfig->lpf_cutoff > (pconfig->sample_rate * 0.5)) {
-			pconfig->lpf_cutoff = (pconfig->sample_rate * 0.5);
-			fprintf(stderr, "LPF cutoff over niquist, limiting.\n");
-		}
 	} else {
         return 0; // Unknown section/name
     }
@@ -502,7 +502,7 @@ int main(int argc, char **argv) {
 		.bs412_attack = 0.05f,
 		.bs412_release = 0.025,
 		.bs412_max = 1.0f,
-		.lpf_cutoff = 15000, // lpf cutoff, some run this at 15, because Big FM™ tells them to, but running this higher has no costs (unless you're running it above 18.5 khz), but no gains either
+		.lpf_cutoff = 15000,
 	};
 
 	FM95_DeviceNames dv_names = {
