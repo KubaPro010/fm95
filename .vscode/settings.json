@@ -43,7 +43,9 @@
         "thread": "c",
         "vector": "c",
         "stereo_encoder.h": "c",
-        "iir.h": "c"
+        "iir.h": "c",
+        "compare": "c",
+        "cstdint": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

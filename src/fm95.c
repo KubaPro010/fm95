@@ -45,8 +45,8 @@ typedef struct
 	uint8_t rds_streams;
 
 	float clipper_threshold;
-	float preemphasis;
-	float tilt;
+	uint8_t preemphasis;
+	int8_t tilt;
 	uint8_t calibration;
 	float mpx_power;
 	float mpx_deviation;
@@ -57,7 +57,6 @@ typedef struct
 
 	uint32_t sample_rate;
 
-	// ini dont edit
 	char ini_config_path[64];
 
 	uint8_t lpf_order;
@@ -216,9 +215,9 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 				r = apply_preemphasis(&runtime->preemp_r, r);
 			}
 
-			if(config.clipper_threshold != 0) {
-				l = hard_clip(l*config.audio_volume, config.clipper_threshold);
-				r = hard_clip(r*config.audio_volume, config.clipper_threshold);
+			if (config.clipper_threshold != 0) {
+				l = hard_clip(l * config.audio_volume, config.clipper_threshold);
+				r = hard_clip(r * config.audio_volume, config.clipper_threshold);
 			}
 
 			mpx = stereo_encode(&runtime->stencode, config.stereo, l, r);
@@ -307,7 +306,7 @@ static int config_handler(void* user, const char* section, const char* name, con
     } else if (MATCH("fm95", "clipper_threshold")) {
         pconfig->clipper_threshold = strtof(value, NULL);
     } else if (MATCH("fm95", "preemphasis")) {
-        pconfig->preemphasis = strtof(value, NULL) * 1.0e-6f;
+        pconfig->preemphasis = atoi(value);
     } else if (MATCH("fm95", "calibration")) {
         pconfig->calibration = atoi(value);
     } else if (MATCH("fm95", "mpx_power")) {
@@ -323,7 +322,7 @@ static int config_handler(void* user, const char* section, const char* name, con
     } else if (MATCH("fm95", "deviation")) {
         pconfig->audio_deviation = strtof(value, NULL);
 	} else if(MATCH("fm95", "tilt")) {
-		pconfig->tilt = strtof(value, NULL);
+		pconfig->tilt = strtof(value, NULL) * 127.0f;
 	} else if(MATCH("fm95", "bs412_max")) {
 		pconfig->bs412_max = strtof(value, NULL);
 	} else if(MATCH("fm95", "agc_target")) {
@@ -446,8 +445,8 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 	}
 
 	if(config.preemphasis != 0) {
-		init_preemphasis(&runtime->preemp_l, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
-		init_preemphasis(&runtime->preemp_r, config.preemphasis, config.sample_rate, config.preemp_unity_freq);
+		init_preemphasis(&runtime->preemp_l, (float)config.preemphasis * 1.0e-6f, config.sample_rate, config.preemp_unity_freq);
+		init_preemphasis(&runtime->preemp_r, (float)config.preemphasis * 1.0e-6f, config.sample_rate, config.preemp_unity_freq);
 	}
 
 	float last_gain = 0.0f;
@@ -455,7 +454,7 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
 	runtime->bs412.gain = last_gain;
 
-	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt);
+	if(config.tilt != 0) tilt_init(&runtime->tilter, (float)config.tilt / 127.0f);
 
 	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, (config.stereo == 2), config.volumes.mono, config.volumes.pilot, config.volumes.stereo);
 
@@ -485,7 +484,7 @@ int main(int argc, char **argv) {
 		.rds_streams = 1, // You have to match this with RDS95, otherwise may god have mercy on your RDS decoders
 
 		.clipper_threshold = 1.0f, // At what level for the clipper to work, 1.0f, clips the audio at 1 volt peak to peak, so it will be always between -1 and 1
-		.preemphasis = 50e-6, // Europe, the "freedomers" use 75µs (75e-6)
+		.preemphasis = 50, // Europe, the "freedomers" use 75µs
 		.tilt = 0, // Off
 		.calibration = 0, // Off
 		.mpx_power = 3.0f, // dbr, this is for BS412, simplest bs412
