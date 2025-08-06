@@ -12,7 +12,7 @@ FM95 is a audio processor for FM, it does:
 Supports these inputs:
 
 - Audio (via Pulse)
-- MPX (via Pulse, basically passthrough, i don't recommend this unless you have something else than rds or sca to modulate, you could run chimer95 via here, also you have 10% allowed here to be guarenteed with no clipping)
+- MPX (via Pulse, basically passthrough, i don't recommend this unless you have something else than rds or sca to modulate, you could run chimer95 via here, also you have 5% allowed here by default to be guarenteed with no clipping, change how much headroom you have with the headroom option)
 - RDS (via Pulse, expects unmodulated RDS, rds95 is recommended here, in modulation this is quadrature to the pilot, number of channels is specified by the argument, each of the channels (max 4) go on these freqs: 57, 66.5, 71.25, 76)
 
 and one output:
