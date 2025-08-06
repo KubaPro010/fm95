@@ -18,9 +18,7 @@
 
 #include "../io/audio.h"
 
-#define DEFAULT_MONO_VOLUME 0.45f // 45%
 #define DEFAULT_PILOT_VOLUME 0.09f // 9%
-#define DEFAULT_STEREO_VOLUME 0.3f // 30%
 #define DEFAULT_RDS_VOLUME 0.0475f // 4.75%
 #define DEFAULT_RDS_VOLUME_STEP 0.9f // 90%, so RDS2 stream 4 is 90% of stream 3 which is 90% of stream 2, which again is 90% of stream 1...
 
@@ -109,6 +107,11 @@ bool compare_dvs(const FM95_DeviceNames *a, const FM95_DeviceNames *b) {
            strcmp(a->output, b->output) == 0 &&
            strcmp(a->mpx,    b->mpx)    == 0 &&
            strcmp(a->rds,    b->rds)    == 0;
+}
+
+float calculate_sharedaudio_volume(const FM95_Volumes volumes, const int rds_streams) {
+	float rds_volume = volumes.rds * powf(volumes.rds_step, rds_streams);
+	return 1.0f - rds_volume - volumes.pilot - 0.1f; // Give 10% of headroom, for MPX maybe
 }
 
 static void stop(int signum) {
@@ -355,12 +358,8 @@ static int config_handler(void* user, const char* section, const char* name, con
 			pconfig->lpf_cutoff = (pconfig->sample_rate * 0.5);
 			fprintf(stderr, "LPF cutoff over niquist, limiting.\n");
 		}
-	} else if(MATCH("volumes", "mono")) {
-		pconfig->volumes.mono = strtof(value, NULL);
 	} else if(MATCH("volumes", "pilot")) {
 		pconfig->volumes.pilot = strtof(value, NULL);
-	} else if(MATCH("volumes", "stereo")) {
-		pconfig->volumes.stereo = strtof(value, NULL);
 	} else if(MATCH("volumes", "rds")) {
 		pconfig->volumes.rds = strtof(value, NULL);
 	} else if(MATCH("volumes", "rds_step")) {
@@ -472,14 +471,18 @@ void init_runtime(FM95_Runtime* runtime, const FM95_Config config) {
 	if(config.options.rds_on) memset(runtime->rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
 }
 
+void compute_audio_volumes(FM95_Volumes* volumes, const FM95_Config config) {
+	float shared = calculate_sharedaudio_volume(*volumes, config.rds_streams);
+	if(config.stereo != 0) volumes->mono = volumes->stereo = (shared / 2.0f);
+	else volumes->mono = shared;
+}
+
 int main(int argc, char **argv) {
 	printf("fm95 (an FM Processor by radio95) version 2.2\n");
 
 	FM95_Config config = {
 		.volumes = {
-			.mono = DEFAULT_MONO_VOLUME,
 			.pilot = DEFAULT_PILOT_VOLUME,
-			.stereo = DEFAULT_STEREO_VOLUME,
 			.rds = DEFAULT_RDS_VOLUME,
 			.rds_step = DEFAULT_RDS_VOLUME_STEP
 		},
@@ -544,6 +547,8 @@ int main(int argc, char **argv) {
 
 	config.master_volume *= config.audio_deviation/75000.0f;
 
+	compute_audio_volumes(&config.volumes, config);
+
 	FM95_Runtime runtime;
 	memset(&runtime, 0, sizeof(runtime));
 
@@ -571,6 +576,7 @@ int main(int argc, char **argv) {
 				printf("Could not parse the config file. (error code as return code)\n");
 				return err;
 			}
+			compute_audio_volumes(&config.volumes, config);
 			if(!compare_dvs(&dv_names, &old_dv_names)) printf("Warning! Audio Device name changes are not reloaded, please restart for that to take effect.\n");
 			old_dv_names = dv_names;
 			if(config.rds_streams != old_streams) printf("Warning! change of rds_streams requires a restart, not a reload.\n");
