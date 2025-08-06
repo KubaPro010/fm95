@@ -14,7 +14,7 @@
 #include "../filter/bs412.h"
 #include "../filter/gain_control.h"
 
-#define BUFFER_SIZE 2048 // This defines how many samples to process at a time, because the loop here is this: get signal -> process signal -> output signal, and when we get signal we actually get BUFFER_SIZE of them
+#define BUFFER_SIZE 3072 // This defines how many samples to process at a time, because the loop here is this: get signal -> process signal -> output signal, and when we get signal we actually get BUFFER_SIZE of them
 
 #include "../io/audio.h"
 
@@ -31,6 +31,11 @@ inline float hard_clip(float sample, float threshold) { return fmaxf(-threshold,
 
 typedef struct
 {
+	bool rds_on;
+	bool mpx_on;
+} FM95_Options;
+typedef struct
+{
 	float mono;
 	float pilot;
 	float stereo;
@@ -39,6 +44,8 @@ typedef struct
 } FM95_Volumes;
 typedef struct
 {
+	FM95_Options options;
+
 	FM95_Volumes volumes;
 	bool stereo;
 
@@ -126,17 +133,17 @@ void show_help(char *name) {
 	);
 }
 
-void cleanup_runtime(FM95_Runtime* runtime, FM95_Config config) {
+void cleanup_runtime(FM95_Runtime* runtime, const FM95_Config config) {
 	if(config.lpf_cutoff != 0) {
 		iirfilt_rrrf_destroy(runtime->lpf_l);
 		iirfilt_rrrf_destroy(runtime->lpf_r);
 	}
 }
 
-void cleanup_audio_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
+void cleanup_audio_runtime(FM95_Runtime *rt, const FM95_Options options) {
     free_PulseDevice(&rt->input_device);
-    if (mpx_on) free_PulseDevice(&rt->mpx_device);
-    if (rds_on) {
+    if (options.mpx_on) free_PulseDevice(&rt->mpx_device);
+    if (options.rds_on) {
 		free_PulseDevice(&rt->rds_device);
 		free(rt->rds_in);
 	}
@@ -144,23 +151,19 @@ void cleanup_audio_runtime(FM95_Runtime *rt, bool mpx_on, bool rds_on) {
 }
 
 int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
-	bool mpx_on = (runtime->mpx_device.initialized == 1);
-	bool rds_on = (runtime->rds_device.initialized == 1);
-
 	float output[BUFFER_SIZE];
 
-	if(config.calibration != 0) {
-		int pulse_error;
+	int pulse_error;
 
+	if(config.calibration != 0) {
 		while(to_run) {
 			for (int i = 0; i < BUFFER_SIZE; i++) {
 				float sample = get_oscillator_sin_sample(&runtime->osc);
-				if(config.calibration == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f; // Sine wave to square wave filter
+				if(config.calibration == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f; // Sine wave to square wave filter, 50% duty cycle
 				output[i] = sample*config.master_volume;
 			}
 			if((pulse_error = write_PulseOutputDevice(&runtime->output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
-				if(pulse_error == -1) fprintf(stderr, "Main PulseOutputDevice reported as uninitialized.");
-				else fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
+				fprintf(stderr, "Error writing to output device: %s\n", pa_strerror(pulse_error));
 				to_run = 0;
 				break;
 			}
@@ -168,11 +171,12 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 		return 0;
 	}
 
-	int pulse_error;
-
 	float audio_stereo_input[BUFFER_SIZE*2]; // Stereo
 
 	float mpx_in[BUFFER_SIZE] = {0};
+
+	bool mpx_on = config.options.mpx_on;
+	bool rds_on = config.options.rds_on;
 
 	while (to_run) {
 		if((pulse_error = read_PulseInputDevice(&runtime->input_device, audio_stereo_input, sizeof(audio_stereo_input)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
@@ -376,7 +380,7 @@ int parse_config(FM95_Config* config, FM95_DeviceNames* dv) {
 	return ini_parse(config->ini_config_path, &config_handler, &ctx);
 }
 
-int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM95_Config config, bool mpx_on, bool rds_on) {
+int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM95_Config config) {
 	pa_buffer_attr input_buffer_atr = {
 		.maxlength = buffer_maxlength,
 		.fragsize = buffer_tlength_fragsize
@@ -396,7 +400,7 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 		return 1;
 	}
 
-	if(mpx_on) {
+	if(config.options.mpx_on) {
 		printf("Connecting to MPX device... (%s)\n", dv_names.mpx);
 
 		opentime_pulse_error = init_PulseInputDevice(&runtime->mpx_device, config.sample_rate, 1, "fm95", "MPX Input", dv_names.mpx, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
@@ -406,14 +410,14 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 			return 1;
 		}
 	}
-	if(rds_on) {
+	if(config.options.rds_on) {
 		printf("Connecting to RDS95 device... (%s)\n", dv_names.rds);
 
 		opentime_pulse_error = init_PulseInputDevice(&runtime->rds_device, config.sample_rate, config.rds_streams, "fm95", "RDS95 Input", dv_names.rds, &input_buffer_atr, PA_SAMPLE_FLOAT32NE);
 		if (opentime_pulse_error) {
 			fprintf(stderr, "Error: cannot open RDS device: %s\n", pa_strerror(opentime_pulse_error));
 			free_PulseDevice(&runtime->input_device);
-			if(mpx_on) free_PulseDevice(&runtime->mpx_device);
+			if(config.options.mpx_on) free_PulseDevice(&runtime->mpx_device);
 			return 1;
 		}
 		runtime->rds_in = malloc(sizeof(float) * BUFFER_SIZE * config.rds_streams);
@@ -425,14 +429,14 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 	if (opentime_pulse_error) {
 		fprintf(stderr, "Error: cannot open output device: %s\n", pa_strerror(opentime_pulse_error));
 		free_PulseDevice(&runtime->input_device);
-		if(mpx_on) free_PulseDevice(&runtime->mpx_device);
-		if(rds_on) free_PulseDevice(&runtime->rds_device);
+		if(config.options.mpx_on) free_PulseDevice(&runtime->mpx_device);
+		if(config.options.rds_on) free_PulseDevice(&runtime->rds_device);
 		return 1;
 	}
 	return 0;
 }
 
-void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
+void init_runtime(FM95_Runtime* runtime, const FM95_Config config) {
 	if(config.calibration != 0) {
 		init_oscillator(&runtime->osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
 		return;
@@ -465,7 +469,7 @@ void init_runtime(FM95_Runtime* runtime, FM95_Config config, bool rds_on) {
 		runtime->agc.currentGain = last_gain;
 	}
 
-	if(rds_on) memset(runtime->rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
+	if(config.options.rds_on) memset(runtime->rds_in, 0, sizeof(float) * BUFFER_SIZE * config.rds_streams);
 }
 
 int main(int argc, char **argv) {
@@ -543,17 +547,17 @@ int main(int argc, char **argv) {
 	FM95_Runtime runtime;
 	memset(&runtime, 0, sizeof(runtime));
 
-	bool mpx_on = (strlen(dv_names.mpx) != 0);
-	bool rds_on = (strlen(dv_names.rds) != 0 && config.rds_streams != 0);
+	config.options.mpx_on = (strlen(dv_names.mpx) != 0);
+	config.options.rds_on = (strlen(dv_names.rds) != 0 && config.rds_streams != 0);
 
-	err = setup_audio(&runtime, dv_names, config, mpx_on, rds_on);
+	err = setup_audio(&runtime, dv_names, config);
 	if(err != 0) return err;
 
 	signal(SIGINT, stop);
 	signal(SIGTERM, stop);
 	signal(SIGHUP, reload);
 
-	init_runtime(&runtime, config, rds_on);
+	init_runtime(&runtime, config);
 
 	int ret;
 	while(true) {
@@ -572,13 +576,13 @@ int main(int argc, char **argv) {
 			if(config.rds_streams != old_streams) printf("Warning! change of rds_streams requires a restart, not a reload.\n");
 			config.rds_streams = old_streams;
 			cleanup_runtime(&runtime, config);
-			init_runtime(&runtime, config, rds_on);
+			init_runtime(&runtime, config);
 			to_run = 1;
 			continue;
 		}
 		printf("Cleaning up...\n");
 		cleanup_runtime(&runtime, config);
-		cleanup_audio_runtime(&runtime, mpx_on, rds_on);
+		cleanup_audio_runtime(&runtime, config.options);
 		break;
 	}
 	return ret;

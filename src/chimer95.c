@@ -14,11 +14,11 @@
 #include "../dsp/oscillator.h"
 
 #define DEFAULT_FREQ 1000.0f
-#define DEFAULT_SAMPLE_RATE 4000
+#define DEFAULT_SAMPLE_RATE 8000
 
 #define OUTPUT_DEVICE "FM_MPX"
 
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 512
 
 #include "../io/audio.h"
 
