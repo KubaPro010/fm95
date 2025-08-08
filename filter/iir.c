@@ -15,17 +15,24 @@ inline float apply_preemphasis(ResistorCapacitor *filter, float sample) {
 	return out;
 }
 
-void tilt_init(TiltCorrectionFilter* filter, float correction_strength) {
-    filter->tilt = correction_strength;
-    filter->prev_in = 0.0f;
-    filter->prev_out = 0.0f;
+void tilt_init(TiltCorrectionFilter* f, float correction_strength, float sr) {
+    float cutoff = 1000.0f; // fixed split point
+
+    // one-pole lowpass setup
+    float alpha = expf(-2.0f * (float)M_PI * cutoff / sr);
+    f->a1 = alpha;
+    f->a0 = 1.0f - alpha;
+    f->lp = 0.0f;
+
+    // simple low/high gains from tilt
+    float t = (tilt < -1.0f) ? -1.0f : (tilt > 1.0f ? 1.0f : tilt);
+    f->low_gain  = 1.0f - t;
+    f->high_gain = 1.0f + t;
 }
 
-float tilt(TiltCorrectionFilter* filter, float input) {
-    float out = input + filter->tilt * (input - filter->prev_in);
-
-    filter->prev_in = input;
-    filter->prev_out = out;
-
-    return out;
+float tilt(TiltCorrectionFilter* f, float in) {
+    // lowpass
+    f->lp = f->a0 * in + f->a1 * f->lp;
+    float hp = in - f->lp;
+    return f->lp * f->low_gain + hp * f->high_gain;
 }

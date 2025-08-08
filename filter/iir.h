@@ -14,10 +14,11 @@ void init_preemphasis(ResistorCapacitor *filter, float tau, float sample_rate, f
 float apply_preemphasis(ResistorCapacitor *filter, float sample);
 
 typedef struct {
-    float tilt;     // Tilt amount (-1.0 to +1.0 typical)
-    float prev_in;  // Previous input sample
-    float prev_out; // Previous output sample
+    float a0, a1;     // lowpass coeffs
+    float lp;         // lowpass state
+    float low_gain;   // gain for low frequencies
+    float high_gain;  // gain for high frequencies
 } TiltCorrectionFilter;
 
-void tilt_init(TiltCorrectionFilter* filter, float alpha);
-float tilt(TiltCorrectionFilter *filter, float input);
+void tilt_init(TiltCorrectionFilter* f, float correction_strength, float sr);
+float tilt(TiltCorrectionFilter *f, float in);
