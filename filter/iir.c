@@ -19,11 +19,11 @@ void tilt_init(TiltCorrectionFilter* filter, float alpha) {
     // Leaky integrator for DC estimation: dc[n] = alpha*dc[n-1] + (1-alpha)*x[n]
     // Tilt correction: y[n] = x[n] - dc[n]
     
-    if (correction_strength >= 1.0f) {
-        correction_strength = 0.99999f;
+    if (alpha >= 1.0f) {
+        alpha = 0.99999f;
     }
-    if (correction_strength < 0.0f) {
-        correction_strength = 0.0f;
+    if (alpha < 0.0f) {
+        alpha = 0.0f;
     }
     
     filter->alpha = alpha;  // Leaky integrator coefficient
