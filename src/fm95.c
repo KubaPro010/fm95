@@ -51,7 +51,7 @@ typedef struct
 
 	float clipper_threshold;
 	uint8_t preemphasis;
-	int8_t tilt;
+	float tilt;
 	uint8_t calibration;
 	float mpx_power;
 	float mpx_deviation;
@@ -329,7 +329,7 @@ static int config_handler(void* user, const char* section, const char* name, con
     } else if (MATCH("fm95", "deviation")) {
         pconfig->audio_deviation = strtof(value, NULL);
 	} else if(MATCH("fm95", "tilt")) {
-		pconfig->tilt = strtof(value, NULL) * 127.0f;
+		pconfig->tilt = strtof(value, NULL);
 	} else if(MATCH("fm95", "bs412_max")) {
 		pconfig->bs412_max = strtof(value, NULL);
 	} else if(MATCH("fm95", "agc_target")) {
@@ -459,7 +459,7 @@ void init_runtime(FM95_Runtime* runtime, const FM95_Config config) {
 	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
 	runtime->bs412.gain = last_gain;
 
-	if(config.tilt != 0) tilt_init(&runtime->tilter, (float)config.tilt / 127.0f);
+	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt, config.sample_rate);
 
 	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, config.volumes.audio, config.volumes.pilot);
 
