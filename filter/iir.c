@@ -16,26 +16,21 @@ inline float apply_preemphasis(ResistorCapacitor *filter, float sample) {
 }
 
 void tilt_init(TiltCorrectionFilter* filter, float alpha) {
-    // Leaky integrator for DC estimation: dc[n] = alpha*dc[n-1] + (1-alpha)*x[n]
-    // Tilt correction: y[n] = x[n] - dc[n]
-    
-    if (alpha >= 1.0f) {
-        alpha = 0.99999f;
-    }
-    if (alpha < 0.0f) {
-        alpha = 0.0f;
-    }
-    
-    filter->alpha = alpha;  // Leaky integrator coefficient
-    filter->dc_estimate = 0.0f;          // Running DC estimate
+    // Allow correction_strength > 1.0 for aggressive correction
+    filter->alpha = 0.9999f;  // Fixed time constant for DC tracking
+    filter->gain = alpha;  // Separate gain parameter
+    filter->dc_estimate = 0.0f;
 }
 
-float tilt(TiltCorrectionFilter* filter, float input) {
-    // Update DC estimate using leaky integrator
+float tilt_correct(TiltCorrectionFilter* filter, float input) {
+    // Track the baseline/DC level
     filter->dc_estimate = filter->alpha * filter->dc_estimate + (1.0f - filter->alpha) * input;
     
-    // ADD the DC estimate instead of subtracting
-    float output = input + (input - filter->dc_estimate) * correction_factor;
+    // Calculate the deviation from baseline
+    float deviation = input - filter->dc_estimate;
+    
+    // Apply correction gain and add back to baseline
+    float output = filter->dc_estimate + deviation * filter->gain;
     
     return output;
 }
