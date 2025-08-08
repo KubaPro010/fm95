@@ -15,8 +15,7 @@ float apply_preemphasis(ResistorCapacitor *filter, float sample);
 
 typedef struct {
     float alpha;
-	float y_prev;
-	float x_prev;
+	float dc_estimate;
 } TiltCorrectionFilter;
 
 void tilt_init(TiltCorrectionFilter* filter, float alpha);
