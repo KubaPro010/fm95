@@ -34,8 +34,8 @@ float tilt(TiltCorrectionFilter* filter, float input) {
     // Update DC estimate using leaky integrator
     filter->dc_estimate = filter->alpha * filter->dc_estimate + (1.0f - filter->alpha) * input;
     
-    // Remove estimated DC component
-    float output = input - filter->dc_estimate;
+    // ADD the DC estimate instead of subtracting
+    float output = input + (input - filter->dc_estimate) * correction_factor;
     
     return output;
 }
