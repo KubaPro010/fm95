@@ -21,5 +21,5 @@ typedef struct {
     float y_prev;
 } TiltCorrectionFilter;
 
-void tilt_init(TiltCorrectionFilter *filter, float correction_strength);
-float tilt(TiltCorrectionFilter *filter, float input_sample);
+void tilt_init(TiltCorrectionFilter* filter, float cutoff_freq, float sample_rate);
+float tilt(TiltCorrectionFilter *filter, float input);
