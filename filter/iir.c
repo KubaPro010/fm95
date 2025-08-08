@@ -15,22 +15,22 @@ inline float apply_preemphasis(ResistorCapacitor *filter, float sample) {
 	return out;
 }
 
-void tilt_init(TiltCorrectionFilter* filter, float alpha) {
-    // Allow correction_strength > 1.0 for aggressive correction
-    filter->alpha = 0.9999f;  // Fixed time constant for DC tracking
-    filter->gain = alpha;  // Separate gain parameter
-    filter->dc_estimate = 0.0f;
+void tilt_init(TiltCorrectionFilter* filter, float correction_strength) {
+    filter->alpha = 0.9999f;
+    filter->gain = correction_strength;  // Can be > 1.0
+    filter->x_prev = 0.0f;
+    filter->y_prev = 0.0f;
 }
 
 float tilt(TiltCorrectionFilter* filter, float input) {
-    // Track the baseline/DC level
-    filter->dc_estimate = filter->alpha * filter->dc_estimate + (1.0f - filter->alpha) * input;
+    // High-pass filter
+    float hp_out = filter->alpha * (filter->y_prev + input - filter->x_prev);
     
-    // Calculate the deviation from baseline
-    float deviation = input - filter->dc_estimate;
+    // Apply gain and add back to original
+    float output = input + filter->gain * hp_out;
     
-    // Apply correction gain and add back to baseline
-    float output = filter->dc_estimate + deviation * filter->gain;
+    filter->x_prev = input;
+    filter->y_prev = hp_out;
     
     return output;
 }
