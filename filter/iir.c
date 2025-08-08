@@ -16,16 +16,16 @@ inline float apply_preemphasis(ResistorCapacitor *filter, float sample) {
 }
 
 void tilt_init(TiltCorrectionFilter* filter, float correction_strength) {
-    f->tilt = correction_strength;
-    f->prev_in = 0.0f;
-    f->prev_out = 0.0f;
+    filter->tilt = correction_strength;
+    filter->prev_in = 0.0f;
+    filter->prev_out = 0.0f;
 }
 
 float tilt(TiltCorrectionFilter* filter, float input) {
-    float out = input + f->tilt * (input - f->prev_in);
+    float out = input + f->tilt * (input - filter->prev_in);
 
-    f->prev_in = input;
-    f->prev_out = out;
+    filter->prev_in = input;
+    filter->prev_out = out;
 
     return out;
 }
