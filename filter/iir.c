@@ -15,19 +15,14 @@ inline float apply_preemphasis(ResistorCapacitor *filter, float sample) {
 	return out;
 }
 
-void tilt_init(TiltCorrectionFilter* filter, float cutoff_freq, float sample_rate) {
-    // High-pass filter: H(z) = (1 - z^-1) / (1 - α*z^-1)
-    float dt = 1.0f / sample_rate;
-    float tau = 1.0f / (2.0f * M_PI * cutoff_freq);
-    float alpha = tau / (tau + dt);
-    
-    filter->alpha = alpha;
+void tilt_init(TiltCorrectionFilter* filter, float alpha) {
+    filter->alpha = alpha;  // 0.95 to 0.99 typically
     filter->x_prev = 0.0f;
     filter->y_prev = 0.0f;
 }
 
 float tilt(TiltCorrectionFilter* filter, float input) {
-    // High-pass filter: y[n] = α*y[n-1] + (x[n] - x[n-1])
+    // High-pass: y[n] = α*y[n-1] + (x[n] - x[n-1])
     float output = filter->alpha * filter->y_prev + (input - filter->x_prev);
     
     filter->x_prev = input;
