@@ -25,7 +25,7 @@ void tilt_init(TiltCorrectionFilter* f, float correction_strength, float sr) {
     f->lp = 0.0f;
 
     // simple low/high gains from tilt
-    float t = (tilt < -1.0f) ? -1.0f : (tilt > 1.0f ? 1.0f : tilt);
+    float t = (correction_strength < -1.0f) ? -1.0f : (correction_strength > 1.0f ? 1.0f : correction_strength);
     f->low_gain  = 1.0f - t;
     f->high_gain = 1.0f + t;
 }
