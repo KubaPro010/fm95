@@ -22,7 +22,7 @@ void tilt_init(TiltCorrectionFilter* filter, float correction_strength) {
 }
 
 float tilt(TiltCorrectionFilter* filter, float input) {
-    float out = input + f->tilt * (input - filter->prev_in);
+    float out = input + filter->tilt * (input - filter->prev_in);
 
     filter->prev_in = input;
     filter->prev_out = out;
