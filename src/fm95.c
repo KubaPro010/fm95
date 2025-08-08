@@ -163,6 +163,7 @@ int run_fm95(const FM95_Config config, FM95_Runtime* runtime) {
 			for (int i = 0; i < BUFFER_SIZE; i++) {
 				float sample = get_oscillator_sin_sample(&runtime->osc);
 				if(config.calibration == 2) sample = (sample > 0.0f) ? 1.0f : -1.0f; // Sine wave to square wave filter, 50% duty cycle
+				if(config.tilt != 0) sample = tilt(&runtime->tilter, sample);
 				output[i] = sample*config.master_volume;
 			}
 			if((pulse_error = write_PulseOutputDevice(&runtime->output_device, output, sizeof(output)))) { // get output from the function and assign it into pulse_error, this comment to avoid confusion
@@ -438,6 +439,8 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 }
 
 void init_runtime(FM95_Runtime* runtime, const FM95_Config config) {
+	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt, config.sample_rate);
+	
 	if(config.calibration != 0) {
 		init_oscillator(&runtime->osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
 		return;
@@ -458,8 +461,6 @@ void init_runtime(FM95_Runtime* runtime, const FM95_Config config) {
 	if(runtime->bs412.sample_rate == config.sample_rate) last_gain = runtime->bs412.gain;
 	init_bs412(&runtime->bs412, config.mpx_deviation, config.mpx_power, config.bs412_attack, config.bs412_release, config.bs412_max, config.sample_rate);
 	runtime->bs412.gain = last_gain;
-
-	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt, config.sample_rate);
 
 	init_stereo_encoder(&runtime->stencode, 4.0f, &runtime->osc, config.volumes.audio, config.volumes.pilot);
 
