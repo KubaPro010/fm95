@@ -22,7 +22,7 @@ void tilt_init(TiltCorrectionFilter* filter, float alpha) {
     filter->dc_estimate = 0.0f;
 }
 
-float tilt_correct(TiltCorrectionFilter* filter, float input) {
+float tilt(TiltCorrectionFilter* filter, float input) {
     // Track the baseline/DC level
     filter->dc_estimate = filter->alpha * filter->dc_estimate + (1.0f - filter->alpha) * input;
     
