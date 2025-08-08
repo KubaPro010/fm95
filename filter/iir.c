@@ -30,7 +30,7 @@ void tilt_init(TiltCorrectionFilter* filter, float alpha) {
     filter->dc_estimate = 0.0f;          // Running DC estimate
 }
 
-float tilt_correct(TiltCorrectionFilter* filter, float input) {
+float tilt(TiltCorrectionFilter* filter, float input) {
     // Update DC estimate using leaky integrator
     filter->dc_estimate = filter->alpha * filter->dc_estimate + (1.0f - filter->alpha) * input;
     
