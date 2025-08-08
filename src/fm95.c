@@ -439,7 +439,7 @@ int setup_audio(FM95_Runtime* runtime, const FM95_DeviceNames dv_names, const FM
 }
 
 void init_runtime(FM95_Runtime* runtime, const FM95_Config config) {
-	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt, config.sample_rate);
+	if(config.tilt != 0) tilt_init(&runtime->tilter, config.tilt);
 	
 	if(config.calibration != 0) {
 		init_oscillator(&runtime->osc, (config.calibration == 2) ? 60 : 400, config.sample_rate);
